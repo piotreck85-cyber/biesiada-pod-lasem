@@ -60,6 +60,7 @@ class EventIn(BaseModel):
     time: Optional[str] = ""
     venue: Optional[str] = ""
     notes: Optional[str] = ""
+    category: Optional[str] = ""
     revenue: float = 0.0
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
@@ -69,6 +70,7 @@ class TemplateIn(BaseModel):
     name: str
     venue: Optional[str] = ""
     notes: Optional[str] = ""
+    category: Optional[str] = ""
     revenue: float = 0.0
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
@@ -353,6 +355,74 @@ async def export_ics(user=Depends(current_user)):
     return PlainTextResponse("\r\n".join(lines), media_type="text/calendar")
 
 # ---------- Stats ----------
+@api.get("/staff/wages")
+async def staff_wages(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+    q = {"owner_id": user["id"]}
+    if year and month:
+        prefix = f"{year:04d}-{month:02d}"
+        q["date"] = {"$regex": f"^{prefix}"}
+    events = await db.events.find(q, {"_id": 0}).to_list(5000)
+    staff_list = await db.staff.find({"owner_id": user["id"]}, {"_id": 0}).to_list(500)
+    staff_map = {s["id"]: s for s in staff_list}
+
+    totals: dict = {}
+    for ev in events:
+        for sh in ev.get("shifts", []):
+            sid = sh.get("staff_id")
+            s = staff_map.get(sid)
+            if not s: continue
+            hours = float(sh.get("hours", 0))
+            amount = hours * float(s.get("hourly_rate", 0))
+            row = totals.setdefault(sid, {
+                "staff_id": sid, "name": s.get("name", ""), "role": s.get("role", ""),
+                "hourly_rate": float(s.get("hourly_rate", 0)),
+                "hours": 0.0, "amount": 0.0, "shifts": 0,
+            })
+            row["hours"] += hours
+            row["amount"] += amount
+            row["shifts"] += 1
+    result = list(totals.values())
+    for r in result:
+        r["hours"] = round(r["hours"], 2)
+        r["amount"] = round(r["amount"], 2)
+    result.sort(key=lambda x: -x["amount"])
+    return {
+        "total_hours": round(sum(r["hours"] for r in result), 2),
+        "total_amount": round(sum(r["amount"] for r in result), 2),
+        "staff": result,
+    }
+
+@api.get("/schedule")
+async def schedule(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+    """Return per-date schedule with staff assignments (for grafik view)."""
+    q = {"owner_id": user["id"]}
+    if year and month:
+        prefix = f"{year:04d}-{month:02d}"
+        q["date"] = {"$regex": f"^{prefix}"}
+    events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)
+    staff_list = await db.staff.find({"owner_id": user["id"]}, {"_id": 0}).to_list(500)
+    staff_map = {s["id"]: s for s in staff_list}
+    by_date: dict = {}
+    for ev in events:
+        d = ev.get("date")
+        entry = by_date.setdefault(d, {"date": d, "events": []})
+        entry["events"].append({
+            "id": ev["id"], "name": ev.get("name", ""), "time": ev.get("time", ""),
+            "venue": ev.get("venue", ""), "category": ev.get("category", ""),
+            "staff": [
+                {
+                    "staff_id": sh["staff_id"],
+                    "name": staff_map.get(sh["staff_id"], {}).get("name", "?"),
+                    "role": staff_map.get(sh["staff_id"], {}).get("role", ""),
+                    "hours": float(sh.get("hours", 0)),
+                    "amount": round(float(sh.get("hours", 0)) * float(staff_map.get(sh["staff_id"], {}).get("hourly_rate", 0)), 2),
+                }
+                for sh in ev.get("shifts", [])
+            ],
+        })
+    return sorted(by_date.values(), key=lambda x: x["date"])
+
+
 @api.get("/stats")
 async def stats(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": user["id"]}

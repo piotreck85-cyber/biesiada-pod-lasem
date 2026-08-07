@@ -5,8 +5,9 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme, MONTHS_PL, DAYS_PL, formatPLN } from "@/src/theme";
+import { theme, MONTHS_PL, DAYS_PL, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
+import { categoryLabel } from "@/src/categories";
 
 function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 // return weekday index Mon=0..Sun=6 for a given date (m: 0-11)
@@ -26,13 +27,16 @@ export default function Kalendarz() {
   const [month, setMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState<string>(fmt(today.getFullYear(), today.getMonth(), today.getDate()));
   const [events, setEvents] = useState<any[]>([]);
+  const [staffAll, setStaffAll] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [mode, setMode] = useState<"events" | "schedule">("events");
 
   const load = useCallback(async () => {
     try {
-      const res: any = await api.listEvents(year, month + 1);
-      setEvents(res);
+      const [evs, staff] = await Promise.all([api.listEvents(year, month + 1), api.listStaff()]);
+      setEvents(evs as any[]);
+      setStaffAll(staff as any[]);
     } catch {}
   }, [year, month]);
 
@@ -46,6 +50,29 @@ export default function Kalendarz() {
   }, [events]);
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
+
+  const staffMap = useMemo(() => {
+    const m: Record<string, any> = {};
+    staffAll.forEach(s => m[s.id] = s);
+    return m;
+  }, [staffAll]);
+
+  // Aggregated shifts for the selected day across all events, per staff
+  const dayShifts = useMemo(() => {
+    const map: Record<string, { staff: any; hours: number; amount: number; eventNames: string[] }> = {};
+    dayEvents.forEach(ev => {
+      (ev.shifts || []).forEach((sh: any) => {
+        const s = staffMap[sh.staff_id];
+        if (!s) return;
+        const row = map[sh.staff_id] || { staff: s, hours: 0, amount: 0, eventNames: [] };
+        row.hours += Number(sh.hours) || 0;
+        row.amount += (Number(sh.hours) || 0) * (Number(s.hourly_rate) || 0);
+        row.eventNames.push(ev.name);
+        map[sh.staff_id] = row;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.hours - a.hours);
+  }, [dayEvents, staffMap]);
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear(year - 1); }
@@ -74,6 +101,24 @@ export default function Kalendarz() {
           <Text style={s.monthTitle} testID="cal-month-label">{MONTHS_PL[month]} {year}</Text>
           <Pressable testID="cal-next-month" onPress={nextMonth} style={s.navBtn} hitSlop={12}>
             <Feather name="chevron-right" size={20} color={theme.color.onSurface} />
+          </Pressable>
+        </View>
+        <View style={s.modeToggle}>
+          <Pressable
+            testID="mode-events"
+            onPress={() => setMode("events")}
+            style={[s.modeBtn, mode === "events" && s.modeBtnActive]}
+          >
+            <Feather name="star" size={13} color={mode === "events" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+            <Text style={[s.modeText, mode === "events" && s.modeTextActive]}>Imprezy</Text>
+          </Pressable>
+          <Pressable
+            testID="mode-schedule"
+            onPress={() => setMode("schedule")}
+            style={[s.modeBtn, mode === "schedule" && s.modeBtnActive]}
+          >
+            <Feather name="users" size={13} color={mode === "schedule" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+            <Text style={[s.modeText, mode === "schedule" && s.modeTextActive]}>Grafik</Text>
           </Pressable>
         </View>
       </View>
@@ -110,39 +155,78 @@ export default function Kalendarz() {
         </View>
 
         <View style={s.listSection}>
-          <Text style={s.sectionTitle}>Wydarzenia — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}</Text>
+          <Text style={s.sectionTitle}>
+            {mode === "events" ? "Wydarzenia" : "Grafik pracowników"} — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
+          </Text>
           {loading ? (
             <ActivityIndicator color={theme.color.brand} style={{ marginTop: 24 }} />
-          ) : dayEvents.length === 0 ? (
-            <View style={s.emptyBox}>
-              <Feather name="calendar" size={32} color={theme.color.onSurfaceSecondary} />
-              <Text style={s.emptyText}>Brak wydarzeń tego dnia</Text>
-              <Pressable
-                testID="cal-add-event"
-                style={s.emptyBtn}
-                onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } })}
-              >
-                <Text style={s.emptyBtnText}>+ Dodaj imprezę</Text>
-              </Pressable>
-            </View>
+          ) : mode === "events" ? (
+            dayEvents.length === 0 ? (
+              <View style={s.emptyBox}>
+                <Feather name="calendar" size={32} color={theme.color.onSurfaceSecondary} />
+                <Text style={s.emptyText}>Brak wydarzeń tego dnia</Text>
+                <Pressable
+                  testID="cal-add-event"
+                  style={s.emptyBtn}
+                  onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } })}
+                >
+                  <Text style={s.emptyBtnText}>+ Dodaj imprezę</Text>
+                </Pressable>
+              </View>
+            ) : (
+              dayEvents.map(ev => (
+                <Pressable
+                  key={ev.id}
+                  testID={`cal-event-${ev.id}`}
+                  style={s.eventCard}
+                  onPress={() => router.push({ pathname: "/event/[id]", params: { id: ev.id } })}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.evName}>{ev.name}</Text>
+                    <Text style={s.evMeta}>{ev.time || "—"}  ·  {ev.venue || "Bez lokalizacji"}</Text>
+                    {ev.category ? <Text style={s.evCat}>{categoryLabel(ev.category)}</Text> : null}
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.evProfit}>{formatPLN(ev.profit)}</Text>
+                    <Text style={s.evSub}>zysk</Text>
+                  </View>
+                </Pressable>
+              ))
+            )
           ) : (
-            dayEvents.map(ev => (
-              <Pressable
-                key={ev.id}
-                testID={`cal-event-${ev.id}`}
-                style={s.eventCard}
-                onPress={() => router.push({ pathname: "/event/[id]", params: { id: ev.id } })}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={s.evName}>{ev.name}</Text>
-                  <Text style={s.evMeta}>{ev.time || "—"}  ·  {ev.venue || "Bez lokalizacji"}</Text>
+            dayShifts.length === 0 ? (
+              <View style={s.emptyBox}>
+                <Feather name="users" size={32} color={theme.color.onSurfaceSecondary} />
+                <Text style={s.emptyText}>Brak pracowników w grafiku tego dnia</Text>
+              </View>
+            ) : (
+              <>
+                {dayShifts.map(row => (
+                  <View key={row.staff.id} style={s.shiftCard} testID={`grafik-${row.staff.id}`}>
+                    <View style={s.avatarCircle}><Text style={s.avatarText}>{initials(row.staff.name)}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.evName}>{row.staff.name}</Text>
+                      <Text style={s.evMeta} numberOfLines={1}>{row.staff.role || "—"}  ·  {row.eventNames.join(", ")}</Text>
+                    </View>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={s.evProfit}>{row.hours.toFixed(1)} h</Text>
+                      <Text style={s.evSub}>{formatPLN(row.amount)}</Text>
+                    </View>
+                  </View>
+                ))}
+                <View style={s.dayTotal}>
+                  <Text style={s.dayTotalLabel}>Razem dnia</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.dayTotalHours}>
+                      {dayShifts.reduce((sum, r) => sum + r.hours, 0).toFixed(1)} h
+                    </Text>
+                    <Text style={s.dayTotalAmount}>
+                      {formatPLN(dayShifts.reduce((sum, r) => sum + r.amount, 0))}
+                    </Text>
+                  </View>
                 </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={s.evProfit}>{formatPLN(ev.profit)}</Text>
-                  <Text style={s.evSub}>zysk</Text>
-                </View>
-              </Pressable>
-            ))
+              </>
+            )
           )}
         </View>
       </ScrollView>
@@ -189,6 +273,36 @@ const s = StyleSheet.create({
   },
   evName: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700", marginBottom: 4 },
   evMeta: { color: theme.color.onSurfaceSecondary, fontSize: 13 },
+  evCat: { color: theme.color.brand, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginTop: 4 },
   evProfit: { color: theme.color.brand, fontSize: 16, fontWeight: "700" },
   evSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
+  modeToggle: {
+    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary, borderRadius: 999,
+    padding: 4, marginTop: 12, borderWidth: 1, borderColor: theme.color.border,
+  },
+  modeBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: 999,
+  },
+  modeBtnActive: { backgroundColor: theme.color.brand },
+  modeText: { color: theme.color.onSurfaceSecondary, fontSize: 13, fontWeight: "700" },
+  modeTextActive: { color: theme.color.onBrand },
+  shiftCard: {
+    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
+    padding: 14, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,
+    alignItems: "center", gap: 12,
+  },
+  avatarCircle: {
+    width: 40, height: 40, borderRadius: 999, backgroundColor: theme.color.brandTertiary,
+    alignItems: "center", justifyContent: "center",
+  },
+  avatarText: { color: theme.color.onBrandTertiary, fontWeight: "700", fontSize: 13 },
+  dayTotal: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    marginTop: 8, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: theme.color.brandTertiary,
+    backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  dayTotalLabel: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
+  dayTotalHours: { color: theme.color.brand, fontSize: 18, fontWeight: "800" },
+  dayTotalAmount: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
 });

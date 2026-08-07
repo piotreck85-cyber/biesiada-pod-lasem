@@ -11,6 +11,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
+import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -39,6 +40,8 @@ export default function EventDetail() {
   const [staffAll, setStaffAll] = useState<any[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState("");
+  const [category, setCategory] = useState<string>("");
+  const [catPickerOpen, setCatPickerOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [tplPickerOpen, setTplPickerOpen] = useState(false);
 
@@ -53,6 +56,7 @@ export default function EventDetail() {
           setNotes(ev.notes || ""); setRevenue(String(ev.revenue || ""));
           setCosts(ev.costs || []); setShifts(ev.shifts || []);
           setImageUrl(ev.image_url || "");
+          setCategory(ev.category || "");
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -81,6 +85,7 @@ export default function EventDetail() {
     setSaving(true);
     const body = {
       name: name.trim(), date, time, venue, notes,
+      category,
       revenue: revenueNum,
       costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
       shifts: shifts.map(sh => ({ staff_id: sh.staff_id, hours: Number(sh.hours) || 0 })),
@@ -134,7 +139,7 @@ export default function EventDetail() {
     if (!name.trim()) return;
     try {
       await api.createTemplate({
-        name: name.trim(), venue, notes,
+        name: name.trim(), venue, notes, category,
         revenue: revenueNum,
         costs, shifts, image_url: imageUrl,
       });
@@ -152,6 +157,7 @@ export default function EventDetail() {
     setCosts(tpl.costs || []);
     setShifts(tpl.shifts || []);
     setImageUrl(tpl.image_url || "");
+    setCategory(tpl.category || "");
     setTplPickerOpen(false);
   };
 
@@ -237,6 +243,14 @@ export default function EventDetail() {
             </View>
             <Field label="Miejsce">
               <TextInput testID="event-venue-input" value={venue} onChangeText={setVenue} placeholder="Sala Bankietowa" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+            </Field>
+            <Field label="Kategoria">
+              <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                <Text style={{ color: category ? theme.color.onSurface : theme.color.onSurfaceSecondary, fontSize: 15 }}>
+                  {category ? categoryLabel(category) : "Wybierz kategorię"}
+                </Text>
+                <Feather name="chevron-down" size={18} color={theme.color.onSurfaceSecondary} />
+              </Pressable>
             </Field>
             <Field label="Notatki">
               <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="..." placeholderTextColor={theme.color.onSurfaceSecondary} style={[s.input, { height: 80, textAlignVertical: "top" }]} multiline />
@@ -383,6 +397,41 @@ export default function EventDetail() {
           </ScrollView>
         </View>
       </Modal>
+
+      <Modal visible={catPickerOpen} transparent animationType="slide" onRequestClose={() => setCatPickerOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setCatPickerOpen(false)} />
+        <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={s.grip} />
+          <Text style={s.sheetTitle}>Kategoria imprezy</Text>
+          <ScrollView>
+            <Pressable testID="cat-clear" style={s.pickerRow} onPress={() => { setCategory(""); setCatPickerOpen(false); }}>
+              <View style={s.avatar}><Feather name="x" size={16} color={theme.color.onBrandTertiary} /></View>
+              <Text style={[s.shiftName, { flex: 1 }]}>Bez kategorii</Text>
+              {!category && <Feather name="check" size={18} color={theme.color.brand} />}
+            </Pressable>
+            {CATEGORY_GROUPS.map(g => (
+              <View key={g.key} style={{ marginTop: 10 }}>
+                <Text style={s.groupHeader}>{g.key}</Text>
+                {g.items.map(it => {
+                  const sel = category === it.id;
+                  return (
+                    <Pressable
+                      key={it.id}
+                      testID={`cat-${it.id}`}
+                      style={[s.pickerRow, sel && { backgroundColor: "rgba(212,175,55,0.08)" }]}
+                      onPress={() => { setCategory(it.id); setCatPickerOpen(false); }}
+                    >
+                      <View style={s.avatar}><Feather name="tag" size={14} color={theme.color.onBrandTertiary} /></View>
+                      <Text style={[s.shiftName, { flex: 1 }]}>{it.label}</Text>
+                      {sel && <Feather name="check" size={18} color={theme.color.brand} />}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -480,5 +529,9 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
     paddingVertical: 12, marginTop: 14, borderRadius: 12, borderWidth: 1,
     borderColor: theme.color.brandTertiary,
+  },
+  groupHeader: {
+    color: theme.color.brand, fontSize: 11, letterSpacing: 2, fontWeight: "800",
+    marginTop: 4, marginBottom: 4, paddingHorizontal: 4,
   },
 });

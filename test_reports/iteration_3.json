@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 3 verified end-to-end. Backend: 9/9 new pytest cases pass in /app/backend/tests/test_iteration3.py (staff/wages math incl. month filter + all-time + empty month, /schedule per-date grouping with staff name/role/hours/amount, event & template category roundtrip, no-category default). Combined regression 32/32 pass (iter1 14 + iter2 9 + iter3 9). Frontend (mobile 375x667, logged in as test@eventa.pl): 4 filter chips render (all/Dorośli/Dzieci/none) — Dorośli→1 card (Wesele), Dzieci→0, Bez kategorii→1 (Party 22:00), All→2; category badge 'Dorośli · Okolicznościowe' visible on card. Event Kategoria button opens bottom sheet grouped 'Dorośli' + 'Dzieci' with all 8 categories + Bez kategorii; tapping updates button label. Kalendarz Imprezy/Grafik toggle works; on 2026-05-15 Grafik shows 'Jan Kowalski · Barman · Wesele · 5.0 h · 250,00 zł' + 'Razem dnia 5.0 h / 250,00 zł'. Statystyki (Maj 2026) shows 'Wypłaty pracowników' section with wage row for Jan Kowalski + 'Suma wypłat' total. All iter1/iter2 UI (login, tabs, CSV/iCal/JSON backup buttons) still work.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "imprezy", "issues": ["Filter chip testIDs use raw Polish label as id ('filter-chip-Dorośli', 'filter-chip-Dzieci') mixed with slugified ids ('filter-chip-all', 'filter-chip-none'). Cosmetic — works, but inconsistent. Recommend slugifying to 'dorosli'/'dzieci' for cleaner testIDs."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/test_reports/pytest/iter3_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Rename FILTER_CHIPS ids in /app/frontend/app/(tabs)/imprezy.tsx line 14 from 'Dorośli'/'Dzieci' to 'dorosli'/'dzieci' to make chip testIDs consistent with the rest of the codebase (they already map to categoryTopGroup via string equality on the display value — change categoryTopGroup to return the slugged value or compare case-insensitively).",
+    "(Optional carry-over from iter2) iCal endpoint DTEND wrap past midnight still off by one day."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/staff/wages correctly does hours*hourly_rate per shift and aggregates per staff; skips shifts whose staff_id no longer exists (soft failure) — reasonable for MVP; consider surfacing orphan-shift count in response for admin visibility.",
+    "server.py /api/schedule embeds staff name/role from the current staff record — if a staff record is deleted after event creation, the row will show name '?' and role '' with amount 0 (rate falls back to 0). Acceptable but worth documenting.",
+    "categories.ts uses hard-coded id strings ('dorosli/okolicznosciowe', etc.) — good, but no server-side validation prevents arbitrary category strings from being stored. Optional to add an enum validator in EventIn/TemplateIn.",
+    "Kalendarz Grafik view derives 'Razem dnia' client-side by summing rows returned from /api/schedule — consistent with backend math (verified 5*50=250).",
+    "Statystyki Wypłaty pracowników section is only fetched when a valid month is loaded — good UX (no empty state noise), but ensure the wage rows re-fetch on month switch (verified in this run via prev/next month navigation)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration3.py"],
+  "success_rate": {"backend": "100% (32/32 iter1+iter2+iter3)", "frontend": "100% for all iteration-3 acceptance criteria + iter1/iter2 regression"},
+  "seed_data_creation": "test_iteration3.py registers its own isolated user i3test_<uuid>@eventa.pl and creates its own staff/events/templates. No changes to the shared test@eventa.pl seed data (Wesele event still has 'dorosli/okolicznosciowe' after UI category picker test — reverted at the end of the run).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend BASE_URL = EXPO_PUBLIC_BACKEND_URL. Run backend regression with `pytest -o addopts='' /app/backend/tests/` to avoid pytest-xdist DB collisions from TestBackup::test_import_replace_wipes_and_reinserts. Iter3 endpoints: GET /api/staff/wages?year=&month= (auth) and GET /api/schedule?year=&month= (auth). Frontend filter chip testIDs are `filter-chip-all`, `filter-chip-Dorośli`, `filter-chip-Dzieci`, `filter-chip-none` (mixed casing — see design_issues).",
+  "rca_of_issue": "N/A — no bugs found in iteration 3 scope."
+}

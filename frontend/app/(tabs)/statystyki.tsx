@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import { theme, formatPLN, MONTHS_PL } from "@/src/theme";
+import { theme, formatPLN, MONTHS_PL, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { tokenStore } from "@/src/api";
 
@@ -18,11 +18,19 @@ export default function Statystyki() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [data, setData] = useState<any>(null);
+  const [wages, setWages] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
-    try { setData(await api.stats(year, month + 1)); } catch {}
+    try {
+      const [stats, w] = await Promise.all([
+        api.stats(year, month + 1),
+        api.wages(year, month + 1),
+      ]);
+      setData(stats);
+      setWages(w);
+    } catch {}
   }, [year, month]);
 
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
@@ -214,6 +222,35 @@ export default function Statystyki() {
               </View>
             </View>
 
+            <Text style={[s.sectionTitle, { marginTop: 24 }]}>Wypłaty pracowników</Text>
+            {(wages?.staff || []).length === 0 ? (
+              <View style={s.emptyBox}>
+                <Text style={s.emptyText}>Brak zmian pracowników w tym miesiącu</Text>
+              </View>
+            ) : (
+              <>
+                {(wages.staff as any[]).map((w) => (
+                  <View key={w.staff_id} style={s.wageRow} testID={`wage-${w.staff_id}`}>
+                    <View style={s.avatar}><Text style={s.avatarText}>{initials(w.name)}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.wageName}>{w.name}</Text>
+                      <Text style={s.wageMeta}>
+                        {(w.role || "—")}  ·  {w.hours.toFixed(1)} h  ·  {formatPLN(w.hourly_rate)}/h
+                      </Text>
+                    </View>
+                    <Text style={s.wageAmount}>{formatPLN(w.amount)}</Text>
+                  </View>
+                ))}
+                <View style={s.wageTotal}>
+                  <Text style={s.wageTotalLabel}>Suma wypłat</Text>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.wageTotalHours}>{(wages?.total_hours || 0).toFixed(1)} h</Text>
+                    <Text style={s.wageTotalAmount}>{formatPLN(wages?.total_amount || 0)}</Text>
+                  </View>
+                </View>
+              </>
+            )}
+
             <Text style={[s.sectionTitle, { marginTop: 24 }]}>Impreza po imprezie</Text>
             {(data?.events || []).length === 0 ? (
               <View style={s.emptyBox}>
@@ -305,4 +342,25 @@ const s = StyleSheet.create({
   evProfit: { fontSize: 15, fontWeight: "700" },
   emptyBox: { padding: 20, alignItems: "center" },
   emptyText: { color: theme.color.onSurfaceSecondary },
+  wageRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, paddingHorizontal: 14,
+    backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, marginBottom: 6,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  avatar: {
+    width: 38, height: 38, borderRadius: 999, backgroundColor: theme.color.brandTertiary,
+    alignItems: "center", justifyContent: "center",
+  },
+  avatarText: { color: theme.color.onBrandTertiary, fontWeight: "700", fontSize: 12 },
+  wageName: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
+  wageMeta: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
+  wageAmount: { color: theme.color.brand, fontSize: 15, fontWeight: "700" },
+  wageTotal: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    marginTop: 6, padding: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.brandTertiary,
+    backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  wageTotalLabel: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
+  wageTotalHours: { color: theme.color.brand, fontSize: 18, fontWeight: "800" },
+  wageTotalAmount: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
 });

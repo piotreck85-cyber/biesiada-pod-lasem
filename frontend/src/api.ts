@@ -65,6 +65,8 @@ export const api = {
   deleteEvent: (id: string) => request(`/events/${id}`, { method: "DELETE" }),
 
   stats: (year: number, month: number) => request(`/stats?year=${year}&month=${month}`),
+  wages: (year: number, month: number) => request(`/staff/wages?year=${year}&month=${month}`),
+  schedule: (year: number, month: number) => request(`/schedule?year=${year}&month=${month}`),
   exportUrl: (year: number, month: number) => `${BASE}/api/export/events?year=${year}&month=${month}`,
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
