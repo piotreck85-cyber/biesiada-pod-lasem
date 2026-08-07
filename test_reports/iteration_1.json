@@ -1,0 +1,34 @@
+{
+  "summary": "Eventa (Polish event-organizer app) — full stack test. Backend: 14/14 pytest cases pass covering auth (register/login/me/duplicate/wrong-pw/short-pw), staff CRUD, event CRUD with server-side profit computation (labor=hours*hourly_rate, material=sum(costs), profit=revenue-total_cost), stats aggregation, and CSV export with Polish headers. Frontend: successfully registered a fresh user, redirected to /kalendarz, verified all 4 tabs (Kalendarz, Imprezy, Pracownicy, Statystyki) render correctly with Polish UI, PLN (zł) currency, dark+gold theme, month switcher on both Kalendarz and Statystyki, empty states + FAB on Imprezy/Pracownicy, logout icon on Pracownicy, and 'Eksportuj do CSV' button on Statystyki.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "all", "issues": ["Deprecation warnings: 'shadow*' style props are deprecated — should migrate to 'boxShadow' for react-native-web. Cosmetic only."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py", "/app/test_reports/pytest/pytest_results.xml"],
+  "action_items": [
+    "Consider adding data-testid/testID attributes to all interactive elements (register-email, register-password, submit buttons, tab buttons, FABs, logout, export-csv) — currently tests must rely on placeholders/text which is brittle.",
+    "(Cosmetic) migrate shadow* style props to boxShadow to silence RN web deprecation warnings."
+  ],
+  "critical_code_review_comments": [
+    "server.py cleanly excludes MongoDB _id in projections — good.",
+    "compute_event_summary loads staff via single $in query — efficient.",
+    "JWT_SECRET falls back to hardcoded dev secret if env missing — acceptable for MVP but should be enforced from env in prod.",
+    "CSV export endpoint requires Bearer header; mobile-side Linking.openURL will fail to download since backend does not accept ?token= query. Web fetch+blob approach works. Confirmed via curl-equivalent pytest — endpoint returns proper text/csv with Polish column names.",
+    "No pagination on list_events (limit=2000) — acceptable for MVP scale."
+  ],
+  "updated_files": ["/app/backend/tests/backend_test.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% render/navigation; full event-creation UI flow not exercised end-to-end"},
+  "seed_data_creation": "Each pytest run registers a fresh user (test_<uuid>@eventa.pl) and cleans up its own staff/events via teardown. UI test registered one e2e_<uuid>@eventa.pl user (no cleanup — trivial).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend BASE_URL comes from EXPO_PUBLIC_BACKEND_URL (frontend/.env). Pytest suite located at /app/backend/tests/backend_test.py. To reproduce end-to-end event creation UI, note the register/login screens are both mounted in DOM by Expo Router — use placeholder-based or last() selectors, not indexed input arrays. Add testID props for stable selectors.",
+  "rca_of_issue": "N/A — no bugs found."
+}

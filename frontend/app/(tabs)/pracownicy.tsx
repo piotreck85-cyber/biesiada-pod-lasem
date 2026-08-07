@@ -1,0 +1,166 @@
+import { useCallback, useState } from "react";
+import {
+  View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
+  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
+} from "react-native";
+import { Feather } from "@expo/vector-icons";
+import { useFocusEffect } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { theme, formatPLN, initials } from "@/src/theme";
+import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
+
+export default function Pracownicy() {
+  const insets = useSafeAreaInsets();
+  const { logout, user } = useAuth();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [rate, setRate] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try { setItems(await api.listStaff()); } catch {}
+  }, []);
+  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
+
+  const openNew = () => { setEditing(null); setName(""); setRole(""); setRate(""); setModalOpen(true); };
+  const openEdit = (it: any) => { setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || "")); setModalOpen(true); };
+
+  const save = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const body = { name: name.trim(), role: role.trim(), hourly_rate: parseFloat(rate.replace(",", ".")) || 0 };
+      if (editing) await api.updateStaff(editing.id, body);
+      else await api.createStaff(body);
+      setModalOpen(false);
+      await load();
+    } catch {} finally { setSaving(false); }
+  };
+
+  const remove = async (id: string) => {
+    await api.deleteStaff(id);
+    await load();
+  };
+
+  return (
+    <View style={[s.root, { paddingTop: insets.top }]} testID="staff-screen">
+      <View style={s.header}>
+        <View style={{ flex: 1 }}>
+          <Text style={s.brand}>Pracownicy</Text>
+          <Text style={s.title}>Twój zespół</Text>
+        </View>
+        <Pressable testID="logout-button" onPress={logout} hitSlop={10} style={s.logoutBtn}>
+          <Feather name="log-out" size={18} color={theme.color.onSurfaceSecondary} />
+        </Pressable>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator color={theme.color.brand} style={{ marginTop: 40 }} />
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(i) => i.id}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 120 }}
+          ListEmptyComponent={
+            <View style={s.emptyBox}>
+              <Feather name="users" size={40} color={theme.color.onSurfaceSecondary} />
+              <Text style={s.emptyTitle}>Brak pracowników</Text>
+              <Text style={s.emptySub}>Dodaj pierwszego pracownika, aby przypisywać go do imprez.</Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
+              <View style={s.avatar}><Text style={s.avatarText}>{initials(item.name)}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.rowName}>{item.name}</Text>
+                <Text style={s.rowRole}>{item.role || "Bez stanowiska"}</Text>
+              </View>
+              <View style={{ alignItems: "flex-end" }}>
+                <Text style={s.rowRate}>{formatPLN(item.hourly_rate)}</Text>
+                <Text style={s.rowRateSub}>/godz.</Text>
+              </View>
+              <Pressable testID={`staff-delete-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 12 }}>
+                <Feather name="trash-2" size={18} color={theme.color.onSurfaceSecondary} />
+              </Pressable>
+            </Pressable>
+          )}
+        />
+      )}
+
+      <Pressable testID="add-staff-btn" style={[s.fab, { bottom: insets.bottom + 80 }]} onPress={openNew}>
+        <Feather name="plus" size={24} color={theme.color.onBrand} />
+      </Pressable>
+
+      <Modal visible={modalOpen} transparent animationType="slide" onRequestClose={() => setModalOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={s.backdrop} onPress={() => setModalOpen(false)} />
+          <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={s.grip} />
+            <Text style={s.sheetTitle}>{editing ? "Edytuj pracownika" : "Nowy pracownik"}</Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.label}>Imię i nazwisko</Text>
+              <TextInput testID="staff-name-input" value={name} onChangeText={setName} placeholder="Jan Kowalski" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+              <Text style={s.label}>Stanowisko</Text>
+              <TextInput testID="staff-role-input" value={role} onChangeText={setRole} placeholder="Barman, Kelner..." placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+              <Text style={s.label}>Stawka godzinowa (PLN)</Text>
+              <TextInput testID="staff-rate-input" value={rate} onChangeText={setRate} placeholder="50" placeholderTextColor={theme.color.onSurfaceSecondary} keyboardType="decimal-pad" style={s.input} />
+              <Pressable testID="staff-save-btn" onPress={save} disabled={saving || !name.trim()} style={[s.saveBtn, (saving || !name.trim()) && { opacity: 0.5 }]}>
+                {saving ? <ActivityIndicator color={theme.color.onBrand} /> : <Text style={s.saveBtnText}>Zapisz</Text>}
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </View>
+  );
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: theme.color.surface },
+  header: { paddingHorizontal: 20, paddingBottom: 8, paddingTop: 8, flexDirection: "row", alignItems: "flex-end" },
+  brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
+  title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
+  logoutBtn: { padding: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 999 },
+  row: {
+    flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: theme.color.surfaceSecondary,
+    borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,
+  },
+  avatar: {
+    width: 42, height: 42, borderRadius: 999, backgroundColor: theme.color.brandTertiary,
+    alignItems: "center", justifyContent: "center", marginRight: 12,
+  },
+  avatarText: { color: theme.color.onBrandTertiary, fontWeight: "700", fontSize: 14 },
+  rowName: { color: theme.color.onSurface, fontSize: 15, fontWeight: "600" },
+  rowRole: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
+  rowRate: { color: theme.color.brand, fontWeight: "700", fontSize: 15 },
+  rowRateSub: { color: theme.color.onSurfaceSecondary, fontSize: 10 },
+  emptyBox: { marginTop: 60, alignItems: "center", paddingHorizontal: 40 },
+  emptyTitle: { color: theme.color.onSurface, fontSize: 17, fontWeight: "700", marginTop: 16 },
+  emptySub: { color: theme.color.onSurfaceSecondary, marginTop: 8, textAlign: "center", lineHeight: 20 },
+  fab: {
+    position: "absolute", right: 20, width: 56, height: 56, borderRadius: 28,
+    backgroundColor: theme.color.brand, alignItems: "center", justifyContent: "center",
+    shadowColor: theme.color.brand, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.5, shadowRadius: 12,
+    elevation: 8,
+  },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sheet: {
+    backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12, borderWidth: 1, borderColor: theme.color.border,
+    maxHeight: "80%",
+  },
+  grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 },
+  sheetTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 12 },
+  label: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 1, marginTop: 12, marginBottom: 6 },
+  input: {
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, color: theme.color.onSurface,
+    paddingHorizontal: 14, paddingVertical: 14, fontSize: 16, borderWidth: 1, borderColor: theme.color.border,
+  },
+  saveBtn: { marginTop: 20, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
+  saveBtnText: { color: theme.color.onBrand, fontWeight: "700", fontSize: 16 },
+});
