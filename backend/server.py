@@ -327,11 +327,16 @@ async def export_ics(user=Depends(current_user)):
     for ev in events:
         date = str(ev.get("date", "")).replace("-", "")
         time_str = str(ev.get("time") or "").replace(":", "")
-        if len(time_str) >= 4:
-            dtstart = f"{date}T{time_str[:4]}00"
-            dtend_h = (int(time_str[:2]) + 4) % 24
-            dtend = f"{date}T{dtend_h:02d}{time_str[2:4]}00"
-            dt_line = f"DTSTART:{dtstart}\nDTEND:{dtend}"
+        if len(time_str) >= 4 and len(date) == 8:
+            try:
+                hh = int(time_str[:2]); mm = int(time_str[2:4])
+                start_dt = datetime(int(date[:4]), int(date[4:6]), int(date[6:8]), hh, mm)
+                end_dt = start_dt + timedelta(hours=4)
+                dtstart = start_dt.strftime("%Y%m%dT%H%M00")
+                dtend = end_dt.strftime("%Y%m%dT%H%M00")
+                dt_line = f"DTSTART:{dtstart}\r\nDTEND:{dtend}"
+            except Exception:
+                dt_line = f"DTSTART;VALUE=DATE:{date}"
         else:
             dt_line = f"DTSTART;VALUE=DATE:{date}"
         summary = str(ev.get("name", "Impreza")).replace("\n", " ")
