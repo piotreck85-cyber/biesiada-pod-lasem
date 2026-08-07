@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 8 (both) — Verified 'app doesn't work on phone' complaint and requested calendar font-size bumps. Native bundling is HEALTHY: `curl` against Metro for `platform=android` and `platform=ios` (Hermes) both returned HTTP 200 with ~10 MB bundles (1616 modules each) — no 'Unable to resolve module' errors. expo.err.log is empty. All new packages (expo-image-picker 17.0.11, expo-document-picker 14.0.8, expo-file-system 19.0.23 with legacy.ts shim, expo-sharing 14.0.8, expo-print 15.0.8) resolve correctly on native targets. Calendar font sizes confirmed via computed DOM styles on data-testid='day-2026-06-10' and 'day-2026-06-15': day number = fontSize 18px / fontWeight 700 (matches cellText spec), event name = fontSize 10px / fontWeight 600 (matches cellEventName spec). Both event names ('Wesele Nowaków' on 2026-06-10 and 'Party 22:00' on 2026-06-15) render inside their respective calendar cells and truncate to 1 line. Regression: login (test@eventa.pl / test123) → calendar tab → month nav Sierpień→Lipiec→Czerwiec 2026 → tap day-2026-06-10 shows Wesele Nowaków event card. All 5 tabs navigate cleanly (Kalendarz, Imprezy, Oferta, Pracownicy, Statystyki). New Oferta screen renders external images correctly (Dolina Przygód, 5 Urodziny packages + 12 Warsztaty). Zero console errors, zero page errors during 4-tab traversal. Backend: 70/70 tests PASS in 16.16s (iter1..iter7 combined in /app/backend/tests/). Conclusion: the 'nie działa na telefonie' complaint does NOT reproduce in the codebase — bundling, imports, and rendering are all healthy for Android/iOS/web. If user still sees crash on Xiaomi Expo Go, likely causes are (a) stale Expo Go cache on device (needs Clear Data), (b) old snapshot bundled before recent package additions, or (c) SDK 54 / Expo Go build mismatch. No code fix warranted from this side.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/",
+    "/app/test_reports/pytest/iter8_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Ask user to fully close & reopen Expo Go on the Xiaomi (or Clear Storage for Expo Go) and re-scan QR — the current bundle is healthy on native (Android bundle built in 11.5s, 1616 modules, no errors). If crash persists after cache clear, request an exact error text / screenshot from the device."
+  ],
+  "critical_code_review_comments": [
+    "kalendarz.tsx:298 cellText { fontSize:18, fontWeight:'700' } — matches spec.",
+    "kalendarz.tsx:301-304 cellEventName { fontSize:10, lineHeight:12, fontWeight:'600' } — matches spec; numberOfLines={1} on line 164 prevents overflow.",
+    "kalendarz.tsx:291-294 cell minHeight 62 accommodates bigger 18px number + up to 2×12px event names + '+N more' badge; visually confirmed no clipping.",
+    "statystyki.tsx:9 uses 'expo-file-system/legacy' subpath — legacy.ts shim exists at node_modules/expo-file-system/legacy.ts (re-exports src/legacy). Resolves fine in Android/iOS bundle.",
+    "No AppBackground import remains in tabs; theme.color.surface (dark green) applied as View backgroundColor everywhere — safe replacement.",
+    "tabs/_layout.tsx correctly uses useSafeAreaInsets() with Math.max(insets.bottom, 14/18) — no negative padding risk on notchless devices."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100% (70/70)", "frontend": "100% — calendar font sizes 18/10 verified, 5 tabs navigate, 0 console/page errors, native + web bundles all green" },
+  "seed_data_creation": "None. Reused existing test@eventa.pl seeded data (2026-05-15 Wesele, 2026-06-10 Wesele Nowaków, 2026-06-15 Party 22:00).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Native bundling verified via `curl 'http://localhost:3000/node_modules/expo-router/entry.bundle?platform=android&dev=true&hot=false&transform.engine=hermes&transform.routerRoot=app'` (and platform=ios). Both return HTTP 200 with 1616 modules. Use `EXPO_PUBLIC_BACKEND_URL=https://event-profit-tracker.preview.emergentagent.com pytest -o addopts='' /app/backend/tests/` for backend regression (70 tests, ~16s). Login testIDs: login-email-input / login-password-input / login-submit-button (NOT email-input/password-input/login-btn).",
+  "rca_of_issue": "User complaint 'Aplikacja nie działa na telefonie' cannot be reproduced from the codebase. Root-cause hypothesis: stale Expo Go cache on Xiaomi (older bundle before expo-file-system/legacy subpath was added), OR user's Expo Go version doesn't match SDK 54. Native bundle currently builds without errors on both Android and iOS targets (see expo.out.log: 'Android Bundled 11570ms ... (1616 modules)' and 'iOS Bundled 9546ms ... (1616 modules)'). Mitigation: user should force-stop Expo Go, clear its storage, and rescan the QR code."
+}

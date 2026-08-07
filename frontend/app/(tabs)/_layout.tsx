@@ -29,7 +29,6 @@ export default function TabLayout() {
           letterSpacing: 0.2,
           marginTop: 2,
           marginBottom: 0,
-          includeFontPadding: false,
         },
         tabBarIconStyle: { marginTop: 2 },
         tabBarItemStyle: { paddingVertical: 0 },

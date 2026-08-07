@@ -289,21 +289,21 @@ const s = StyleSheet.create({
   weekLabel: { flex: 1, textAlign: "center", color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
   gridWrap: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
-    width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "flex-start",
-    paddingTop: 4, paddingHorizontal: 2,
+    width: `${100 / 7}%`, minHeight: 62, alignItems: "center", justifyContent: "flex-start",
+    paddingTop: 6, paddingHorizontal: 2, paddingBottom: 4,
   },
   cellSelected: {
     backgroundColor: theme.color.brand, borderRadius: 12,
   },
-  cellText: { color: theme.color.onSurface, fontSize: 14, fontWeight: "500" },
-  cellTextSelected: { color: theme.color.onBrand, fontWeight: "700" },
-  cellEventList: { width: "100%", marginTop: 2, alignItems: "center" },
+  cellText: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700" },
+  cellTextSelected: { color: theme.color.onBrand, fontWeight: "800" },
+  cellEventList: { width: "100%", marginTop: 3, alignItems: "center" },
   cellEventName: {
-    fontSize: 8, lineHeight: 10, color: theme.color.brand, maxWidth: "100%",
+    fontSize: 10, lineHeight: 12, color: theme.color.brand, maxWidth: "100%",
     textAlign: "center", fontWeight: "600",
   },
   cellEventMore: {
-    fontSize: 8, color: theme.color.brand, fontWeight: "700", marginTop: 1,
+    fontSize: 10, color: theme.color.brand, fontWeight: "700", marginTop: 1,
   },
   listSection: { paddingHorizontal: 20, paddingTop: 20 },
   listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
