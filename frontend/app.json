@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.eventprofittracker.zrkwmu"
+      "bundleIdentifier": "com.emergent.eventprofittracker.zrkwmu",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Zrób zdjęcie imprezy",
+        "NSPhotoLibraryUsageDescription": "Dodaj zdjęcie imprezy z galerii"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,8 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.eventprofittracker.zrkwmu"
+      "package": "com.emergent.eventprofittracker.zrkwmu",
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE"]
     },
     "web": {
       "bundler": "metro",

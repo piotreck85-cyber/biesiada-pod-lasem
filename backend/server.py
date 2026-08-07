@@ -65,6 +65,15 @@ class EventIn(BaseModel):
     shifts: List[StaffShift] = []
     image_url: Optional[str] = ""
 
+class TemplateIn(BaseModel):
+    name: str
+    venue: Optional[str] = ""
+    notes: Optional[str] = ""
+    revenue: float = 0.0
+    costs: List[CostItem] = []
+    shifts: List[StaffShift] = []
+    image_url: Optional[str] = ""
+
 # ---------- Helpers ----------
 def now_utc():
     return datetime.now(timezone.utc)
@@ -230,6 +239,113 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
 async def delete_event(event_id: str, user=Depends(current_user)):
     await db.events.delete_one({"id": event_id, "owner_id": user["id"]})
     return {"ok": True}
+
+# ---------- Templates ----------
+@api.get("/templates")
+async def list_templates(user=Depends(current_user)):
+    items = await db.templates.find({"owner_id": user["id"]}, {"_id": 0}).sort("name", 1).to_list(500)
+    return items
+
+@api.post("/templates")
+async def create_template(body: TemplateIn, user=Depends(current_user)):
+    doc = body.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = user["id"]
+    doc["created_at"] = now_utc().isoformat()
+    await db.templates.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api.delete("/templates/{tpl_id}")
+async def delete_template(tpl_id: str, user=Depends(current_user)):
+    await db.templates.delete_one({"id": tpl_id, "owner_id": user["id"]})
+    return {"ok": True}
+
+# ---------- Backup Export / Import ----------
+class BackupIn(BaseModel):
+    staff: List[dict] = []
+    events: List[dict] = []
+    templates: List[dict] = []
+    mode: str = "merge"  # "merge" or "replace"
+
+@api.get("/export/backup")
+async def export_backup(user=Depends(current_user)):
+    staff = await db.staff.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(5000)
+    events = await db.events.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(10000)
+    templates = await db.templates.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(5000)
+    return {
+        "app": "eventa",
+        "version": 1,
+        "exported_at": now_utc().isoformat(),
+        "staff": staff,
+        "events": events,
+        "templates": templates,
+    }
+
+@api.post("/import/backup")
+async def import_backup(body: BackupIn, user=Depends(current_user)):
+    imported = {"staff": 0, "events": 0, "templates": 0}
+    if body.mode == "replace":
+        await db.staff.delete_many({"owner_id": user["id"]})
+        await db.events.delete_many({"owner_id": user["id"]})
+        await db.templates.delete_many({"owner_id": user["id"]})
+
+    # Staff: keep original ids if provided (so shifts still match)
+    for s in body.staff:
+        doc = {k: v for k, v in s.items() if k != "_id"}
+        doc["owner_id"] = user["id"]
+        if "id" not in doc: doc["id"] = str(uuid.uuid4())
+        await db.staff.update_one(
+            {"id": doc["id"], "owner_id": user["id"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported["staff"] += 1
+    for ev in body.events:
+        doc = {k: v for k, v in ev.items() if k not in ("_id", "labor_cost", "material_cost", "total_cost", "profit")}
+        doc["owner_id"] = user["id"]
+        if "id" not in doc: doc["id"] = str(uuid.uuid4())
+        await db.events.update_one(
+            {"id": doc["id"], "owner_id": user["id"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported["events"] += 1
+    for tpl in body.templates:
+        doc = {k: v for k, v in tpl.items() if k != "_id"}
+        doc["owner_id"] = user["id"]
+        if "id" not in doc: doc["id"] = str(uuid.uuid4())
+        await db.templates.update_one(
+            {"id": doc["id"], "owner_id": user["id"]},
+            {"$set": doc}, upsert=True,
+        )
+        imported["templates"] += 1
+    return {"ok": True, "imported": imported}
+
+@api.get("/export/calendar.ics")
+async def export_ics(user=Depends(current_user)):
+    events = await db.events.find({"owner_id": user["id"]}, {"_id": 0}).sort("date", 1).to_list(10000)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Eventa//PL//", "CALSCALE:GREGORIAN"]
+    for ev in events:
+        date = str(ev.get("date", "")).replace("-", "")
+        time_str = str(ev.get("time") or "").replace(":", "")
+        if len(time_str) >= 4:
+            dtstart = f"{date}T{time_str[:4]}00"
+            dtend_h = (int(time_str[:2]) + 4) % 24
+            dtend = f"{date}T{dtend_h:02d}{time_str[2:4]}00"
+            dt_line = f"DTSTART:{dtstart}\nDTEND:{dtend}"
+        else:
+            dt_line = f"DTSTART;VALUE=DATE:{date}"
+        summary = str(ev.get("name", "Impreza")).replace("\n", " ")
+        location = str(ev.get("venue", "")).replace("\n", " ")
+        desc = str(ev.get("notes", "")).replace("\n", "\\n")
+        lines.append("BEGIN:VEVENT")
+        lines.append(f"UID:{ev.get('id')}@eventa")
+        lines.append(dt_line)
+        lines.append(f"SUMMARY:{summary}")
+        if location: lines.append(f"LOCATION:{location}")
+        if desc: lines.append(f"DESCRIPTION:{desc}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return PlainTextResponse("\r\n".join(lines), media_type="text/calendar")
 
 # ---------- Stats ----------
 @api.get("/stats")

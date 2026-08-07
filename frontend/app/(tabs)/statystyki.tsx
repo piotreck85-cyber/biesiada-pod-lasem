@@ -1,10 +1,13 @@
 import { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, RefreshControl, Linking, Platform,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, RefreshControl, Linking, Platform, Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { theme, formatPLN, MONTHS_PL } from "@/src/theme";
 import { api } from "@/src/api";
 import { tokenStore } from "@/src/api";
@@ -31,7 +34,6 @@ export default function Statystyki() {
     const token = await tokenStore.get();
     const url = api.exportUrl(year, month + 1);
     if (Platform.OS === "web") {
-      // Fetch with auth then trigger download
       try {
         const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
         const blob = await res.blob();
@@ -41,9 +43,92 @@ export default function Statystyki() {
         a.click(); URL.revokeObjectURL(dl);
       } catch {}
     } else {
-      // On mobile: open URL - user gets viewer/share
-      Linking.openURL(`${url}&token=${token}`);
+      try {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const csv = await res.text();
+        const path = `${FileSystem.cacheDirectory}imprezy-${year}-${month + 1}.csv`;
+        await FileSystem.writeAsStringAsync(path, csv);
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: "text/csv" });
+      } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
     }
+  };
+
+  const [busyBackup, setBusyBackup] = useState(false);
+
+  const doBackup = async () => {
+    setBusyBackup(true);
+    try {
+      const data: any = await api.backup();
+      const json = JSON.stringify(data, null, 2);
+      const fname = `eventa-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      if (Platform.OS === "web") {
+        const blob = new Blob([json], { type: "application/json" });
+        const dl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = dl; a.download = fname; a.click(); URL.revokeObjectURL(dl);
+      } else {
+        const path = `${FileSystem.cacheDirectory}${fname}`;
+        await FileSystem.writeAsStringAsync(path, json);
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: "application/json" });
+      }
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+    finally { setBusyBackup(false); }
+  };
+
+  const doImport = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ["application/json", "*/*"], copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      let text: string;
+      if (Platform.OS === "web" && asset.file) {
+        text = await asset.file.text();
+      } else {
+        text = await FileSystem.readAsStringAsync(asset.uri);
+      }
+      let parsed: any;
+      try { parsed = JSON.parse(text); }
+      catch { Alert.alert("Błąd", "Nieprawidłowy plik JSON"); return; }
+
+      const doImportWithMode = async (mode: string) => {
+        try {
+          const result: any = await api.importBackup({
+            staff: parsed.staff || [],
+            events: parsed.events || [],
+            templates: parsed.templates || [],
+            mode,
+          });
+          Alert.alert("Import zakończony", `Zaimportowano: ${result.imported.events} imprez, ${result.imported.staff} pracowników, ${result.imported.templates} szablonów.`);
+          await load();
+        } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+      };
+
+      Alert.alert("Import kopii", "Jak zaimportować dane?", [
+        { text: "Anuluj", style: "cancel" },
+        { text: "Scal (dodaj/zaktualizuj)", onPress: () => doImportWithMode("merge") },
+        { text: "Zastąp wszystko", style: "destructive", onPress: () => doImportWithMode("replace") },
+      ]);
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+  };
+
+  const doIcsExport = async () => {
+    const token = await tokenStore.get();
+    const url = api.icsUrl();
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      const ics = await res.text();
+      const fname = `eventa-kalendarz.ics`;
+      if (Platform.OS === "web") {
+        const blob = new Blob([ics], { type: "text/calendar" });
+        const dl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = dl; a.download = fname; a.click(); URL.revokeObjectURL(dl);
+      } else {
+        const path = `${FileSystem.cacheDirectory}${fname}`;
+        await FileSystem.writeAsStringAsync(path, ics);
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: "text/calendar" });
+      }
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
   };
 
   const revenue = data?.revenue || 0;
@@ -107,8 +192,27 @@ export default function Statystyki() {
 
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>
               <Feather name="download" size={18} color={theme.color.brand} />
-              <Text style={s.exportText}>Eksportuj do CSV</Text>
+              <Text style={s.exportText}>Eksportuj miesiąc do CSV</Text>
             </Pressable>
+
+            <View style={s.backupCard}>
+              <Text style={s.backupTitle}>Kalendarz — kopia zapasowa</Text>
+              <Text style={s.backupSub}>Eksportuj wszystkie dane lub zaimportuj wcześniejszą kopię.</Text>
+              <View style={s.backupRow}>
+                <Pressable testID="ics-export-btn" onPress={doIcsExport} style={s.backupBtn}>
+                  <Feather name="calendar" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>iCal (.ics)</Text>
+                </Pressable>
+                <Pressable testID="backup-export-btn" onPress={doBackup} disabled={busyBackup} style={[s.backupBtn, busyBackup && { opacity: 0.5 }]}>
+                  {busyBackup ? <ActivityIndicator size="small" color={theme.color.brand} /> : <Feather name="upload" size={16} color={theme.color.brand} />}
+                  <Text style={s.backupBtnText}>Eksport JSON</Text>
+                </Pressable>
+                <Pressable testID="backup-import-btn" onPress={doImport} style={s.backupBtn}>
+                  <Feather name="download" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>Import JSON</Text>
+                </Pressable>
+              </View>
+            </View>
 
             <Text style={[s.sectionTitle, { marginTop: 24 }]}>Impreza po imprezie</Text>
             {(data?.events || []).length === 0 ? (
@@ -178,6 +282,19 @@ const s = StyleSheet.create({
     gap: 8, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.brand,
   },
   exportText: { color: theme.color.brand, fontWeight: "700", fontSize: 15 },
+  backupCard: {
+    marginTop: 16, backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  backupTitle: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700", marginBottom: 4 },
+  backupSub: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 },
+  backupRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
+  backupBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 10,
+    borderRadius: 999, borderWidth: 1, borderColor: theme.color.brandTertiary,
+    backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  backupBtnText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
   evRow: {
     flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14,
     backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, marginBottom: 6,

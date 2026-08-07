@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Modal,
+  Platform, ActivityIndicator, Modal, Alert,
 } from "react-native";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,16 +38,21 @@ export default function EventDetail() {
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [tplPickerOpen, setTplPickerOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       try { setStaffAll(await api.listStaff()); } catch {}
+      try { setTemplates(await api.listTemplates()); } catch {}
       if (!isNew) {
         try {
           const ev: any = await api.getEvent(id as string);
           setName(ev.name); setDate(ev.date); setTime(ev.time || ""); setVenue(ev.venue || "");
           setNotes(ev.notes || ""); setRevenue(String(ev.revenue || ""));
           setCosts(ev.costs || []); setShifts(ev.shifts || []);
+          setImageUrl(ev.image_url || "");
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -76,6 +84,7 @@ export default function EventDetail() {
       revenue: revenueNum,
       costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
       shifts: shifts.map(sh => ({ staff_id: sh.staff_id, hours: Number(sh.hours) || 0 })),
+      image_url: imageUrl,
     };
     try {
       if (isNew) await api.createEvent(body);
@@ -94,6 +103,61 @@ export default function EventDetail() {
     if (shifts.some(sh => sh.staff_id === staffId)) return;
     setShifts([...shifts, { staff_id: staffId, hours: 0 }]);
     setPickerOpen(false);
+  };
+
+  const pickImage = async (fromCamera: boolean) => {
+    const perm = fromCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const res = fromCamera
+      ? await ImagePicker.launchCameraAsync({ base64: true, quality: 0.5, mediaTypes: ImagePicker.MediaTypeOptions.Images })
+      : await ImagePicker.launchImageLibraryAsync({ base64: true, quality: 0.5, mediaTypes: ImagePicker.MediaTypeOptions.Images });
+    if (!res.canceled && res.assets && res.assets[0]) {
+      const a = res.assets[0];
+      const b64 = a.base64;
+      if (b64) setImageUrl(`data:image/jpeg;base64,${b64}`);
+      else if (a.uri) setImageUrl(a.uri);
+    }
+  };
+
+  const showImagePicker = () => {
+    if (Platform.OS === "web") { pickImage(false); return; }
+    Alert.alert("Zdjęcie", "Skąd chcesz dodać zdjęcie?", [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Galeria", onPress: () => pickImage(false) },
+      { text: "Aparat", onPress: () => pickImage(true) },
+    ]);
+  };
+
+  const saveAsTemplate = async () => {
+    if (!name.trim()) return;
+    try {
+      await api.createTemplate({
+        name: name.trim(), venue, notes,
+        revenue: revenueNum,
+        costs, shifts, image_url: imageUrl,
+      });
+      const list = await api.listTemplates();
+      setTemplates(list);
+      Alert.alert("Zapisano", "Szablon został zapisany.");
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+  };
+
+  const applyTemplate = (tpl: any) => {
+    setName(tpl.name || "");
+    setVenue(tpl.venue || "");
+    setNotes(tpl.notes || "");
+    setRevenue(String(tpl.revenue || ""));
+    setCosts(tpl.costs || []);
+    setShifts(tpl.shifts || []);
+    setImageUrl(tpl.image_url || "");
+    setTplPickerOpen(false);
+  };
+
+  const deleteTemplate = async (tplId: string) => {
+    await api.deleteTemplate(tplId);
+    setTemplates(templates.filter(t => t.id !== tplId));
   };
 
   if (loading) {
@@ -118,6 +182,42 @@ export default function EventDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
+          {/* Image */}
+          <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
+            {imageUrl ? (
+              <>
+                <Image source={imageUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <LinearGradient
+                  colors={["rgba(12,12,14,0.15)", "rgba(12,12,14,0.85)"]}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={s.imageEditRow}>
+                  <View style={s.imageBadge}>
+                    <Feather name="camera" size={14} color={theme.color.onBrand} />
+                    <Text style={s.imageBadgeText}>Zmień zdjęcie</Text>
+                  </View>
+                  <Pressable testID="event-image-remove" onPress={(e) => { e.stopPropagation?.(); setImageUrl(""); }} hitSlop={10} style={s.imageRemoveBtn}>
+                    <Feather name="x" size={16} color={theme.color.onSurface} />
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <View style={s.imagePlaceholder}>
+                <Feather name="camera" size={28} color={theme.color.brand} />
+                <Text style={s.imagePlaceholderText}>Dodaj zdjęcie imprezy</Text>
+                <Text style={s.imagePlaceholderSub}>Galeria lub aparat</Text>
+              </View>
+            )}
+          </Pressable>
+
+          {/* Template chips - shown for new events */}
+          {isNew && templates.length > 0 && (
+            <Pressable testID="tpl-load-btn" onPress={() => setTplPickerOpen(true)} style={s.tplLoadBtn}>
+              <Feather name="copy" size={16} color={theme.color.brand} />
+              <Text style={s.tplLoadText}>Wczytaj z szablonu ({templates.length})</Text>
+            </Pressable>
+          )}
+
           {/* Info */}
           <Section title="Informacje">
             <Field label="Nazwa">
@@ -226,6 +326,11 @@ export default function EventDetail() {
             <View style={s.sep} />
             <SummaryRow label="Zysk" value={profit} bold />
           </View>
+
+          <Pressable testID="save-as-template-btn" onPress={saveAsTemplate} disabled={!name.trim()} style={[s.tplSaveBtn, !name.trim() && { opacity: 0.5 }]}>
+            <Feather name="bookmark" size={16} color={theme.color.brand} />
+            <Text style={s.tplLoadText}>Zapisz jako szablon</Text>
+          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -250,6 +355,30 @@ export default function EventDetail() {
                 </View>
                 <Feather name="plus" size={18} color={theme.color.brand} />
               </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      </Modal>
+
+      <Modal visible={tplPickerOpen} transparent animationType="slide" onRequestClose={() => setTplPickerOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setTplPickerOpen(false)} />
+        <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={s.grip} />
+          <Text style={s.sheetTitle}>Wczytaj z szablonu</Text>
+          <ScrollView>
+            {templates.map(tpl => (
+              <View key={tpl.id} style={s.pickerRow}>
+                <Pressable testID={`tpl-apply-${tpl.id}`} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }} onPress={() => applyTemplate(tpl)}>
+                  <View style={s.avatar}><Feather name="bookmark" size={16} color={theme.color.onBrandTertiary} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.shiftName}>{tpl.name}</Text>
+                    <Text style={s.shiftRate}>{tpl.venue || "—"}  ·  {formatPLN(tpl.revenue || 0)}</Text>
+                  </View>
+                </Pressable>
+                <Pressable testID={`tpl-del-${tpl.id}`} onPress={() => deleteTemplate(tpl.id)} hitSlop={10} style={{ padding: 6 }}>
+                  <Feather name="trash-2" size={16} color={theme.color.onSurfaceSecondary} />
+                </Pressable>
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -330,4 +459,26 @@ const s = StyleSheet.create({
   grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 },
   sheetTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 12 },
   pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.color.divider },
+  imageBox: {
+    height: 160, borderRadius: 16, backgroundColor: theme.color.surfaceSecondary,
+    overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: theme.color.border,
+  },
+  imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
+  imagePlaceholderText: { color: theme.color.onSurface, fontWeight: "700", marginTop: 4 },
+  imagePlaceholderSub: { color: theme.color.onSurfaceSecondary, fontSize: 12 },
+  imageEditRow: { position: "absolute", left: 12, right: 12, bottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
+  imageBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brand, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  imageBadgeText: { color: theme.color.onBrand, fontWeight: "700", fontSize: 12 },
+  imageRemoveBtn: { width: 32, height: 32, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
+  tplLoadBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 12, marginBottom: 14, borderRadius: 12, borderWidth: 1,
+    borderColor: theme.color.brandTertiary, backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  tplLoadText: { color: theme.color.brand, fontWeight: "700", fontSize: 14 },
+  tplSaveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    paddingVertical: 12, marginTop: 14, borderRadius: 12, borderWidth: 1,
+    borderColor: theme.color.brandTertiary,
+  },
 });

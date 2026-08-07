@@ -51,6 +51,10 @@ export const api = {
   updateStaff: (id: string, data: any) => request(`/staff/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteStaff: (id: string) => request(`/staff/${id}`, { method: "DELETE" }),
 
+  listTemplates: () => request("/templates"),
+  createTemplate: (data: any) => request("/templates", { method: "POST", body: JSON.stringify(data) }),
+  deleteTemplate: (id: string) => request(`/templates/${id}`, { method: "DELETE" }),
+
   listEvents: (year?: number, month?: number) => {
     const qs = year && month ? `?year=${year}&month=${month}` : "";
     return request(`/events${qs}`);
@@ -62,4 +66,7 @@ export const api = {
 
   stats: (year: number, month: number) => request(`/stats?year=${year}&month=${month}`),
   exportUrl: (year: number, month: number) => `${BASE}/api/export/events?year=${year}&month=${month}`,
+  backup: () => request("/export/backup"),
+  importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
+  icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

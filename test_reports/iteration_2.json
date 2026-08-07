@@ -1,0 +1,40 @@
+{
+  "summary": "Eventa iteration 2 — full stack tested. Backend: 9/9 new pytest cases pass (templates CRUD w/ image_url, event image_url roundtrip, /export/backup shape, /import/backup merge upsert & replace wipe+restore, /export/calendar.ics with valid VCALENDAR/VEVENT). Combined with iteration 1 suite = 23/23 tests pass sequentially. Frontend: logged in as test@eventa.pl, verified Statystyki 'Kalendarz — kopia zapasowa' card with iCal / Eksport JSON / Import JSON buttons (iCal confirmed to hit /api/export/calendar.ics), verified /event/new shows 'Dodaj zdjęcie imprezy' box, 'Zapisz jako szablon' button, and 'Wczytaj z szablonu (1)' opening a modal listing seeded 'Wesele standardowe' template. Iteration-1 flows (login, tab navigation, CSV export) still intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/export/calendar.ics", "issue": "DTEND wraparound after 20:00 uses (hour+4)%24 without advancing the DATE — a 22:00 event becomes 02:00 on the SAME day (end < start). Cosmetic — most calendar apps still accept it, but iCal validators may warn."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "all", "issues": ["Pre-existing RN-web deprecation warnings: 'shadow*' style props and 'props.pointerEvents' — cosmetic only."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/test_reports/pytest/iter2_results.xml"
+  ],
+  "action_items": [
+    "(Optional) In /api/export/calendar.ics, when time+4h wraps past midnight, roll the DTEND date forward by 1 day so end > start.",
+    "(Optional / carry-over from iter1) add testID props on FAB, tabs, and form inputs to remove reliance on Polish text selectors."
+  ],
+  "critical_code_review_comments": [
+    "server.py backup import correctly strips computed fields (labor_cost, material_cost, total_cost, profit) from events on re-import so they are recomputed by compute_event_summary on read — good.",
+    "Backup export strips owner_id and _id from staff/events/templates — good for portability across accounts.",
+    "Import 'replace' mode deletes staff/events/templates for the owner only (not global) — correct multi-tenant behaviour.",
+    "Templates and events accept image_url as Optional[str] with '' default — base64 data URIs stored inline in Mongo. For very large images this could bloat documents; acceptable for MVP.",
+    "iCal endpoint uses PlainTextResponse with CRLF line endings and text/calendar mime type — compliant."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration2.py"],
+  "success_rate": {"backend": "100% (23/23 sequential; iteration-2 file 9/9 in isolation)", "frontend": "100% for all iteration-2 acceptance criteria"},
+  "seed_data_creation": "test_iteration2.py registers its own itest_<uuid>@eventa.pl user and creates its own staff/events/templates; iteration-1 fixtures still clean up. Existing seeded test@eventa.pl user (with 1 event + 1 template) used for UI verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Running the full suite with pytest-xdist (default addopts in /app/backend/pytest.ini) can produce 2 flaky failures because TestBackup::test_import_replace_wipes_and_reinserts wipes data mid-run and workers share the same DB. Run with `-o addopts=''` for a stable sequential run, or keep the iter2 file's user isolated (already done via module-scoped fixture). Backend BASE_URL from EXPO_PUBLIC_BACKEND_URL. All iteration-2 endpoints require Bearer auth.",
+  "rca_of_issue": "N/A — no product bugs found."
+}
