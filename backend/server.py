@@ -109,15 +109,20 @@ def verify_pw(pw: str, hashed: str) -> bool:
     except Exception:
         return False
 
-async def compute_event_summary(ev: dict) -> dict:
-    """Enrich event with labor_cost & profit."""
+async def compute_event_summary(ev: dict, staff_map: Optional[dict] = None) -> dict:
+    """Enrich event with labor_cost & profit.
+
+    If a preloaded ``staff_map`` (id -> staff doc) is supplied, no DB call is made.
+    Otherwise, this function fetches only the staff referenced by the event's shifts.
+    """
     labor_cost = 0.0
-    staff_ids = [s["staff_id"] for s in ev.get("shifts", [])]
-    staff_map = {}
-    if staff_ids:
-        cursor = db.staff.find({"id": {"$in": staff_ids}}, {"_id": 0})
-        async for s in cursor:
-            staff_map[s["id"]] = s
+    if staff_map is None:
+        staff_ids = [s["staff_id"] for s in ev.get("shifts", [])]
+        staff_map = {}
+        if staff_ids:
+            cursor = db.staff.find({"id": {"$in": staff_ids}}, {"_id": 0})
+            async for s in cursor:
+                staff_map[s["id"]] = s
     for shift in ev.get("shifts", []):
         s = staff_map.get(shift["staff_id"])
         if s:
@@ -130,6 +135,11 @@ async def compute_event_summary(ev: dict) -> dict:
     ev["total_cost"] = round(total_cost, 2)
     ev["profit"] = round(revenue - total_cost, 2)
     return ev
+
+async def load_owner_staff_map(owner_id: str) -> dict:
+    """Load all staff for an owner once, returning {id: staff_doc}."""
+    cursor = db.staff.find({"owner_id": owner_id}, {"_id": 0})
+    return {s["id"]: s async for s in cursor}
 
 # ---------- Auth ----------
 @api.post("/auth/register", response_model=TokenOut)
@@ -214,9 +224,10 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
     items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
+    staff_map = await load_owner_staff_map(user["id"])
     enriched = []
     for ev in items:
-        enriched.append(await compute_event_summary(ev))
+        enriched.append(await compute_event_summary(ev, staff_map))
     return enriched
 
 @api.post("/events")
@@ -522,12 +533,13 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
     events = await db.events.find(q, {"_id": 0}).to_list(5000)
+    staff_map = await load_owner_staff_map(user["id"])
     total_revenue = 0.0
     total_material = 0.0
     total_labor = 0.0
     per_event = []
     for ev in events:
-        ev = await compute_event_summary(ev)
+        ev = await compute_event_summary(ev, staff_map)
         total_revenue += ev.get("revenue", 0)
         total_material += ev.get("material_cost", 0)
         total_labor += ev.get("labor_cost", 0)
@@ -554,11 +566,12 @@ async def export_events(user=Depends(current_user), year: Optional[int] = None, 
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
     events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)
+    staff_map = await load_owner_staff_map(user["id"])
     out = io.StringIO()
     w = csv.writer(out)
     w.writerow(["Data", "Impreza", "Miejsce", "Przychód (PLN)", "Koszty materiałowe (PLN)", "Koszty pracy (PLN)", "Zysk (PLN)"])
     for ev in events:
-        ev = await compute_event_summary(ev)
+        ev = await compute_event_summary(ev, staff_map)
         w.writerow([ev["date"], ev["name"], ev.get("venue", ""), ev["revenue"], ev["material_cost"], ev["labor_cost"], ev["profit"]])
     return PlainTextResponse(out.getvalue(), media_type="text/csv")
 

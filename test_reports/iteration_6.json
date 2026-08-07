@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 6 (backend only) verified. N+1 optimization is regression-free. Full backend regression 60/60 PASS (iter1 14 + iter2 9 + iter3 9 + iter4 10 + iter5 8 + iter6 10). New iter6 tests in /app/backend/tests/test_iteration6.py cover: (a) seeded Wesele 15-May-2026 returns rev=10000, labor_cost=250.0 (5h × 50 zł Jan Kowalski), material=3000, profit=6750 via /api/events; (b) /api/stats totals == sum of /api/events per-item revenue/material/labor/profit; (c) /api/export/events CSV rows match /api/events values field-by-field; (d) /api/staff/wages total_amount == sum(events.labor_cost); (e) /api/schedule 200 + shape OK; (f) fresh account event with 3 shifts (4h×40 + 6h×55.5 + 2.5h×100 = 743 zł) returns identical labor_cost across POST /events, GET /events list, GET /events/{id}, /stats and /staff/wages; (g) event referencing a non-existent staff_id contributes 0 to labor_cost, does not crash, and is not double-counted in /staff/wages or /export/events; (h) event with zero shifts → labor_cost=0; (i) auth register→me→login→wrong-pw(401)→delete-account(200)→me(401); (j) frontend/.env METRO_CACHE_ROOT is properly double-quoted. compute_event_summary backwards-compat verified — used with staff_map preload (list/stats/export/wages/schedule paths) and without (POST/GET/PUT single-event paths) yielding identical results.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iter6_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:112-137 — compute_event_summary now takes optional staff_map. Backwards-compatible: when None, still fetches only the shift-referenced staff IDs (no full-collection scan). Correctly guards missing staff via `staff_map.get(shift['staff_id'])` → 0 contribution, no KeyError. Math unchanged.",
+    "server.py:139-142 — load_owner_staff_map is a clean single-cursor dict-comprehension. Only reads {_id:0}, so no ObjectId leaks.",
+    "server.py:220-231 (list_events), 529-559 (stats), 562-576 (export_events) — all three preload the owner staff_map once before the per-event loop. Effective N+1 → 1 query. Verified via regression that returned values are byte-identical to pre-refactor (Wesele labor=250, material=3000, profit=6750).",
+    "server.py:461-496 (staff/wages) and 498-526 (schedule) — already used a preloaded staff_map before this iteration; not touched by refactor. Values still match sum of event labor_costs (asserted in iter6).",
+    "server.py:241 create_event and 248 get_event and 259 update_event — still call compute_event_summary(ev) without staff_map. That's fine (single event path, at most 1 DB fetch limited to shift-referenced ids). Confirmed identical values vs list path.",
+    "frontend/.env:5 — METRO_CACHE_ROOT=\"/app/frontend/.metro-cache\" is properly double-quoted. No other unquoted values with special chars.",
+    "No hardcoded credentials, no MongoDB _id leakage in any tested response, all endpoints properly guarded by Depends(current_user)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py"
+  ],
+  "success_rate": {"backend": "100% (60/60 iter1+iter2+iter3+iter4+iter5+iter6)", "frontend": "N/A (backend-only iteration per request)"},
+  "seed_data_creation": "Iter6 registers throwaway users test_iter6_*@eventa.pl / TEST_iter6_*@eventa.pl and deletes them at end of each test via DELETE /api/auth/me. Seeded test@eventa.pl account is READ-ONLY (only login + GET /events, /stats, /export/events, /staff/wages, /schedule). No seeded data modified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `EXPO_PUBLIC_BACKEND_URL=<preview-url> pytest -o addopts='' /app/backend/tests/` — iter4 requires the env var at import time. iter6 keys: (1) staff_map preload path is /api/events, /api/stats, /api/export/events; without-preload path is POST/GET/PUT /api/events/{id}. Both must yield identical labor/material/total/profit. (2) Non-existent staff_id in shifts must silently contribute 0 (do not error). (3) Wesele 2026-05-15 seeded values: rev=10000, labor=250 (5h × 50), material=3000, profit=6750.",
+  "rca_of_issue": "N/A — refactor-only iteration, verified with 60/60 backend regression. compute_event_summary's optional staff_map parameter is used correctly by list_events / stats / export_events, and behaves identically to the pre-refactor per-event fetch."
+}
