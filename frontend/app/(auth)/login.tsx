@@ -41,7 +41,7 @@ export default function Login() {
       >
         <ScrollView contentContainerStyle={[s.scroll, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
           <View style={s.brandBlock}>
-            <Text style={s.brandDot} testID="brand-dot">EVENTA</Text>
+            <Text style={s.brandDot} testID="brand-dot">BIESIADA POD LASEM</Text>
             <Text style={s.title}>Zarządzaj swoimi imprezami</Text>
             <Text style={s.subtitle}>Kalendarz, pracownicy, koszty i zysk – wszystko w jednym miejscu.</Text>
           </View>

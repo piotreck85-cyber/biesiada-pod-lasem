@@ -40,7 +40,7 @@ export default function Register() {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={[s.scroll, { paddingTop: insets.top + 60, paddingBottom: insets.bottom + 24 }]} keyboardShouldPersistTaps="handled">
           <View style={s.brandBlock}>
-            <Text style={s.brandDot}>EVENTA</Text>
+            <Text style={s.brandDot}>BIESIADA POD LASEM</Text>
             <Text style={s.title}>Załóż konto</Text>
             <Text style={s.subtitle}>Zacznij zarządzać imprezami w kilka sekund.</Text>
           </View>

@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, MONTHS_PL, DAYS_PL, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { categoryLabel } from "@/src/categories";
+import { useAuth } from "@/src/auth";
+import { printSchedule } from "@/src/printSchedule";
 
 function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 // return weekday index Mon=0..Sun=6 for a given date (m: 0-11)
@@ -22,6 +24,7 @@ function fmt(y: number, m: number, d: number) {
 export default function Kalendarz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { user } = useAuth();
   const today = new Date();
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
@@ -44,9 +47,13 @@ export default function Kalendarz() {
   useEffect(() => { load(); }, [load]);
 
   const eventDates = useMemo(() => {
-    const s = new Set<string>();
-    events.forEach(e => s.add(e.date));
-    return s;
+    const map: Record<string, { count: number; names: string[] }> = {};
+    events.forEach(e => {
+      if (!map[e.date]) map[e.date] = { count: 0, names: [] };
+      map[e.date].count += 1;
+      map[e.date].names.push(e.name);
+    });
+    return map;
   }, [events]);
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
@@ -138,7 +145,9 @@ export default function Kalendarz() {
               const dateStr = fmt(year, month, d);
               const isSel = dateStr === selected;
               const isToday = dateStr === fmt(today.getFullYear(), today.getMonth(), today.getDate());
-              const hasEv = eventDates.has(dateStr);
+              const info = eventDates[dateStr];
+              const count = info?.count || 0;
+              const firstName = info?.names[0];
               return (
                 <Pressable
                   key={i}
@@ -147,7 +156,24 @@ export default function Kalendarz() {
                   testID={`day-${dateStr}`}
                 >
                   <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
-                  {hasEv && <View style={[s.dot, isSel && { backgroundColor: theme.color.onBrand }]} />}
+                  {count > 0 && firstName ? (
+                    <Text
+                      numberOfLines={1}
+                      style={[s.cellEventName, isSel && { color: theme.color.onBrand }]}
+                    >
+                      {count > 1 ? `+${count}` : firstName}
+                    </Text>
+                  ) : null}
+                  {count > 0 && (
+                    <View style={s.dotsRow}>
+                      {Array.from({ length: Math.min(count, 3) }).map((_, idx) => (
+                        <View
+                          key={idx}
+                          style={[s.dot, isSel && { backgroundColor: theme.color.onBrand }]}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
@@ -155,9 +181,21 @@ export default function Kalendarz() {
         </View>
 
         <View style={s.listSection}>
-          <Text style={s.sectionTitle}>
-            {mode === "events" ? "Wydarzenia" : "Grafik pracowników"} — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
-          </Text>
+          <View style={s.listHeaderRow}>
+            <Text style={s.sectionTitle}>
+              {mode === "events" ? "Wydarzenia" : "Grafik pracowników"} — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
+            </Text>
+            {mode === "schedule" && (
+              <Pressable
+                testID="print-grafik-btn"
+                onPress={() => printSchedule({ year, month, events, staff: staffAll, ownerName: user?.name })}
+                style={s.printBtn}
+              >
+                <Feather name="printer" size={14} color={theme.color.brand} />
+                <Text style={s.printBtnText}>Drukuj miesiąc</Text>
+              </Pressable>
+            )}
+          </View>
           {loading ? (
             <ActivityIndicator color={theme.color.brand} style={{ marginTop: 24 }} />
           ) : mode === "events" ? (
@@ -249,19 +287,34 @@ const s = StyleSheet.create({
   weekLabel: { flex: 1, textAlign: "center", color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
   gridWrap: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
-    width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center",
+    width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "flex-start",
+    paddingTop: 4,
   },
   cellSelected: {
     backgroundColor: theme.color.brand, borderRadius: 12,
   },
-  cellText: { color: theme.color.onSurface, fontSize: 15 },
+  cellText: { color: theme.color.onSurface, fontSize: 15, fontWeight: "500" },
   cellTextSelected: { color: theme.color.onBrand, fontWeight: "700" },
+  cellEventName: {
+    fontSize: 8, color: theme.color.brand, marginTop: 2, paddingHorizontal: 2, maxWidth: "95%",
+    textAlign: "center", fontWeight: "600",
+  },
+  dotsRow: {
+    position: "absolute", bottom: 4, flexDirection: "row", gap: 2,
+  },
   dot: {
-    position: "absolute", bottom: 6, width: 5, height: 5, borderRadius: 5,
+    width: 4, height: 4, borderRadius: 4,
     backgroundColor: theme.color.brand,
   },
   listSection: { paddingHorizontal: 20, paddingTop: 20 },
-  sectionTitle: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700", marginBottom: 12 },
+  listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  sectionTitle: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },
+  printBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand,
+    backgroundColor: "rgba(212,175,55,0.06)",
+  },
+  printBtnText: { color: theme.color.brand, fontSize: 12, fontWeight: "700" },
   emptyBox: { alignItems: "center", padding: 24, borderWidth: 1, borderColor: theme.color.border, borderRadius: 16, borderStyle: "dashed" },
   emptyText: { color: theme.color.onSurfaceSecondary, marginTop: 12, marginBottom: 16 },
   emptyBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: theme.color.brand, borderRadius: 999 },

@@ -70,5 +70,6 @@ export const api = {
   exportUrl: (year: number, month: number) => `${BASE}/api/export/events?year=${year}&month=${month}`,
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
+  importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

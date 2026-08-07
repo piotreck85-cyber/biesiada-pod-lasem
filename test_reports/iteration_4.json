@@ -1,0 +1,42 @@
+{
+  "summary": "Iteration 4 fully verified. Backend: 10/10 new pytest cases in /app/backend/tests/test_iteration4.py PASS (POST /api/import/ics — auth required, parses VEVENTs with DTSTART date-only + date-time, filters via years_back cutoff, dedupes by UID on re-import, gracefully returns imported=0 on garbage/empty input; GET /api/export/calendar.ics PRODID now contains 'Biesiada pod lasem'; regression smoke on login/stats/wages/schedule/events CRUD). Full regression 42/42 PASS (iter1 14 + iter2 9 + iter3 9 + iter4 10). Frontend (mobile 375x667, logged in as test@eventa.pl): (1) Login screen brand-dot renders 'BIESIADA POD LASEM'. (2) Czerwiec 2026 calendar cells show event name below day number — day-2026-06-10 = '10\\nWesele Nowaków', day-2026-06-15 = '15\\nParty 22:00' (dots visible at bottom of cells). (3) Grafik mode of Kalendarz shows print-grafik-btn next to section title labelled 'Drukuj miesiąc'; clicking opens a new tab (window.open) without crashing — no red screen. (4) Statystyki backup card lists all 4 buttons: 'Eksport iCal', 'Import iCal (5 lat)', 'Eksport JSON', 'Import JSON'; 'Wypłaty pracowników' section present. Iter1/2/3 UI regression covered by 42-test backend suite; login → dashboard flow still works.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "kalendarz (Grafik mode)", "issues": ["Section title 'Grafik pracowników — {selectedDay}' uses the currently *selected day* (which defaults to today across month navigation), while the 'Drukuj miesiąc' button correctly prints the *displayed month*. Minor UX inconsistency: when viewing Czerwiec 2026 the header may say '— 7 sierpnia' if today is Aug 7. Cosmetic only; the printed HTML uses the correct year/month."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/test_reports/pytest/iter4_results.xml"
+  ],
+  "action_items": [
+    "(Optional cosmetic) In /app/frontend/app/(tabs)/kalendarz.tsx around line ~178 the Grafik section title uses selectedDay for its subtitle. When user only navigates months (without tapping a day), the header shows today's date rather than something scoped to the visible month. Consider showing '— MONTH YEAR' when no day is explicitly selected for the visible month.",
+    "(Carry-over from iter2) iCal DTEND that crosses midnight still emits the same date as DTSTART. Non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "server.py /api/import/ics correctly implements RFC 5545 line unfolding (regex strips leading whitespace on continuation lines) and handles both DTSTART;VALUE=DATE:YYYYMMDD and DTSTART:YYYYMMDDTHHMMSS forms. UID dedupe stores the source UID as 'imported_uid' and filters on (owner_id, imported_uid) — correct multi-tenant isolation.",
+    "server.py cutoff uses (now - 365*years_back days).date() which is a fixed approximation (ignores leap years). Acceptable for a 5-year window; error is < 2 days at 5-year mark.",
+    "server.py /api/import/ics response schema {ok, imported, skipped_older_than_cutoff, total_parsed} matches the spec exactly. Note: 'skipped_future_limit' local var is computed but never returned — dead code, safe to remove.",
+    "server.py /api/export/calendar.ics PRODID -//Biesiada pod lasem//PL// is well-formed; UID is still '{id}@eventa' (namespace mismatch with new app name, but stable id-space — do NOT change existing UIDs since external calendars would treat them as new events).",
+    "printSchedule.ts correctly branches Platform.OS === 'web' (uses window.open + w.print) vs native (expo-print). HTML is properly escaped via escapeHtml. Server-side rendering not needed since HTML is generated client-side from already-fetched events/staff.",
+    "kalendarz.tsx line 190: print-grafik-btn passes {year, month, events, staff: staffAll, ownerName: user?.name}. events/staff arrays are the currently loaded month arrays — printed HTML will reflect exactly what the user sees. Good.",
+    "api.ts importIcs helper uses JSON body {ics, years_back} — matches ImportIcsIn model. No client-side size guard: a very large .ics (>10 MB) would push the whole string through JSON which is not ideal but acceptable for MVP."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration4.py"],
+  "success_rate": {"backend": "100% (42/42 iter1+iter2+iter3+iter4)", "frontend": "100% for all iteration-4 acceptance criteria"},
+  "seed_data_creation": "test_iteration4.py registers its own isolated user i4test_<uuid>@eventa.pl. All ICS-imported events (TEST_IcsFuture, TEST_IcsDup, TEST_i4Smoke*) live in that isolated tenant and do not touch the shared test@eventa.pl seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run full regression with `pytest -o addopts='' /app/backend/tests/` (disable -n auto to avoid xdist DB collisions from TestBackup::test_import_replace_wipes_and_reinserts). Iter4 endpoint: POST /api/import/ics {ics: string, years_back: int=5} → {ok, imported, skipped_older_than_cutoff, total_parsed}; UID dedupe key is stored as events.imported_uid. Frontend testIDs used in this run: brand-dot, login-email-input, login-password-input, login-submit-button, cal-prev-month, cal-next-month, cal-month-label, mode-events, mode-schedule, day-YYYY-MM-DD, print-grafik-btn. Tab-bar text 'Imprezy'/'Statystyki'/'Pracownicy' has no explicit testIDs — a locator by text works but may collide with 'Impreza po imprezie' section header on Statystyki; add testIDs 'tab-imprezy' etc. if precise tab clicks are needed in future runs.",
+  "rca_of_issue": "N/A — no bugs found in iteration 4 scope."
+}

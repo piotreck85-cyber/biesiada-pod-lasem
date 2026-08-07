@@ -119,6 +119,33 @@ export default function Statystyki() {
     } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
   };
 
+  const doImportIcs = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: Platform.OS === "web" ? "*/*" : ["text/calendar", "*/*"],
+        copyToCacheDirectory: true,
+      });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      let text: string;
+      if (Platform.OS === "web" && asset.file) {
+        text = await asset.file.text();
+      } else {
+        text = await FileSystem.readAsStringAsync(asset.uri);
+      }
+      if (!text.includes("BEGIN:VCALENDAR") && !text.includes("BEGIN:VEVENT")) {
+        Alert.alert("Błąd", "To nie jest prawidłowy plik iCal (.ics)");
+        return;
+      }
+      const result: any = await api.importIcs(text, 5);
+      Alert.alert(
+        "Import zakończony",
+        `Wczytano ${result.total_parsed} wydarzeń z pliku.\nZaimportowano: ${result.imported}.\nPominięto (starsze niż 5 lat): ${result.skipped_older_than_cutoff}.`
+      );
+      await load();
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+  };
+
   const doIcsExport = async () => {
     const token = await tokenStore.get();
     const url = api.icsUrl();
@@ -209,7 +236,11 @@ export default function Statystyki() {
               <View style={s.backupRow}>
                 <Pressable testID="ics-export-btn" onPress={doIcsExport} style={s.backupBtn}>
                   <Feather name="calendar" size={16} color={theme.color.brand} />
-                  <Text style={s.backupBtnText}>iCal (.ics)</Text>
+                  <Text style={s.backupBtnText}>Eksport iCal</Text>
+                </Pressable>
+                <Pressable testID="ics-import-btn" onPress={doImportIcs} style={s.backupBtn}>
+                  <Feather name="calendar" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>Import iCal (5 lat)</Text>
                 </Pressable>
                 <Pressable testID="backup-export-btn" onPress={doBackup} disabled={busyBackup} style={[s.backupBtn, busyBackup && { opacity: 0.5 }]}>
                   {busyBackup ? <ActivityIndicator size="small" color={theme.color.brand} /> : <Feather name="upload" size={16} color={theme.color.brand} />}

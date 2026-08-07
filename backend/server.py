@@ -263,6 +263,10 @@ async def delete_template(tpl_id: str, user=Depends(current_user)):
     await db.templates.delete_one({"id": tpl_id, "owner_id": user["id"]})
     return {"ok": True}
 
+class ImportIcsIn(BaseModel):
+    ics: str
+    years_back: int = 5
+
 # ---------- Backup Export / Import ----------
 class BackupIn(BaseModel):
     staff: List[dict] = []
@@ -325,7 +329,7 @@ async def import_backup(body: BackupIn, user=Depends(current_user)):
 @api.get("/export/calendar.ics")
 async def export_ics(user=Depends(current_user)):
     events = await db.events.find({"owner_id": user["id"]}, {"_id": 0}).sort("date", 1).to_list(10000)
-    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Eventa//PL//", "CALSCALE:GREGORIAN"]
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Biesiada pod lasem//PL//", "CALSCALE:GREGORIAN"]
     for ev in events:
         date = str(ev.get("date", "")).replace("-", "")
         time_str = str(ev.get("time") or "").replace(":", "")
@@ -353,6 +357,84 @@ async def export_ics(user=Depends(current_user)):
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
     return PlainTextResponse("\r\n".join(lines), media_type="text/calendar")
+
+@api.post("/import/ics")
+async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
+    """Parse an iCal file and create events. Only events within the last N years are imported."""
+    import re
+    content = body.ics.replace("\r\n", "\n").replace("\r", "\n")
+    # Unfold long lines (RFC 5545: lines starting with space/tab continue previous line)
+    content = re.sub(r"\n[ \t]", "", content)
+    lines = content.split("\n")
+
+    events_raw = []
+    current = None
+    for raw in lines:
+        line = raw.strip()
+        if line == "BEGIN:VEVENT":
+            current = {}
+        elif line == "END:VEVENT":
+            if current is not None:
+                events_raw.append(current)
+            current = None
+        elif current is not None and ":" in line:
+            key_part, value = line.split(":", 1)
+            key = key_part.split(";")[0].upper()
+            current[key] = value.strip()
+
+    def parse_ics_date(v: str):
+        v = v.strip()
+        if len(v) >= 8 and v[:8].isdigit():
+            y = int(v[:4]); m = int(v[4:6]); d = int(v[6:8])
+            time_str = ""
+            if "T" in v and len(v) >= 15:
+                hh = v[9:11]; mm = v[11:13]
+                if hh.isdigit() and mm.isdigit():
+                    time_str = f"{hh}:{mm}"
+            return f"{y:04d}-{m:02d}-{d:02d}", time_str
+        return None, None
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=365 * max(1, body.years_back))).date()
+    imported = 0
+    skipped_old = 0
+    skipped_future_limit = 0
+    for ev in events_raw:
+        dtstart = ev.get("DTSTART", "")
+        date_str, time_str = parse_ics_date(dtstart)
+        if not date_str:
+            continue
+        try:
+            ev_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        if ev_date < cutoff:
+            skipped_old += 1
+            continue
+        doc = {
+            "id": str(uuid.uuid4()),
+            "owner_id": user["id"],
+            "name": ev.get("SUMMARY", "Impreza"),
+            "date": date_str,
+            "time": time_str,
+            "venue": ev.get("LOCATION", ""),
+            "notes": ev.get("DESCRIPTION", "").replace("\\n", "\n").replace("\\,", ","),
+            "category": "",
+            "revenue": 0.0,
+            "costs": [],
+            "shifts": [],
+            "image_url": "",
+            "created_at": now_utc().isoformat(),
+        }
+        # De-dup by UID if provided
+        uid = ev.get("UID")
+        if uid:
+            existing = await db.events.find_one({"owner_id": user["id"], "imported_uid": uid})
+            if existing:
+                continue
+            doc["imported_uid"] = uid
+        await db.events.insert_one(doc)
+        imported += 1
+    return {"ok": True, "imported": imported, "skipped_older_than_cutoff": skipped_old, "total_parsed": len(events_raw)}
 
 # ---------- Stats ----------
 @api.get("/staff/wages")
