@@ -56,6 +56,14 @@ export const api = {
   createTemplate: (data: any) => request("/templates", { method: "POST", body: JSON.stringify(data) }),
   deleteTemplate: (id: string) => request(`/templates/${id}`, { method: "DELETE" }),
 
+  listExpenses: (year?: number, month?: number) => {
+    const qs = year && month ? `?year=${year}&month=${month}` : (year ? `?year=${year}` : "");
+    return request(`/expenses${qs}`);
+  },
+  createExpense: (data: any) => request("/expenses", { method: "POST", body: JSON.stringify(data) }),
+  updateExpense: (id: string, data: any) => request(`/expenses/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteExpense: (id: string) => request(`/expenses/${id}`, { method: "DELETE" }),
+
   listEvents: (year?: number, month?: number) => {
     const qs = year && month ? `?year=${year}&month=${month}` : "";
     return request(`/events${qs}`);

@@ -246,8 +246,9 @@ export default function Statystyki() {
               <Text style={s.sectionTitle}>Podział kosztów</Text>
               <BreakdownRow label="Materiałowe" value={data?.material_cost || 0} />
               <BreakdownRow label="Praca (pracownicy)" value={data?.labor_cost || 0} />
+              <BreakdownRow label="Firmowe (najem, media itp.)" value={data?.company_expenses || 0} />
               <View style={s.sep} />
-              <BreakdownRow label="Razem" value={totalCost} bold />
+              <BreakdownRow label="Razem" value={(data?.total_cost || 0) + (data?.company_expenses || 0)} bold />
             </View>
 
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>

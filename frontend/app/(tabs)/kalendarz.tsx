@@ -21,6 +21,17 @@ function fmt(y: number, m: number, d: number) {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
+function formatTimeRange(start?: string, end?: string, legacy?: string): string {
+  const compact = (t?: string) => {
+    if (!t) return "";
+    const [h, m] = t.split(":");
+    return m && m !== "00" ? `${parseInt(h, 10)}:${m}` : `${parseInt(h, 10)}`;
+  };
+  if (start && end) return `${compact(start)}–${compact(end)}`;
+  if (start) return compact(start);
+  return legacy || "—";
+}
+
 export default function Kalendarz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -223,7 +234,7 @@ export default function Kalendarz() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={s.evName}>{ev.name}</Text>
-                    <Text style={s.evMeta}>{ev.time || "—"}  ·  {ev.venue || "Bez lokalizacji"}</Text>
+                    <Text style={s.evMeta}>{formatTimeRange(ev.time_start, ev.time_end, ev.time)}</Text>
                     {ev.category ? <Text style={s.evCat}>{categoryLabel(ev.category)}</Text> : null}
                   </View>
                   <View style={{ alignItems: "flex-end" }}>

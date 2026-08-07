@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
+import { computePricing } from "@/src/pricing";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -33,10 +34,12 @@ export default function EventDetail() {
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(initName || "");
   const [date, setDate] = useState(initDate || todayIso());
-  const [time, setTime] = useState("");
-  const [venue, setVenue] = useState("");
+  const [timeStart, setTimeStart] = useState("");
+  const [timeEnd, setTimeEnd] = useState("");
   const [notes, setNotes] = useState(initNotes || "");
   const [revenue, setRevenue] = useState(initRevenue || "");
+  const [people, setPeople] = useState("");
+  const [autoPrice, setAutoPrice] = useState(true);
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
@@ -54,11 +57,15 @@ export default function EventDetail() {
       if (!isNew) {
         try {
           const ev: any = await api.getEvent(id as string);
-          setName(ev.name); setDate(ev.date); setTime(ev.time || ""); setVenue(ev.venue || "");
+          setName(ev.name); setDate(ev.date);
+          setTimeStart(ev.time_start || ev.time || "");
+          setTimeEnd(ev.time_end || "");
           setNotes(ev.notes || ""); setRevenue(String(ev.revenue || ""));
           setCosts(ev.costs || []); setShifts(ev.shifts || []);
           setImageUrl(ev.image_url || "");
           setCategory(ev.category || "");
+          setPeople(ev.people ? String(ev.people) : "");
+          setAutoPrice(false); // editing existing event: don't override user's saved revenue
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -86,11 +93,19 @@ export default function EventDetail() {
     if (!name.trim() || !date) return;
     setSaving(true);
     const body = {
-      name: name.trim(), date, time, venue, notes,
-      category,
+      name: name.trim(), date,
+      time_start: timeStart, time_end: timeEnd, time: timeStart,
+      venue: "Biesiada pod lasem",
+      notes, category,
+      people: peopleNum,
       revenue: revenueNum,
       costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
-      shifts: shifts.map(sh => ({ staff_id: sh.staff_id, hours: Number(sh.hours) || 0 })),
+      shifts: shifts.map(sh => ({
+        staff_id: sh.staff_id,
+        hours: Number(sh.hours) || 0,
+        time_start: sh.time_start || "",
+        time_end: sh.time_end || "",
+      })),
       image_url: imageUrl,
     };
     try {
@@ -238,14 +253,16 @@ export default function EventDetail() {
                 </Field>
               </View>
               <View style={{ flex: 1 }}>
-                <Field label="Godzina">
-                  <TextInput testID="event-time-input" value={time} onChangeText={setTime} placeholder="18:00" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+                <Field label="Godzina od">
+                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Godzina do">
+                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
                 </Field>
               </View>
             </View>
-            <Field label="Miejsce">
-              <TextInput testID="event-venue-input" value={venue} onChangeText={setVenue} placeholder="Sala Bankietowa" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
-            </Field>
             <Field label="Kategoria">
               <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
                 <Text style={{ color: category ? theme.color.onSurface : theme.color.onSurfaceSecondary, fontSize: 15 }}>
@@ -261,9 +278,49 @@ export default function EventDetail() {
 
           {/* Financials */}
           <Section title="Finanse">
-            <Field label="Przychód (PLN)">
-              <TextInput testID="event-revenue-input" value={revenue} onChangeText={setRevenue} placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary} keyboardType="decimal-pad" style={s.input} />
-            </Field>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Liczba osób">
+                  <TextInput
+                    testID="event-people-input"
+                    value={people}
+                    onChangeText={(v) => { setPeople(v); setAutoPrice(true); }}
+                    placeholder="np. 25"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="number-pad"
+                    style={s.input}
+                  />
+                </Field>
+              </View>
+              <View style={{ flex: 1.2 }}>
+                <Field label="Przychód (PLN)">
+                  <TextInput
+                    testID="event-revenue-input"
+                    value={revenue}
+                    onChangeText={(v) => { setRevenue(v); setAutoPrice(false); }}
+                    placeholder="0"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="decimal-pad"
+                    style={s.input}
+                  />
+                </Field>
+              </View>
+            </View>
+            {pricing && (
+              <View style={s.pricingCard} testID="pricing-breakdown">
+                <View style={{ flex: 1 }}>
+                  <Text style={s.pricingBreakdown}>{pricing.breakdown}</Text>
+                  <Text style={s.pricingHint}>{autoPrice ? "Cena wpisana automatycznie" : "Cena ręczna — dotknij, aby użyć auto"}</Text>
+                </View>
+                <Pressable
+                  testID="pricing-apply-btn"
+                  onPress={() => { setRevenue(String(pricing.total)); setAutoPrice(true); }}
+                  style={s.pricingApply}
+                >
+                  <Text style={s.pricingApplyText}>{formatPLN(pricing.total)}</Text>
+                </Pressable>
+              </View>
+            )}
             <View style={{ marginTop: 8, marginBottom: 4 }}>
               <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
             </View>
@@ -303,24 +360,64 @@ export default function EventDetail() {
             {shifts.map((sh, i) => {
               const s2 = staffMap[sh.staff_id];
               return (
-                <View key={sh.staff_id} style={s.shiftRow}>
-                  <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.shiftName}>{s2?.name || "?"}</Text>
-                    <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text>
+                <View key={sh.staff_id} style={s.shiftBlock}>
+                  <View style={s.shiftRow}>
+                    <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.shiftName}>{s2?.name || "?"}</Text>
+                      <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text>
+                    </View>
+                    <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
+                    <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
+                      <Feather name="x" size={16} color={theme.color.onSurfaceSecondary} />
+                    </Pressable>
                   </View>
-                  <TextInput
-                    testID={`shift-hours-${i}`}
-                    value={String(sh.hours || "")}
-                    onChangeText={v => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
-                    placeholder="godz."
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
-                    keyboardType="decimal-pad"
-                    style={s.hoursInput}
-                  />
-                  <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                    <Feather name="x" size={16} color={theme.color.onSurfaceSecondary} />
-                  </Pressable>
+                  <View style={s.shiftTimeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Od</Text>
+                      <TextInput
+                        testID={`shift-start-${i}`}
+                        value={sh.time_start || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_start: v };
+                          const h = hoursBetween(v, next.time_end);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="18:00"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Do</Text>
+                      <TextInput
+                        testID={`shift-end-${i}`}
+                        value={sh.time_end || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_end: v };
+                          const h = hoursBetween(next.time_start, v);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="22:00"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Godziny (ręcznie)</Text>
+                      <TextInput
+                        testID={`shift-hours-${i}`}
+                        value={String(sh.hours || "")}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
+                        placeholder="4"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        keyboardType="decimal-pad"
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
                 </View>
               );
             })}
@@ -494,6 +591,34 @@ const s = StyleSheet.create({
   shiftName: { color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
   shiftRate: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
   hoursInput: { width: 70, backgroundColor: theme.color.surfaceTertiary, borderRadius: 10, color: theme.color.onSurface, paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, textAlign: "center", borderWidth: 1, borderColor: theme.color.border },
+  shiftBlock: {
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, padding: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  shiftTimeRow: { flexDirection: "row", gap: 8, marginTop: 10 },
+  timeInput: {
+    backgroundColor: theme.color.surface, borderRadius: 10, color: theme.color.onSurface,
+    paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, borderWidth: 1, borderColor: theme.color.border,
+    textAlign: "center",
+  },
+  miniLabel: { color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5, marginBottom: 4 },
+  shiftHoursBadge: {
+    color: theme.color.brand, fontWeight: "800", fontSize: 14,
+    borderWidth: 1, borderColor: theme.color.brand, borderRadius: 999,
+    paddingHorizontal: 10, paddingVertical: 4,
+  },
+  pricingCard: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    backgroundColor: "rgba(212,175,55,0.08)",
+    borderWidth: 1, borderColor: theme.color.brandTertiary,
+    borderRadius: 12, padding: 12, marginTop: 4,
+  },
+  pricingBreakdown: { color: theme.color.onSurface, fontSize: 12, fontWeight: "600" },
+  pricingHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  pricingApply: {
+    backgroundColor: theme.color.brand, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+  },
+  pricingApplyText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 13 },
   summary: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.color.brandTertiary },
   sumRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
   sumLabel: { color: theme.color.onSurfaceSecondary, fontSize: 13 },

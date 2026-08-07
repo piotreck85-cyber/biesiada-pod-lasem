@@ -56,6 +56,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="koszty"
+        options={{
+          title: "Koszty",
+          tabBarIcon: ({ color }) => <Feather name="dollar-sign" color={color} size={20} />,
+        }}
+      />
+      <Tabs.Screen
         name="pracownicy"
         options={{
           title: "Pracownicy",

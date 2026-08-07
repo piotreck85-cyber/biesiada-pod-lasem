@@ -53,14 +53,19 @@ class CostItem(BaseModel):
 class StaffShift(BaseModel):
     staff_id: str
     hours: float = 0.0
+    time_start: Optional[str] = ""  # HH:MM
+    time_end: Optional[str] = ""    # HH:MM
 
 class EventIn(BaseModel):
     name: str
     date: str  # ISO YYYY-MM-DD
-    time: Optional[str] = ""
-    venue: Optional[str] = ""
+    time: Optional[str] = ""        # legacy single time (kept for old records)
+    time_start: Optional[str] = ""  # HH:MM
+    time_end: Optional[str] = ""    # HH:MM
+    venue: Optional[str] = ""       # legacy — always "Biesiada pod lasem" now
     notes: Optional[str] = ""
     category: Optional[str] = ""
+    people: Optional[int] = 0
     revenue: float = 0.0
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
@@ -71,10 +76,20 @@ class TemplateIn(BaseModel):
     venue: Optional[str] = ""
     notes: Optional[str] = ""
     category: Optional[str] = ""
+    people: Optional[int] = 0
+    time_start: Optional[str] = ""
+    time_end: Optional[str] = ""
     revenue: float = 0.0
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
     image_url: Optional[str] = ""
+
+class ExpenseIn(BaseModel):
+    label: str
+    amount: float
+    date: str  # YYYY-MM-DD
+    category: Optional[str] = ""
+    notes: Optional[str] = ""
 
 # ---------- Helpers ----------
 def now_utc():
@@ -457,6 +472,43 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
         imported += 1
     return {"ok": True, "imported": imported, "skipped_older_than_cutoff": skipped_old, "total_parsed": len(events_raw)}
 
+# ---------- Company Expenses ----------
+@api.get("/expenses")
+async def list_expenses(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+    q = {"owner_id": user["id"]}
+    if year and month:
+        q["date"] = {"$regex": f"^{year:04d}-{month:02d}"}
+    elif year:
+        q["date"] = {"$regex": f"^{year:04d}-"}
+    items = await db.expenses.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
+    return items
+
+@api.post("/expenses")
+async def create_expense(body: ExpenseIn, user=Depends(current_user)):
+    doc = body.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = user["id"]
+    doc["created_at"] = now_utc().isoformat()
+    await db.expenses.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api.put("/expenses/{expense_id}")
+async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_user)):
+    res = await db.expenses.update_one(
+        {"id": expense_id, "owner_id": user["id"]},
+        {"$set": body.dict()},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Koszt nie znaleziony")
+    doc = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    return doc
+
+@api.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str, user=Depends(current_user)):
+    await db.expenses.delete_one({"id": expense_id, "owner_id": user["id"]})
+    return {"ok": True}
+
 # ---------- Stats ----------
 @api.get("/staff/wages")
 async def staff_wages(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
@@ -536,6 +588,15 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
         q["date"] = {"$regex": f"^{year:04d}-"}
     events = await db.events.find(q, {"_id": 0}).to_list(5000)
     staff_map = await load_owner_staff_map(user["id"])
+    # Company-wide expenses in same period
+    exp_q = {"owner_id": user["id"]}
+    if year and month:
+        exp_q["date"] = {"$regex": f"^{year:04d}-{month:02d}"}
+    elif year:
+        exp_q["date"] = {"$regex": f"^{year:04d}-"}
+    expenses = await db.expenses.find(exp_q, {"_id": 0}).to_list(5000)
+    company_expenses = round(sum(float(e.get("amount", 0)) for e in expenses), 2)
+
     total_revenue = 0.0
     total_material = 0.0
     total_labor = 0.0
@@ -556,7 +617,8 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
         "material_cost": round(total_material, 2),
         "labor_cost": round(total_labor, 2),
         "total_cost": round(total_cost, 2),
-        "profit": round(total_revenue - total_cost, 2),
+        "company_expenses": company_expenses,
+        "profit": round(total_revenue - total_cost - company_expenses, 2),
         "events": per_event,
     }
 

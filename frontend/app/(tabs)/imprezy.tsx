@@ -26,6 +26,17 @@ function fmtDate(d: string) {
   } catch { return d; }
 }
 
+function formatTimeRange(start?: string, end?: string, legacy?: string): string {
+  const compact = (t?: string) => {
+    if (!t) return "";
+    const [h, m] = t.split(":");
+    return m && m !== "00" ? `${parseInt(h, 10)}:${m}` : `${parseInt(h, 10)}`;
+  };
+  if (start && end) return `${compact(start)}–${compact(end)}`;
+  if (start) return compact(start);
+  return legacy || "—";
+}
+
 export default function Imprezy() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -113,7 +124,7 @@ export default function Imprezy() {
                   ) : null}
                 </View>
                 <Text style={s.cardName} numberOfLines={2}>{item.name}</Text>
-                <Text style={s.cardVenue} numberOfLines={1}>{item.venue || "Bez lokalizacji"}  ·  {item.time || "—"}</Text>
+                <Text style={s.cardVenue} numberOfLines={1}>{formatTimeRange(item.time_start, item.time_end, item.time)}</Text>
                 <View style={s.finRow}>
                   <View>
                     <Text style={s.finLabel}>Przychód</Text>

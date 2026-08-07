@@ -7,9 +7,12 @@ export type BirthdayPackage = {
   category: string; // maps to app category
   duration: string;
   capacity: string;
+  capacity_limit: number;      // people included in base price
   features: string[];
   price_weekday: number | null; // PLN, Pon–Czw
   price_weekend: number | null; // PLN, Pt–Nd
+  surcharge_weekday: number;   // per extra person, Pon–Czw
+  surcharge_weekend: number;   // per extra person, Pt–Nd
   above_limit_note: string;
   image: string;
 };
@@ -39,6 +42,9 @@ export const BIRTHDAY_PACKAGES: BirthdayPackage[] = [
     category: "dzieci/urodzinki/start",
     duration: "2 h",
     capacity: "do 15 osób",
+    capacity_limit: 15,
+    surcharge_weekday: 30,
+    surcharge_weekend: 40,
     features: [
       "Dmuchaniec",
       "Karmienie i spacer z alpakami",
@@ -58,6 +64,9 @@ export const BIRTHDAY_PACKAGES: BirthdayPackage[] = [
     category: "dzieci/urodzinki/standard",
     duration: "3 h",
     capacity: "do 20 osób",
+    capacity_limit: 20,
+    surcharge_weekday: 30,
+    surcharge_weekend: 40,
     features: [
       "Dmuchaniec",
       "Karmienie i spacer z alpakami",
@@ -79,6 +88,9 @@ export const BIRTHDAY_PACKAGES: BirthdayPackage[] = [
     category: "dzieci/urodzinki/gady",
     duration: "3 h",
     capacity: "do 20 osób",
+    capacity_limit: 20,
+    surcharge_weekday: 30,
+    surcharge_weekend: 40,
     features: [
       "Wszystko ze STANDARD",
       "Spotkanie z wężem",
@@ -96,6 +108,9 @@ export const BIRTHDAY_PACKAGES: BirthdayPackage[] = [
     category: "dzieci/urodzinki/konie",
     duration: "4 h",
     capacity: "do 20 osób",
+    capacity_limit: 20,
+    surcharge_weekday: 30,
+    surcharge_weekend: 40,
     features: [
       "Wszystko ze STANDARD",
       "Przejażdżka na koniu dla każdego dziecka",
@@ -111,6 +126,9 @@ export const BIRTHDAY_PACKAGES: BirthdayPackage[] = [
     category: "dzieci/urodzinki/tematyczne",
     duration: "3 h",
     capacity: "do 20 osób",
+    capacity_limit: 20,
+    surcharge_weekday: 30,
+    surcharge_weekend: 40,
     features: [
       "Wszystko ze STANDARD",
       "Animacje tematyczne",
