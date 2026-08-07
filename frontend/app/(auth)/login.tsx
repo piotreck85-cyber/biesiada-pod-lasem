@@ -29,12 +29,6 @@ export default function Login() {
 
   return (
     <View style={s.root}>
-      <Image source={BG} style={StyleSheet.absoluteFill} contentFit="cover" />
-      <LinearGradient
-        colors={["rgba(12,12,14,0.25)", "rgba(12,12,14,0.85)", "rgba(12,12,14,1)"]}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
-      />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}

@@ -11,7 +11,7 @@ export default function TabLayout() {
         tabBarActiveTintColor: theme.color.brand,
         tabBarInactiveTintColor: theme.color.onSurfaceSecondary,
         tabBarStyle: {
-          backgroundColor: theme.color.surfaceSecondary,
+          backgroundColor: "rgba(21,21,24,0.92)",
           borderTopColor: theme.color.border,
           borderTopWidth: 1,
           height: Platform.OS === "ios" ? 84 : 64,

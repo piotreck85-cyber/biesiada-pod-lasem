@@ -500,7 +500,7 @@ const s = StyleSheet.create({
   sumVal: { fontSize: 14, fontWeight: "600" },
   sep: { height: 1, backgroundColor: theme.color.divider, marginVertical: 8 },
   footer: {
-    position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: theme.color.surface,
+    position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(12,12,14,0.92)",
     padding: 16, borderTopWidth: 1, borderTopColor: theme.color.divider,
   },
   saveBtn: { backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
