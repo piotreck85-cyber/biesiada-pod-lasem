@@ -17,7 +17,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
-JWT_SECRET = os.environ.get('JWT_SECRET', 'eventa-dev-secret-change-me-please-2026')
+JWT_SECRET = os.environ['JWT_SECRET']
 ACCESS_MINUTES = 60 * 24 * 7  # 7 days for simplicity
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -163,6 +163,16 @@ async def login(body: LoginIn):
 @api.get("/auth/me")
 async def me(user=Depends(current_user)):
     return user
+
+@api.delete("/auth/me")
+async def delete_account(user=Depends(current_user)):
+    """Delete user account and all associated data (events, staff, templates)."""
+    uid = user["id"]
+    await db.events.delete_many({"owner_id": uid})
+    await db.staff.delete_many({"owner_id": uid})
+    await db.templates.delete_many({"owner_id": uid})
+    await db.users.delete_one({"id": uid})
+    return {"ok": True}
 
 # ---------- Staff ----------
 @api.get("/staff")

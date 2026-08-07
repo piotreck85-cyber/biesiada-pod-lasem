@@ -45,6 +45,7 @@ export const api = {
   login: (email: string, password: string) =>
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => request("/auth/me"),
+  deleteAccount: () => request("/auth/me", { method: "DELETE" }),
 
   listStaff: () => request("/staff"),
   createStaff: (data: any) => request("/staff", { method: "POST", body: JSON.stringify(data) }),

@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 5 verified. Both deployment health-check fixes work end-to-end. Backend: 8/8 new pytest cases in /app/backend/tests/test_iteration5.py PASS — DELETE /api/auth/me returns 401 without/with-bad token, cascade-deletes events+staff+templates for the caller, invalidates the token (subsequent /auth/me → 401, login with same email → 401), and is tenant-isolated (User B deletion does not affect User A's data). Seeded regression: test@eventa.pl still logs in and can hit /events, /staff, /templates, /stats, /staff/wages, /schedule (200). JWT_SECRET is only sourced from env (backend/.env has JWT_SECRET set, backend up on port 8001). Full regression 50/50 PASS (iter1 14 + iter2 9 + iter3 9 + iter4 10 + iter5 8). Frontend (mobile 375x667, logged in as test@eventa.pl → Pracownicy): red Feather 'trash-2' delete-account-btn is rendered to the left of logout-button in the header (x=281 vs x=321, both ~32-36px tall). Tapping it fires a native window.confirm with the exact Polish text 'Usuń konto i wszystkie dane (imprezy, pracowników, szablony)? Ta operacja jest nieodwracalna.' — dismissing the confirm leaves the seeded user intact and still on staff-screen. All 5 bottom tabs (Kalendarz, Imprezy, Oferta, Pracownicy, Statystyki) remain navigable — no red screen, no console errors, only pre-existing RN Web deprecation warnings ('shadow*' style, props.pointerEvents).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/test_reports/pytest/iter5_results.xml"
+  ],
+  "action_items": [
+    "(Optional, pre-existing) React Native Web console warnings on Expo Web: 'shadow*' style props deprecated (use boxShadow) and 'props.pointerEvents' deprecated (use style.pointerEvents). Cosmetic — coming from RN internals / theme shadows in FAB & tab bar; no functional impact.",
+    "(Optional hardening) server.py imports JWT_SECRET at module load via os.environ['JWT_SECRET']. If someone deploys without setting it, the process fails to start with a KeyError — good fail-fast behaviour, but consider surfacing a clearer error (e.g. `raise RuntimeError('JWT_SECRET env var is required')`)."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py:20 — JWT_SECRET = os.environ['JWT_SECRET'] correctly removes the hardcoded fallback; startup will fail loudly if missing. Good.",
+    "backend/server.py:167-175 — DELETE /api/auth/me is guarded by Depends(current_user) so unauthenticated requests correctly return 401 from the dependency. Deletion order (events → staff → templates → users) is fine; there is no FK constraint in Mongo so ordering doesn't matter, but it is a clean read-model wipe. Returns {'ok': True} as expected.",
+    "backend/server.py:91-101 — current_user checks the user document exists in DB after decoding the JWT, so revoked/deleted users cannot reuse an unexpired token. This is what makes the 'same token → 401 after delete' test pass.",
+    "frontend/src/api.ts:48 — deleteAccount uses DELETE /auth/me with the Bearer header from tokenStore. Matches backend spec.",
+    "frontend/src/auth.tsx:49-53 — deleteAccount() calls api.deleteAccount() then clears tokenStore and setUser(null), which triggers the auth-gated navigation back to the login screen. Correct.",
+    "frontend/app/(tabs)/pracownicy.tsx:57-84 — delete-account-btn is a Pressable with hitSlop=10 and padding=8; effective touch target is ~50x50 (well above 44px). Web branch uses window.confirm (native, blocking, always shows the exact string); native branch uses Alert.alert with 'destructive' style. Both are appropriate for Apple's in-app account deletion requirement.",
+    "Only nit: on web, if the user cancels the confirm the code does nothing (correct); if they accept, any thrown error from deleteAccount is only surfaced via Alert.alert which on web is a native alert — acceptable but not ideal UX. Non-blocking."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration5.py"],
+  "success_rate": {"backend": "100% (50/50 iter1+iter2+iter3+iter4+iter5)", "frontend": "100% for all iteration-5 acceptance criteria"},
+  "seed_data_creation": "test_iteration5.py registers throwaway users TEST_delete_<uuid>@eventa.pl and deletes them within the test. TestSeededUserRegression only READS the seeded test@eventa.pl account (login + GET endpoints) — the seeded user is NEVER deleted, honouring the agent-to-agent note.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run full regression with `EXPO_PUBLIC_BACKEND_URL=<preview-url> pytest -o addopts='' /app/backend/tests/` (iter4 uses that env var directly at import time). Iter5 endpoint: DELETE /api/auth/me with Bearer token → {ok: true}; without token → 401; token becomes invalid after delete because current_user re-checks users collection. UI: [data-testid='delete-account-btn'] is the red trash icon on Pracownicy header; on web it triggers window.confirm (playwright: attach page.on('dialog', ...) and dialog.dismiss() to avoid deleting the seed user).",
+  "rca_of_issue": "N/A — both fixes verified with no regressions."
+}

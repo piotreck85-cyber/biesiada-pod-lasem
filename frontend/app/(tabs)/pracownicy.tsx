@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView,
+  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -12,7 +12,7 @@ import { useAuth } from "@/src/auth";
 
 export default function Pracownicy() {
   const insets = useSafeAreaInsets();
-  const { logout, user } = useAuth();
+  const { logout, user, deleteAccount } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -54,6 +54,34 @@ export default function Pracownicy() {
           <Text style={s.brand}>Pracownicy</Text>
           <Text style={s.title}>Twój zespół</Text>
         </View>
+        <Pressable
+          testID="delete-account-btn"
+          onPress={() => {
+            const confirmAndDelete = async () => {
+              try { await deleteAccount(); }
+              catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+            };
+            if (Platform.OS === "web") {
+              // eslint-disable-next-line no-alert
+              if (window.confirm("Usuń konto i wszystkie dane (imprezy, pracowników, szablony)? Ta operacja jest nieodwracalna.")) {
+                confirmAndDelete();
+              }
+            } else {
+              Alert.alert(
+                "Usuń konto",
+                "Ta operacja trwale usunie konto i wszystkie dane (imprezy, pracowników, szablony). Kontynuować?",
+                [
+                  { text: "Anuluj", style: "cancel" },
+                  { text: "Usuń konto", style: "destructive", onPress: confirmAndDelete },
+                ]
+              );
+            }
+          }}
+          hitSlop={10}
+          style={[s.logoutBtn, { marginRight: 8 }]}
+        >
+          <Feather name="trash-2" size={16} color={theme.color.error} />
+        </Pressable>
         <Pressable testID="logout-button" onPress={logout} hitSlop={10} style={s.logoutBtn}>
           <Feather name="log-out" size={18} color={theme.color.onSurfaceSecondary} />
         </Pressable>
