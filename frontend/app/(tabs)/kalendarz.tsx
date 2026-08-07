@@ -9,7 +9,7 @@ import { theme, MONTHS_PL, DAYS_PL, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { categoryLabel } from "@/src/categories";
 import { useAuth } from "@/src/auth";
-import { printSchedule } from "@/src/printSchedule";
+import { printSchedule, printMonthCalendar } from "@/src/printSchedule";
 
 function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
 // return weekday index Mon=0..Sun=6 for a given date (m: 0-11)
@@ -147,7 +147,7 @@ export default function Kalendarz() {
               const isToday = dateStr === fmt(today.getFullYear(), today.getMonth(), today.getDate());
               const info = eventDates[dateStr];
               const count = info?.count || 0;
-              const firstName = info?.names[0];
+              const names = info?.names || [];
               return (
                 <Pressable
                   key={i}
@@ -156,22 +156,20 @@ export default function Kalendarz() {
                   testID={`day-${dateStr}`}
                 >
                   <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
-                  {count > 0 && firstName ? (
-                    <Text
-                      numberOfLines={1}
-                      style={[s.cellEventName, isSel && { color: theme.color.onBrand }]}
-                    >
-                      {count > 1 ? `+${count}` : firstName}
-                    </Text>
-                  ) : null}
                   {count > 0 && (
-                    <View style={s.dotsRow}>
-                      {Array.from({ length: Math.min(count, 3) }).map((_, idx) => (
-                        <View
+                    <View style={s.cellEventList}>
+                      {names.slice(0, 2).map((n, idx) => (
+                        <Text
                           key={idx}
-                          style={[s.dot, isSel && { backgroundColor: theme.color.onBrand }]}
-                        />
+                          numberOfLines={1}
+                          style={[s.cellEventName, isSel && { color: theme.color.onBrand }]}
+                        >
+                          {n}
+                        </Text>
                       ))}
+                      {count > 2 && (
+                        <Text style={[s.cellEventMore, isSel && { color: theme.color.onBrand }]}>+{count - 2}</Text>
+                      )}
                     </View>
                   )}
                 </Pressable>
@@ -185,16 +183,20 @@ export default function Kalendarz() {
             <Text style={s.sectionTitle}>
               {mode === "events" ? "Wydarzenia" : "Grafik pracowników"} — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
             </Text>
-            {mode === "schedule" && (
-              <Pressable
-                testID="print-grafik-btn"
-                onPress={() => printSchedule({ year, month, events, staff: staffAll, ownerName: user?.name })}
-                style={s.printBtn}
-              >
-                <Feather name="printer" size={14} color={theme.color.brand} />
-                <Text style={s.printBtnText}>Drukuj miesiąc</Text>
-              </Pressable>
-            )}
+            <Pressable
+              testID={mode === "schedule" ? "print-grafik-btn" : "print-month-btn"}
+              onPress={() => {
+                if (mode === "schedule") {
+                  printSchedule({ year, month, events, staff: staffAll, ownerName: user?.name });
+                } else {
+                  printMonthCalendar({ year, month, events, staff: staffAll, ownerName: user?.name });
+                }
+              }}
+              style={s.printBtn}
+            >
+              <Feather name="printer" size={14} color={theme.color.brand} />
+              <Text style={s.printBtnText}>{mode === "schedule" ? "Drukuj grafik" : "Drukuj miesiąc"}</Text>
+            </Pressable>
           </View>
           {loading ? (
             <ActivityIndicator color={theme.color.brand} style={{ marginTop: 24 }} />
@@ -288,23 +290,20 @@ const s = StyleSheet.create({
   gridWrap: { flexDirection: "row", flexWrap: "wrap" },
   cell: {
     width: `${100 / 7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "flex-start",
-    paddingTop: 4,
+    paddingTop: 4, paddingHorizontal: 2,
   },
   cellSelected: {
     backgroundColor: theme.color.brand, borderRadius: 12,
   },
-  cellText: { color: theme.color.onSurface, fontSize: 15, fontWeight: "500" },
+  cellText: { color: theme.color.onSurface, fontSize: 14, fontWeight: "500" },
   cellTextSelected: { color: theme.color.onBrand, fontWeight: "700" },
+  cellEventList: { width: "100%", marginTop: 2, alignItems: "center" },
   cellEventName: {
-    fontSize: 8, color: theme.color.brand, marginTop: 2, paddingHorizontal: 2, maxWidth: "95%",
+    fontSize: 8, lineHeight: 10, color: theme.color.brand, maxWidth: "100%",
     textAlign: "center", fontWeight: "600",
   },
-  dotsRow: {
-    position: "absolute", bottom: 4, flexDirection: "row", gap: 2,
-  },
-  dot: {
-    width: 4, height: 4, borderRadius: 4,
-    backgroundColor: theme.color.brand,
+  cellEventMore: {
+    fontSize: 8, color: theme.color.brand, fontWeight: "700", marginTop: 1,
   },
   listSection: { paddingHorizontal: 20, paddingTop: 20 },
   listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },

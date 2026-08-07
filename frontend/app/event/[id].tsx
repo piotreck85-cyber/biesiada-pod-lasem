@@ -24,23 +24,25 @@ function todayIso() {
 export default function EventDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { id, date: initDate } = useLocalSearchParams<{ id: string; date?: string }>();
+  const { id, date: initDate, name: initName, category: initCategory, notes: initNotes, revenue: initRevenue, image_url: initImage } = useLocalSearchParams<{
+    id: string; date?: string; name?: string; category?: string; notes?: string; revenue?: string; image_url?: string;
+  }>();
   const isNew = id === "new";
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initName || "");
   const [date, setDate] = useState(initDate || todayIso());
   const [time, setTime] = useState("");
   const [venue, setVenue] = useState("");
-  const [notes, setNotes] = useState("");
-  const [revenue, setRevenue] = useState("");
+  const [notes, setNotes] = useState(initNotes || "");
+  const [revenue, setRevenue] = useState(initRevenue || "");
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
-  const [category, setCategory] = useState<string>("");
+  const [imageUrl, setImageUrl] = useState(initImage || "");
+  const [category, setCategory] = useState<string>(initCategory || "");
   const [catPickerOpen, setCatPickerOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [tplPickerOpen, setTplPickerOpen] = useState(false);

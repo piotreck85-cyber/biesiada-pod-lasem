@@ -162,3 +162,103 @@ export async function printSchedule(input: PrintScheduleInput) {
     await Print.printAsync({ html });
   }
 }
+
+// ==== Month calendar print (grid view) ====
+export function buildMonthCalendarHtml({ year, month, events, ownerName }: PrintScheduleInput): string {
+  const monthEvents = events.filter(e => {
+    try {
+      const [y, m] = e.date.split("-").map((x: string) => parseInt(x, 10));
+      return y === year && m === month + 1;
+    } catch { return false; }
+  });
+  const byDate: Record<string, any[]> = {};
+  monthEvents.forEach(ev => {
+    (byDate[ev.date] = byDate[ev.date] || []).push(ev);
+  });
+  Object.values(byDate).forEach(arr => arr.sort((a: any, b: any) => (a.time || "").localeCompare(b.time || "")));
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDay = new Date(year, month, 1).getDay();
+  const startPad = (firstDay + 6) % 7; // Mon=0
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const dayLabels = ["Poniedziałek", "Wtorek", "Środa", "Czwartek", "Piątek", "Sobota", "Niedziela"];
+
+  const rowsHtml = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    const row = cells.slice(i, i + 7);
+    const cellsHtml = row.map(d => {
+      if (d === null) return `<td class="empty"></td>`;
+      const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const dayEvents = byDate[dateStr] || [];
+      const isWeekend = new Date(dateStr).getDay() % 6 === 0;
+      const evHtml = dayEvents.map(ev => {
+        const label = ev.category ? categoryLabel(ev.category) : "";
+        return `<div class="ev">
+          <div class="ev-name">${escapeHtml(ev.name)}</div>
+          <div class="ev-meta">${escapeHtml(ev.time || "")}${ev.venue ? " · " + escapeHtml(ev.venue) : ""}</div>
+          ${label ? `<div class="ev-cat">${escapeHtml(label)}</div>` : ""}
+        </div>`;
+      }).join("");
+      return `<td class="${isWeekend ? "weekend" : ""}">
+        <div class="daynum">${d}</div>
+        ${evHtml}
+      </td>`;
+    }).join("");
+    rowsHtml.push(`<tr>${cellsHtml}</tr>`);
+  }
+
+  return `<!doctype html>
+<html lang="pl"><head><meta charset="utf-8"><title>Kalendarz ${MONTHS_PL[month]} ${year}</title>
+<style>
+  * { box-sizing: border-box; }
+  @page { size: A4 landscape; margin: 10mm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0C0C0E; margin: 0; padding: 12px; background: #fff; }
+  .hero { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #D4AF37; padding-bottom: 10px; margin-bottom: 14px; }
+  .brand { font-size: 11px; letter-spacing: 4px; color: #D4AF37; font-weight: 700; margin-bottom: 2px; }
+  h1 { font-size: 24px; margin: 0; letter-spacing: -0.5px; }
+  .subtitle { color: #555; font-size: 12px; margin-top: 2px; }
+  .meta { font-size: 11px; color: #777; text-align: right; }
+  table.cal { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  table.cal thead th { background: #0C0C0E; color: #D4AF37; padding: 6px 4px; font-size: 10px; letter-spacing: 1px; text-align: center; text-transform: uppercase; border: 1px solid #0C0C0E; }
+  table.cal td { border: 1px solid #E0E0E0; vertical-align: top; padding: 4px 5px; height: 120px; width: calc(100% / 7); overflow: hidden; }
+  table.cal td.empty { background: #FAFAFA; }
+  table.cal td.weekend { background: #FDF9EE; }
+  .daynum { font-size: 15px; font-weight: 800; margin-bottom: 3px; color: #333; }
+  .ev { background: #F4EDD8; border-left: 3px solid #D4AF37; padding: 3px 5px; margin-bottom: 3px; border-radius: 3px; page-break-inside: avoid; }
+  .ev-name { font-size: 10px; font-weight: 700; color: #0C0C0E; line-height: 1.2; }
+  .ev-meta { font-size: 8px; color: #555; margin-top: 1px; line-height: 1.2; }
+  .ev-cat { font-size: 8px; color: #B8901F; font-weight: 700; margin-top: 1px; }
+</style></head>
+<body>
+  <div class="hero">
+    <div>
+      <div class="brand">BIESIADA POD LASEM</div>
+      <h1>Kalendarz — ${MONTHS_PL[month]} ${year}</h1>
+      <div class="subtitle">${ownerName ? escapeHtml(ownerName) + " · " : ""}${monthEvents.length} ${monthEvents.length === 1 ? "impreza" : "imprez"}</div>
+    </div>
+    <div class="meta">Wydrukowano: ${new Date().toLocaleString("pl-PL")}</div>
+  </div>
+  <table class="cal">
+    <thead><tr>${dayLabels.map(d => `<th>${d}</th>`).join("")}</tr></thead>
+    <tbody>${rowsHtml.join("")}</tbody>
+  </table>
+</body></html>`;
+}
+
+export async function printMonthCalendar(input: PrintScheduleInput) {
+  const html = buildMonthCalendarHtml(input);
+  if (Platform.OS === "web") {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    setTimeout(() => { try { w.focus(); w.print(); } catch {} }, 400);
+  } else {
+    await Print.printAsync({ html, orientation: Print.Orientation.landscape });
+  }
+}
