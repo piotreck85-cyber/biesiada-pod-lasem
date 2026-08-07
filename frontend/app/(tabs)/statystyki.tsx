@@ -18,18 +18,21 @@ export default function Statystyki() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [data, setData] = useState<any>(null);
+  const [yearData, setYearData] = useState<any>(null);
   const [wages, setWages] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const [stats, w] = await Promise.all([
+      const [stats, w, ystats] = await Promise.all([
         api.stats(year, month + 1),
         api.wages(year, month + 1),
+        api.yearStats(year),
       ]);
       setData(stats);
       setWages(w);
+      setYearData(ystats);
     } catch {}
   }, [year, month]);
 
@@ -200,6 +203,28 @@ export default function Statystyki() {
               <Text style={s.heroSub}>{data?.event_count || 0} imprez · marża {margin.toFixed(1)}%</Text>
             </View>
 
+            <View style={s.yearCard}>
+              <View style={s.yearHeaderRow}>
+                <Feather name="award" size={16} color={theme.color.brand} />
+                <Text style={s.yearHeader}>Cały rok {year}</Text>
+                <Text style={s.yearBadge}>{yearData?.event_count || 0} imprez</Text>
+              </View>
+              <View style={s.yearGrid}>
+                <View style={s.yearCol}>
+                  <Text style={s.yearColLabel}>Przychody</Text>
+                  <Text style={[s.yearColValue, { color: theme.color.success }]}>{formatPLN(yearData?.revenue || 0)}</Text>
+                </View>
+                <View style={s.yearCol}>
+                  <Text style={s.yearColLabel}>Koszty</Text>
+                  <Text style={[s.yearColValue, { color: theme.color.error }]}>{formatPLN(yearData?.total_cost || 0)}</Text>
+                </View>
+                <View style={s.yearCol}>
+                  <Text style={s.yearColLabel}>Zysk</Text>
+                  <Text style={[s.yearColValue, { color: (yearData?.profit || 0) >= 0 ? theme.color.brand : theme.color.error }]}>{formatPLN(yearData?.profit || 0)}</Text>
+                </View>
+              </View>
+            </View>
+
             <View style={s.gridRow}>
               <View style={[s.miniCard, { borderColor: "rgba(16,185,129,0.35)" }]}>
                 <View style={s.miniHeader}>
@@ -328,6 +353,20 @@ const s = StyleSheet.create({
   heroLabel: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 2, marginBottom: 6 },
   heroValue: { color: theme.color.brand, fontSize: 44, fontWeight: "800", letterSpacing: -1 },
   heroSub: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 6 },
+  yearCard: {
+    backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: theme.color.brandTertiary, marginBottom: 12,
+  },
+  yearHeaderRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  yearHeader: { color: theme.color.onSurface, fontSize: 14, fontWeight: "800", flex: 1 },
+  yearBadge: {
+    color: theme.color.brand, fontSize: 11, fontWeight: "700",
+    borderWidth: 1, borderColor: theme.color.brand, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+  },
+  yearGrid: { flexDirection: "row", gap: 8 },
+  yearCol: { flex: 1 },
+  yearColLabel: { color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 1, marginBottom: 4 },
+  yearColValue: { color: theme.color.onSurface, fontSize: 15, fontWeight: "800" },
   gridRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
   miniCard: {
     flex: 1, backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16,

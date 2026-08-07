@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 7 (backend + frontend) verified. New yearly stats feature works end-to-end. Backend: 70/70 PASS (14+9+9+10+8+10+10 new iter7). New iter7 tests in /app/backend/tests/test_iteration7.py cover: (a) GET /api/stats?year=2026 returns event_count=3, revenue=15000, material=3000, labor=250, total_cost=3250, profit=11750, events[3] all in 2026; (b) sum of per_event revenue/profit/total_cost equals top-level totals; (c) GET /api/stats?year=9999 returns event_count=0 with zeroed totals and empty events[]; (d) monthly regression: /api/stats?year=2026&month=5 returns 1 event (Wesele 2026-05-15) rev=10000/profit=6750, /api/stats?year=2026&month=6 returns 2 events (Party+Wesele Nowaków) rev=5000/profit=5000, and may+june sum equals yearly totals; (e) /api/staff/wages?year=2026&month=5 still returns total_amount=250, total_hours=5; (f) /api/export/events CSV still 200 with correct header; (g) /api/export/calendar.ics still 200 with VCALENDAR; (h) multi-year isolation on fresh account: 2 events in 2024 + 1 in 2025 → year=2024 aggregates only 2024, year=2025 aggregates only 2025, year=2026 returns 0. Frontend: Statystyki screen at /tabs/statystyki loads for test@eventa.pl. New 'Cały rok {year}' card renders BELOW monthly hero with 3 columns (Przychody 15 000,00 zł · Koszty 3 250,00 zł · Zysk 11 750,00 zł, gold+red+gold colors correct) and right-aligned '3 imprez' badge (gold border). Monthly navigation via [data-testid=stats-prev-month]/[data-testid=stats-next-month] correctly updates monthly hero (Czerwiec 2026 → 5 000,00 zł, 2 imprez, marża 100.0%) while yearly card stays at 11 750,00 zł. All buttons present: export-csv-btn, backup-export-btn, backup-import-btn, ics-export-btn, ics-import-btn. Wypłaty pracowników section still renders.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/pytest/iter7_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:529-561 (stats) — clean additive change: `elif year:` branch adds `date: {$regex: ^YYYY-}` when month is absent, preserving the pre-existing `year and month` branch untouched. Regex is safe (year is int-typed by FastAPI). No SQL/NoSQL injection risk.",
+    "server.py:530 — endpoint declares year & month Optional[int]; no auth changes, still gated by Depends(current_user). Owner_id filter always applied first.",
+    "server.py — regex prefix uses `^YYYY-` (with trailing dash), so year=202 would NOT accidentally match 2020-2029. Good.",
+    "frontend/src/api.ts:69 — new api.yearStats(year) helper. Correct URL construction (no double query string).",
+    "frontend/app/(tabs)/statystyki.tsx:26-37 — load() now uses Promise.all([stats, wages, yearStats]) so 3 requests run in parallel; error still swallowed with catch{} — same behavior as before (minor: no user-facing error toast if yearStats fails; monthly card would still render, yearly would show zeros). Acceptable given additive UX.",
+    "statystyki.tsx:206-226 — new yearCard uses same surfaceSecondary + brandTertiary border as heroCard for visual consistency. yearBadge is a Text with border (rendered as pill). Colors: revenue green, cost red, profit brand-gold or red conditional on sign. All text wrapped in <Text>.",
+    "statystyki.tsx:356-369 — new styles yearCard/yearHeaderRow/yearHeader/yearBadge/yearGrid/yearCol/yearColLabel/yearColValue added; no CSS files, all StyleSheet.create.",
+    "No new testIDs on the yearly card sub-elements. Not blocking (parent stats-screen testID covers the flow) but adding e.g. testID='year-card' / 'year-profit' would help future automation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration7.py",
+    "/app/test_reports/iteration_7.json"
+  ],
+  "success_rate": {"backend": "100% (70/70 iter1..iter7)", "frontend": "100% — all 11 content checks pass, screenshots confirm layout"},
+  "seed_data_creation": "Iter7 registers throwaway users TEST_iter7_*@eventa.pl and cleans them up via DELETE /api/auth/me. Seeded test@eventa.pl account is READ-ONLY (login + GET only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run `EXPO_PUBLIC_BACKEND_URL=<preview-url> pytest -o addopts='' /app/backend/tests/` for full regression. New yearly-stats surface: GET /api/stats?year=YYYY (no month) → aggregates all events in that year; monthly path (year & month) unchanged. Frontend: Statystyki tab shows yearly card between hero and mini-cards. Note: system date advanced to August 2026 in preview env, so Statystyki defaults to Sierpień 2026 (0 imprez in monthly hero) while yearly card correctly shows 3 imprez / 15 000 zł.",
+  "rca_of_issue": "N/A — additive feature only; verified with 70/70 backend regression and live UI screenshots."
+}

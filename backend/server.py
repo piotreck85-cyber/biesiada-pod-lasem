@@ -532,6 +532,8 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
+    elif year:
+        q["date"] = {"$regex": f"^{year:04d}-"}
     events = await db.events.find(q, {"_id": 0}).to_list(5000)
     staff_map = await load_owner_staff_map(user["id"])
     total_revenue = 0.0
