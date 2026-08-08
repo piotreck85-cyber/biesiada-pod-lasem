@@ -13,6 +13,7 @@ import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
+import { ADULT_SETS, findAdultSet } from "@/src/offers";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -39,6 +40,8 @@ export default function EventDetail() {
   const [notes, setNotes] = useState(initNotes || "");
   const [revenue, setRevenue] = useState(initRevenue || "");
   const [people, setPeople] = useState("");
+  const [packageSet, setPackageSet] = useState<string>("");
+  const [revenueNet, setRevenueNet] = useState("");
   const [autoPrice, setAutoPrice] = useState(true);
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -87,6 +90,17 @@ export default function EventDetail() {
   const revenueNum = parseFloat(revenue.replace(",", ".")) || 0;
   const profit = revenueNum - laborCost - materialCost;
 
+  const peopleNum = parseInt(people, 10) || 0;
+  const pricing = useMemo(
+    () => computePricing(category, date, peopleNum, packageSet),
+    [category, date, peopleNum, packageSet]
+  );
+
+  // Auto-price when computable and user hasn't manually overridden
+  useEffect(() => {
+    if (autoPrice && pricing) setRevenue(String(pricing.total));
+  }, [pricing, autoPrice]);
+
   const parseAmt = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
   const save = async () => {
@@ -98,7 +112,9 @@ export default function EventDetail() {
       venue: "Biesiada pod lasem",
       notes, category,
       people: peopleNum,
+      package_set: packageSet,
       revenue: revenueNum,
+      revenue_net: parseFloat(revenueNet.replace(",", ".")) || 0,
       costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
       shifts: shifts.map(sh => ({
         staff_id: sh.staff_id,

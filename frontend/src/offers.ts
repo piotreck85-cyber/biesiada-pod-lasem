@@ -240,5 +240,81 @@ export const WORKSHOPS: Workshop[] = [
   },
 ];
 
+export type AdultSet = {
+  id: string;
+  name: string;
+  price_per_person: number;
+  items: string[];
+  addons: string[];
+};
+
+export const ADULT_SETS: AdultSet[] = [
+  {
+    id: "set1",
+    name: "Zestaw nr 1",
+    price_per_person: 150,
+    items: [
+      "Kiełbaska z rusztu",
+      "Karkówka w ziołach",
+      "Kaszanka z cebulką",
+      "Pieczone ziemniaczki ziołowo-maślane",
+    ],
+    addons: [
+      "Pieczywo",
+      "Sosy: musztarda, ketchup, chrzan, sos czosnkowy",
+      "Ogóreczki kiszone",
+      "Smalczyk wiejski",
+      "Kawa, herbata",
+    ],
+  },
+  {
+    id: "set2",
+    name: "Zestaw nr 2",
+    price_per_person: 180,
+    items: [
+      "Kiełbaska z rusztu (tradycyjna oraz biała)",
+      "Karkówka w ziołach",
+      "Kaszanka z cebulką",
+      "Pieczone ziemniaczki ziołowo-maślane",
+      "Pieczarka w boczku",
+      "Żurek z kiełbaską i jajkiem",
+    ],
+    addons: [
+      "Pieczywo",
+      "Sosy: musztarda, ketchup, chrzan, sos czosnkowy",
+      "Ogóreczki kiszone",
+      "Smalczyk Góralski",
+      "Kawa, herbata",
+    ],
+  },
+  {
+    id: "set3",
+    name: "Zestaw nr 3",
+    price_per_person: 200,
+    items: [
+      "Kiełbaska z rusztu (tradycyjna oraz biała)",
+      "Karkówka w ziołach",
+      "Kaszanka z cebulką",
+      "Pieczone ziemniaczki ziołowo-maślane",
+      "Pieczarka w boczku",
+      "Warzywa grillowane",
+      "Sałatka Grecka",
+      "Żurek z kiełbaską i jajkiem",
+    ],
+    addons: [
+      "Pieczywo",
+      "Sosy: musztarda, ketchup, chrzan, sos czosnkowy",
+      "Ogóreczki kiszone",
+      "Smalczyk Góralski",
+      "Kawa, herbata",
+    ],
+  },
+];
+
+export function findAdultSet(id?: string): AdultSet | undefined {
+  if (!id) return undefined;
+  return ADULT_SETS.find(x => x.id === id);
+}
+
 export const WORKSHOP_INFO = "3–4 godziny · Opiekunowie gratis · Kiełbaska i napoje w cenie";
 export const SOURCE_URL = "https://www.dolinaprzygod.pl";

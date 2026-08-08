@@ -46,6 +46,9 @@ export const api = {
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
   me: () => request("/auth/me"),
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),
+  workspace: () => request("/workspace"),
+  joinWorkspace: (code: string) => request("/workspace/join", { method: "POST", body: JSON.stringify({ code }) }),
+  leaveWorkspace: () => request("/workspace/leave", { method: "POST" }),
 
   listStaff: () => request("/staff"),
   createStaff: (data: any) => request("/staff", { method: "POST", body: JSON.stringify(data) }),

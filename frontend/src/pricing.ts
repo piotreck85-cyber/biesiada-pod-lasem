@@ -1,4 +1,4 @@
-import { BIRTHDAY_PACKAGES, WORKSHOPS } from "./offers";
+import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, findAdultSet } from "./offers";
 
 /** Returns true if the given ISO YYYY-MM-DD date falls on Fri/Sat/Sun. */
 export function isWeekend(dateIso: string): boolean {
@@ -23,8 +23,27 @@ export type PricingResult = {
   per_person: number;      // surcharge (birthday) or price per child (workshop)
 };
 
-export function computePricing(category: string, dateIso: string, people: number): PricingResult | null {
+export function computePricing(category: string, dateIso: string, people: number, adultSetId?: string): PricingResult | null {
   if (!category || !people || people < 1) return null;
+
+  // Adult events (dorosli/firmowe, dorosli/okolicznosciowe) → per-person Zestaw
+  if (category.startsWith("dorosli") && adultSetId) {
+    const set = findAdultSet(adultSetId);
+    if (set) {
+      const total = set.price_per_person * people;
+      return {
+        match: "birthday",
+        offer_name: set.name,
+        base_price: 0,
+        extras: people,
+        extras_amount: total,
+        total,
+        breakdown: `${set.name} · ${people} × ${set.price_per_person} zł/os.`,
+        people_included: 0,
+        per_person: set.price_per_person,
+      };
+    }
+  }
 
   // Birthday packages
   const pkg = BIRTHDAY_PACKAGES.find(p => p.category === category);

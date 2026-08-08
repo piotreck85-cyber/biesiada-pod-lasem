@@ -122,6 +122,12 @@ export default function Imprezy() {
                       <Text style={s.catChipText}>{categoryLabel(item.category)}</Text>
                     </View>
                   ) : null}
+                  {item.created_by_name ? (
+                    <View style={s.authorChip}>
+                      <Feather name="user" size={9} color={theme.color.onSurfaceSecondary} />
+                      <Text style={s.authorText}>{item.created_by_name}</Text>
+                    </View>
+                  ) : null}
                 </View>
                 <Text style={s.cardName} numberOfLines={2}>{item.name}</Text>
                 <Text style={s.cardVenue} numberOfLines={1}>{formatTimeRange(item.time_start, item.time_end, item.time)}</Text>
@@ -176,6 +182,12 @@ const s = StyleSheet.create({
     borderColor: theme.color.borderStrong, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
   },
   catChipText: { color: theme.color.onSurface, fontSize: 11, fontWeight: "600" },
+  authorChip: {
+    alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+  },
+  authorText: { color: theme.color.onSurfaceSecondary, fontSize: 10, fontWeight: "600" },
   chipsRow: { height: 56, marginBottom: 4, flexGrow: 0 },
   chip: {
     height: 36, paddingHorizontal: 16, borderRadius: 999, borderWidth: 1,

@@ -21,9 +21,16 @@ export default function Pracownicy() {
   const [role, setRole] = useState("");
   const [rate, setRate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [workspace, setWorkspace] = useState<any>(null);
+  const [wsModalOpen, setWsModalOpen] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
 
   const load = useCallback(async () => {
-    try { setItems(await api.listStaff()); } catch {}
+    try {
+      const [staff, ws] = await Promise.all([api.listStaff(), api.workspace().catch(() => null)]);
+      setItems(staff);
+      setWorkspace(ws);
+    } catch {}
   }, []);
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
 
@@ -54,6 +61,9 @@ export default function Pracownicy() {
           <Text style={s.brand}>Pracownicy</Text>
           <Text style={s.title}>Twój zespół</Text>
         </View>
+        <Pressable testID="workspace-btn" onPress={() => setWsModalOpen(true)} hitSlop={10} style={[s.logoutBtn, { marginRight: 8 }]}>
+          <Feather name="users" size={18} color={theme.color.brand} />
+        </Pressable>
         <Pressable
           testID="delete-account-btn"
           onPress={() => {
@@ -144,6 +154,86 @@ export default function Pracownicy() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal visible={wsModalOpen} transparent animationType="slide" onRequestClose={() => setWsModalOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={s.backdrop} onPress={() => setWsModalOpen(false)} />
+          <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={s.grip} />
+            <Text style={s.sheetTitle}>Zespół (wspólny kalendarz)</Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.label}>Twój kod zaproszenia</Text>
+              <View style={s.codeBox}>
+                <Text testID="my-invite-code" style={s.codeText} selectable>{workspace?.invite_code || user?.id || "—"}</Text>
+              </View>
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 8 }}>
+                Podaj ten kod drugiej osobie, aby zobaczyła Twój kalendarz. Możesz też dołączyć do jej zespołu poniżej.
+              </Text>
+              <Text style={s.label}>Członkowie zespołu ({workspace?.members?.length || 0})</Text>
+              {(workspace?.members || []).map((m: any) => (
+                <View key={m.id} style={s.memberRow} testID={`member-${m.id}`}>
+                  <View style={s.avatar}><Text style={s.avatarText}>{initials(m.name)}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowName}>{m.name}{m.id === user?.id ? " (Ty)" : ""}</Text>
+                    <Text style={s.rowRole}>{m.email}</Text>
+                  </View>
+                </View>
+              ))}
+              <Text style={s.label}>Dołącz do zespołu (wklej kod)</Text>
+              <TextInput
+                testID="join-code-input"
+                value={joinCode}
+                onChangeText={setJoinCode}
+                placeholder="Kod dostępu drugiej osoby"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+                autoCapitalize="none"
+              />
+              <Pressable
+                testID="join-workspace-btn"
+                onPress={async () => {
+                  if (!joinCode.trim()) return;
+                  try {
+                    await api.joinWorkspace(joinCode.trim());
+                    setJoinCode("");
+                    const ws = await api.workspace();
+                    setWorkspace(ws);
+                    await load();
+                    Alert.alert("Sukces", "Dołączono do zespołu. Teraz widzisz wspólny kalendarz.");
+                  } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+                }}
+                style={s.saveBtn}
+              >
+                <Text style={s.saveBtnText}>Dołącz</Text>
+              </Pressable>
+              <Pressable
+                testID="leave-workspace-btn"
+                onPress={async () => {
+                  const doLeave = async () => {
+                    try {
+                      await api.leaveWorkspace();
+                      const ws = await api.workspace();
+                      setWorkspace(ws);
+                      await load();
+                    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+                  };
+                  if (Platform.OS === "web") {
+                    if (window.confirm("Opuścić wspólny zespół? Wrócisz do własnego kalendarza.")) doLeave();
+                  } else {
+                    Alert.alert("Opuść zespół", "Wrócisz do własnego kalendarza.", [
+                      { text: "Anuluj", style: "cancel" },
+                      { text: "Opuść", style: "destructive", onPress: doLeave },
+                    ]);
+                  }
+                }}
+                style={[s.saveBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: theme.color.borderStrong, marginTop: 8 }]}
+              >
+                <Text style={[s.saveBtnText, { color: theme.color.onSurfaceSecondary }]}>Opuść wspólny zespół</Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -191,4 +281,14 @@ const s = StyleSheet.create({
   },
   saveBtn: { marginTop: 20, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
   saveBtnText: { color: theme.color.onBrand, fontWeight: "700", fontSize: 16 },
+  codeBox: {
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14,
+    borderWidth: 1, borderColor: theme.color.brand,
+  },
+  codeText: { color: theme.color.brand, fontSize: 12, fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace", letterSpacing: 0.3 },
+  memberRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, padding: 12, marginBottom: 6,
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
 });

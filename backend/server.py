@@ -59,14 +59,16 @@ class StaffShift(BaseModel):
 class EventIn(BaseModel):
     name: str
     date: str  # ISO YYYY-MM-DD
-    time: Optional[str] = ""        # legacy single time (kept for old records)
-    time_start: Optional[str] = ""  # HH:MM
-    time_end: Optional[str] = ""    # HH:MM
-    venue: Optional[str] = ""       # legacy — always "Biesiada pod lasem" now
+    time: Optional[str] = ""
+    time_start: Optional[str] = ""
+    time_end: Optional[str] = ""
+    venue: Optional[str] = ""
     notes: Optional[str] = ""
     category: Optional[str] = ""
     people: Optional[int] = 0
-    revenue: float = 0.0
+    package_set: Optional[str] = ""   # for adult events: set1|set2|set3
+    revenue: float = 0.0              # gross for firmowe
+    revenue_net: Optional[float] = 0.0
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
     image_url: Optional[str] = ""
@@ -113,7 +115,13 @@ async def current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)):
     user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
     if not user:
         raise HTTPException(401, "Użytkownik nie istnieje")
+    if not user.get("workspace_id"):
+        user["workspace_id"] = user["id"]
     return user
+
+def ws(user: dict) -> str:
+    """Workspace id used to scope all data queries."""
+    return user.get("workspace_id") or user["id"]
 
 def hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
@@ -172,6 +180,7 @@ async def register(body: RegisterIn):
         "password_hash": hash_pw(body.password),
         "created_at": now_utc().isoformat(),
     }
+    user["workspace_id"] = user["id"]  # own workspace by default
     await db.users.insert_one(user)
     token = make_token(user["id"])
     return {"access_token": token, "user": {"id": user["id"], "email": email, "name": user["name"]}}
@@ -189,6 +198,44 @@ async def login(body: LoginIn):
 async def me(user=Depends(current_user)):
     return user
 
+class WorkspaceJoinIn(BaseModel):
+    code: str
+
+@api.get("/workspace")
+async def workspace_info(user=Depends(current_user)):
+    """Return current workspace and its members."""
+    wsid = ws(user)
+    members = await db.users.find(
+        {"$or": [{"id": wsid}, {"workspace_id": wsid}]},
+        {"_id": 0, "password_hash": 0}
+    ).to_list(100)
+    return {
+        "workspace_id": wsid,
+        "invite_code": wsid,
+        "members": [{"id": m["id"], "name": m.get("name", ""), "email": m.get("email", "")} for m in members],
+    }
+
+@api.post("/workspace/join")
+async def workspace_join(body: WorkspaceJoinIn, user=Depends(current_user)):
+    """Join another user's workspace by their invite code (= their user id)."""
+    code = (body.code or "").strip()
+    if not code:
+        raise HTTPException(400, "Podaj kod dostępu")
+    if code == user["id"]:
+        raise HTTPException(400, "To Twój własny kod")
+    target = await db.users.find_one({"id": code}, {"_id": 0, "password_hash": 0})
+    if not target:
+        raise HTTPException(404, "Nie znaleziono zespołu o tym kodzie")
+    target_ws = target.get("workspace_id") or target["id"]
+    await db.users.update_one({"id": user["id"]}, {"$set": {"workspace_id": target_ws}})
+    return {"ok": True, "workspace_id": target_ws}
+
+@api.post("/workspace/leave")
+async def workspace_leave(user=Depends(current_user)):
+    """Leave the current shared workspace and go back to a personal workspace."""
+    await db.users.update_one({"id": user["id"]}, {"$set": {"workspace_id": user["id"]}})
+    return {"ok": True, "workspace_id": user["id"]}
+
 @api.delete("/auth/me")
 async def delete_account(user=Depends(current_user)):
     """Delete user account and all associated data (events, staff, templates)."""
@@ -202,14 +249,14 @@ async def delete_account(user=Depends(current_user)):
 # ---------- Staff ----------
 @api.get("/staff")
 async def list_staff(user=Depends(current_user)):
-    items = await db.staff.find({"owner_id": user["id"]}, {"_id": 0}).sort("name", 1).to_list(500)
+    items = await db.staff.find({"owner_id": ws(user)}, {"_id": 0}).sort("name", 1).to_list(500)
     return items
 
 @api.post("/staff")
 async def create_staff(body: StaffIn, user=Depends(current_user)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
-    doc["owner_id"] = user["id"]
+    doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
     doc["created_at"] = now_utc().isoformat()
     await db.staff.insert_one(doc)
     doc.pop("_id", None)
@@ -218,7 +265,7 @@ async def create_staff(body: StaffIn, user=Depends(current_user)):
 @api.put("/staff/{staff_id}")
 async def update_staff(staff_id: str, body: StaffIn, user=Depends(current_user)):
     res = await db.staff.update_one(
-        {"id": staff_id, "owner_id": user["id"]},
+        {"id": staff_id, "owner_id": ws(user)},
         {"$set": body.dict()},
     )
     if res.matched_count == 0:
@@ -228,13 +275,13 @@ async def update_staff(staff_id: str, body: StaffIn, user=Depends(current_user))
 
 @api.delete("/staff/{staff_id}")
 async def delete_staff(staff_id: str, user=Depends(current_user)):
-    await db.staff.delete_one({"id": staff_id, "owner_id": user["id"]})
+    await db.staff.delete_one({"id": staff_id, "owner_id": ws(user)})
     return {"ok": True}
 
 # ---------- Events ----------
 @api.get("/events")
 async def list_events(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
@@ -249,7 +296,7 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
 async def create_event(body: EventIn, user=Depends(current_user)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
-    doc["owner_id"] = user["id"]
+    doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
     doc["created_at"] = now_utc().isoformat()
     await db.events.insert_one(doc)
     doc.pop("_id", None)
@@ -257,7 +304,7 @@ async def create_event(body: EventIn, user=Depends(current_user)):
 
 @api.get("/events/{event_id}")
 async def get_event(event_id: str, user=Depends(current_user)):
-    ev = await db.events.find_one({"id": event_id, "owner_id": user["id"]}, {"_id": 0})
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
     return await compute_event_summary(ev)
@@ -265,7 +312,7 @@ async def get_event(event_id: str, user=Depends(current_user)):
 @api.put("/events/{event_id}")
 async def update_event(event_id: str, body: EventIn, user=Depends(current_user)):
     res = await db.events.update_one(
-        {"id": event_id, "owner_id": user["id"]},
+        {"id": event_id, "owner_id": ws(user)},
         {"$set": body.dict()},
     )
     if res.matched_count == 0:
@@ -275,20 +322,20 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
 
 @api.delete("/events/{event_id}")
 async def delete_event(event_id: str, user=Depends(current_user)):
-    await db.events.delete_one({"id": event_id, "owner_id": user["id"]})
+    await db.events.delete_one({"id": event_id, "owner_id": ws(user)})
     return {"ok": True}
 
 # ---------- Templates ----------
 @api.get("/templates")
 async def list_templates(user=Depends(current_user)):
-    items = await db.templates.find({"owner_id": user["id"]}, {"_id": 0}).sort("name", 1).to_list(500)
+    items = await db.templates.find({"owner_id": ws(user)}, {"_id": 0}).sort("name", 1).to_list(500)
     return items
 
 @api.post("/templates")
 async def create_template(body: TemplateIn, user=Depends(current_user)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
-    doc["owner_id"] = user["id"]
+    doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
     doc["created_at"] = now_utc().isoformat()
     await db.templates.insert_one(doc)
     doc.pop("_id", None)
@@ -296,7 +343,7 @@ async def create_template(body: TemplateIn, user=Depends(current_user)):
 
 @api.delete("/templates/{tpl_id}")
 async def delete_template(tpl_id: str, user=Depends(current_user)):
-    await db.templates.delete_one({"id": tpl_id, "owner_id": user["id"]})
+    await db.templates.delete_one({"id": tpl_id, "owner_id": ws(user)})
     return {"ok": True}
 
 class ImportIcsIn(BaseModel):
@@ -312,9 +359,9 @@ class BackupIn(BaseModel):
 
 @api.get("/export/backup")
 async def export_backup(user=Depends(current_user)):
-    staff = await db.staff.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(5000)
-    events = await db.events.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(10000)
-    templates = await db.templates.find({"owner_id": user["id"]}, {"_id": 0, "owner_id": 0}).to_list(5000)
+    staff = await db.staff.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
+    events = await db.events.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(10000)
+    templates = await db.templates.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
     return {
         "app": "eventa",
         "version": 1,
@@ -328,35 +375,35 @@ async def export_backup(user=Depends(current_user)):
 async def import_backup(body: BackupIn, user=Depends(current_user)):
     imported = {"staff": 0, "events": 0, "templates": 0}
     if body.mode == "replace":
-        await db.staff.delete_many({"owner_id": user["id"]})
-        await db.events.delete_many({"owner_id": user["id"]})
-        await db.templates.delete_many({"owner_id": user["id"]})
+        await db.staff.delete_many({"owner_id": ws(user)})
+        await db.events.delete_many({"owner_id": ws(user)})
+        await db.templates.delete_many({"owner_id": ws(user)})
 
     # Staff: keep original ids if provided (so shifts still match)
     for s in body.staff:
         doc = {k: v for k, v in s.items() if k != "_id"}
-        doc["owner_id"] = user["id"]
+        doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
         if "id" not in doc: doc["id"] = str(uuid.uuid4())
         await db.staff.update_one(
-            {"id": doc["id"], "owner_id": user["id"]},
+            {"id": doc["id"], "owner_id": ws(user)},
             {"$set": doc}, upsert=True,
         )
         imported["staff"] += 1
     for ev in body.events:
         doc = {k: v for k, v in ev.items() if k not in ("_id", "labor_cost", "material_cost", "total_cost", "profit")}
-        doc["owner_id"] = user["id"]
+        doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
         if "id" not in doc: doc["id"] = str(uuid.uuid4())
         await db.events.update_one(
-            {"id": doc["id"], "owner_id": user["id"]},
+            {"id": doc["id"], "owner_id": ws(user)},
             {"$set": doc}, upsert=True,
         )
         imported["events"] += 1
     for tpl in body.templates:
         doc = {k: v for k, v in tpl.items() if k != "_id"}
-        doc["owner_id"] = user["id"]
+        doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
         if "id" not in doc: doc["id"] = str(uuid.uuid4())
         await db.templates.update_one(
-            {"id": doc["id"], "owner_id": user["id"]},
+            {"id": doc["id"], "owner_id": ws(user)},
             {"$set": doc}, upsert=True,
         )
         imported["templates"] += 1
@@ -364,7 +411,7 @@ async def import_backup(body: BackupIn, user=Depends(current_user)):
 
 @api.get("/export/calendar.ics")
 async def export_ics(user=Depends(current_user)):
-    events = await db.events.find({"owner_id": user["id"]}, {"_id": 0}).sort("date", 1).to_list(10000)
+    events = await db.events.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", 1).to_list(10000)
     lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Biesiada pod lasem//PL//", "CALSCALE:GREGORIAN"]
     for ev in events:
         date = str(ev.get("date", "")).replace("-", "")
@@ -448,7 +495,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
             continue
         doc = {
             "id": str(uuid.uuid4()),
-            "owner_id": user["id"],
+            "owner_id": ws(user),
             "name": ev.get("SUMMARY", "Impreza"),
             "date": date_str,
             "time": time_str,
@@ -464,7 +511,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
         # De-dup by UID if provided
         uid = ev.get("UID")
         if uid:
-            existing = await db.events.find_one({"owner_id": user["id"], "imported_uid": uid})
+            existing = await db.events.find_one({"owner_id": ws(user), "imported_uid": uid})
             if existing:
                 continue
             doc["imported_uid"] = uid
@@ -475,7 +522,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
 # ---------- Company Expenses ----------
 @api.get("/expenses")
 async def list_expenses(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         q["date"] = {"$regex": f"^{year:04d}-{month:02d}"}
     elif year:
@@ -487,7 +534,7 @@ async def list_expenses(user=Depends(current_user), year: Optional[int] = None, 
 async def create_expense(body: ExpenseIn, user=Depends(current_user)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
-    doc["owner_id"] = user["id"]
+    doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
     doc["created_at"] = now_utc().isoformat()
     await db.expenses.insert_one(doc)
     doc.pop("_id", None)
@@ -496,7 +543,7 @@ async def create_expense(body: ExpenseIn, user=Depends(current_user)):
 @api.put("/expenses/{expense_id}")
 async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_user)):
     res = await db.expenses.update_one(
-        {"id": expense_id, "owner_id": user["id"]},
+        {"id": expense_id, "owner_id": ws(user)},
         {"$set": body.dict()},
     )
     if res.matched_count == 0:
@@ -506,18 +553,18 @@ async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_
 
 @api.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: str, user=Depends(current_user)):
-    await db.expenses.delete_one({"id": expense_id, "owner_id": user["id"]})
+    await db.expenses.delete_one({"id": expense_id, "owner_id": ws(user)})
     return {"ok": True}
 
 # ---------- Stats ----------
 @api.get("/staff/wages")
 async def staff_wages(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
     events = await db.events.find(q, {"_id": 0}).to_list(5000)
-    staff_list = await db.staff.find({"owner_id": user["id"]}, {"_id": 0}).to_list(500)
+    staff_list = await db.staff.find({"owner_id": ws(user)}, {"_id": 0}).to_list(500)
     staff_map = {s["id"]: s for s in staff_list}
 
     totals: dict = {}
@@ -550,12 +597,12 @@ async def staff_wages(user=Depends(current_user), year: Optional[int] = None, mo
 @api.get("/schedule")
 async def schedule(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
     """Return per-date schedule with staff assignments (for grafik view)."""
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
     events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)
-    staff_list = await db.staff.find({"owner_id": user["id"]}, {"_id": 0}).to_list(500)
+    staff_list = await db.staff.find({"owner_id": ws(user)}, {"_id": 0}).to_list(500)
     staff_map = {s["id"]: s for s in staff_list}
     by_date: dict = {}
     for ev in events:
@@ -580,7 +627,7 @@ async def schedule(user=Depends(current_user), year: Optional[int] = None, month
 
 @api.get("/stats")
 async def stats(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
@@ -589,7 +636,7 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
     events = await db.events.find(q, {"_id": 0}).to_list(5000)
     staff_map = await load_owner_staff_map(user["id"])
     # Company-wide expenses in same period
-    exp_q = {"owner_id": user["id"]}
+    exp_q = {"owner_id": ws(user)}
     if year and month:
         exp_q["date"] = {"$regex": f"^{year:04d}-{month:02d}"}
     elif year:
@@ -625,7 +672,7 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
 # ---------- Export ----------
 @api.get("/export/events")
 async def export_events(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
-    q = {"owner_id": user["id"]}
+    q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
