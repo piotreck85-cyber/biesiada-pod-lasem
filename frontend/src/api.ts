@@ -84,5 +84,7 @@ export const api = {
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
   importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),
+  importWhatsApp: (text: string, kind: "expenses" | "revenue") =>
+    request("/import/whatsapp", { method: "POST", body: JSON.stringify({ text, kind }) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

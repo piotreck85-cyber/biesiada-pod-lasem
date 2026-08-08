@@ -149,6 +149,28 @@ export default function Statystyki() {
     } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
   };
 
+  const doImportWhatsApp = async (kind: "expenses" | "revenue") => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ["text/plain", "*/*"], copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      let text: string;
+      if (Platform.OS === "web" && asset.file) {
+        text = await asset.file.text();
+      } else {
+        text = await FileSystem.readAsStringAsync(asset.uri);
+      }
+      const result: any = await api.importWhatsApp(text, kind);
+      Alert.alert(
+        "Import zakończony",
+        kind === "expenses"
+          ? `Wczytano ${result.parsed_lines} linii.\nDodano ${result.created} kosztów firmowych.\nPominięto: ${result.skipped}.`
+          : `Wczytano ${result.parsed_lines} linii.\nDopisano do ${result.matched_existing_events} istniejących imprez.\nUtworzono ${result.created} nowych imprez.\nPominięto: ${result.skipped}.`
+      );
+      await load();
+    } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+  };
+
   const doIcsExport = async () => {
     const token = await tokenStore.get();
     const url = api.icsUrl();
@@ -275,6 +297,14 @@ export default function Statystyki() {
                 <Pressable testID="backup-import-btn" onPress={doImport} style={s.backupBtn}>
                   <Feather name="download" size={16} color={theme.color.brand} />
                   <Text style={s.backupBtnText}>Import JSON</Text>
+                </Pressable>
+                <Pressable testID="wa-expenses-btn" onPress={() => doImportWhatsApp("expenses")} style={s.backupBtn}>
+                  <Feather name="message-square" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>WhatsApp koszty</Text>
+                </Pressable>
+                <Pressable testID="wa-revenue-btn" onPress={() => doImportWhatsApp("revenue")} style={s.backupBtn}>
+                  <Feather name="message-square" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>WhatsApp zyski</Text>
                 </Pressable>
               </View>
             </View>

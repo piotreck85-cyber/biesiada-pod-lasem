@@ -350,6 +350,141 @@ class ImportIcsIn(BaseModel):
     ics: str
     years_back: int = 5
 
+class ImportWhatsAppIn(BaseModel):
+    text: str
+    kind: str  # "expenses" | "revenue"
+
+@api.post("/import/whatsapp")
+async def import_whatsapp(body: ImportWhatsAppIn, user=Depends(current_user)):
+    """Parse WhatsApp chat export and create expense/revenue entries.
+
+    Line format: DD.MM.YYYY, HH:MM - Author: Message with amount (e.g. 428zl, 59,99, 300 zl)
+    - kind='expenses' → creates entries in db.expenses (label + amount + date + created_by)
+    - kind='revenue'  → tries to assign to an existing event on that date; otherwise creates
+                        a new event with revenue set.
+    """
+    import re
+    kind = (body.kind or "expenses").lower()
+    if kind not in ("expenses", "revenue"):
+        raise HTTPException(400, "kind musi być 'expenses' lub 'revenue'")
+
+    line_re = re.compile(r"^(\d{1,2})\.(\d{1,2})\.(\d{4}),\s*(\d{1,2}):(\d{2})\s*-\s*([^:]+):\s*(.+)$")
+    amount_re = re.compile(r"([0-9]+(?:[.,][0-9]+)?)")
+    skip_keywords = ("utworzył", "dodał", "zmienił", "zaszyfrowane", "Dodano", "usunął",
+                     "Usunął", "Usunął", "<załącznik", "pominięto")
+
+    parsed_count = 0
+    created_count = 0
+    matched_events = 0
+    skipped = 0
+
+    # Preload events for the workspace to try matching by date
+    all_events = await db.events.find({"owner_id": ws(user)}, {"_id": 0, "id": 1, "date": 1, "revenue": 1}).to_list(5000)
+    events_by_date: dict = {}
+    for ev in all_events:
+        events_by_date.setdefault(ev["date"], []).append(ev)
+
+    for raw in body.text.replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            continue
+        m = line_re.match(line)
+        if not m:
+            continue
+        parsed_count += 1
+        d_, m_, y_, hh_, mm_, author, text = m.groups()
+        date_iso = f"{int(y_):04d}-{int(m_):02d}-{int(d_):02d}"
+        author = author.strip()
+        text = text.strip()
+
+        if any(k in text for k in skip_keywords) or not text:
+            skipped += 1
+            continue
+
+        # Extract first amount
+        am = amount_re.search(text)
+        if not am:
+            skipped += 1
+            continue
+        amount_str = am.group(1).replace(",", ".")
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            skipped += 1
+            continue
+        if amount <= 0:
+            skipped += 1
+            continue
+
+        # Label = text without leading verbs
+        label = re.sub(r"^(?:Koszt|Zysk|Rata|Wypłata)\s*", "", text, flags=re.IGNORECASE).strip()
+        if len(label) > 80:
+            label = label[:80]
+
+        if kind == "expenses":
+            doc = {
+                "id": str(uuid.uuid4()),
+                "owner_id": ws(user),
+                "created_by_id": user["id"],
+                "created_by_name": author,
+                "label": label or "Koszt",
+                "amount": round(amount, 2),
+                "date": date_iso,
+                "category": "",
+                "notes": f"Import z WhatsApp",
+                "created_at": now_utc().isoformat(),
+                "imported_source": "whatsapp",
+            }
+            await db.expenses.insert_one(doc)
+            created_count += 1
+        else:  # revenue
+            evs = events_by_date.get(date_iso, [])
+            if evs:
+                # Add this revenue to the first event of that date
+                ev = evs[0]
+                new_rev = float(ev.get("revenue", 0)) + amount
+                await db.events.update_one(
+                    {"id": ev["id"], "owner_id": ws(user)},
+                    {"$set": {"revenue": round(new_rev, 2)}},
+                )
+                ev["revenue"] = new_rev
+                matched_events += 1
+            else:
+                # Create new event for that day with the revenue
+                doc = {
+                    "id": str(uuid.uuid4()),
+                    "owner_id": ws(user),
+                    "created_by_id": user["id"],
+                    "created_by_name": author,
+                    "name": label or "Impreza",
+                    "date": date_iso,
+                    "time": "",
+                    "time_start": "",
+                    "time_end": "",
+                    "venue": "Biesiada pod lasem",
+                    "notes": "Import z WhatsApp",
+                    "category": "",
+                    "people": 0,
+                    "revenue": round(amount, 2),
+                    "revenue_net": 0,
+                    "costs": [],
+                    "shifts": [],
+                    "image_url": "",
+                    "created_at": now_utc().isoformat(),
+                    "imported_source": "whatsapp",
+                }
+                await db.events.insert_one(doc)
+                events_by_date.setdefault(date_iso, []).append(doc)
+                created_count += 1
+
+    return {
+        "ok": True,
+        "parsed_lines": parsed_count,
+        "created": created_count,
+        "matched_existing_events": matched_events,
+        "skipped": skipped,
+    }
+
 # ---------- Backup Export / Import ----------
 class BackupIn(BaseModel):
     staff: List[dict] = []

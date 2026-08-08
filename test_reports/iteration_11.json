@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 11 (both). BACKEND: 94/94 tests pass in 26.9s (6 new iter11 WhatsApp tests + 88 regression from iter2-10). New POST /api/import/whatsapp endpoint verified: (a) kind='expenses' — parses 'DD.MM.YYYY, HH:MM - Author: Text 428zl' lines, extracts author→created_by_name, first amount (supports '428zl', '59,99', '300 zl'), strips leading Koszt/Zysk/Rata/Wypłata verbs, persists to db.expenses with imported_source='whatsapp'; (b) kind='revenue' — matches existing event on same YYYY-MM-DD and BUMPS revenue in-place, else creates a new event with revenue+venue='Biesiada pod lasem'; (c) skip logic — lines containing 'utworzył/dodał/zmienił/zaszyfrowane/pominięto/<załącznik>' or no amount are counted in `skipped`, malformed/no-colon lines ignored entirely; (d) invalid kind → 400. All 4 counters (parsed_lines/created/matched_existing_events/skipped) are accurate. FRONTEND: two critical iter10 latent bugs VERIFIED FIXED — (1) `hoursBetween` is now defined at /app/frontend/app/event/[id].tsx:26; typing '18:00' → shift-start-0 and '22:00' → shift-end-0 succeeded on 390×844 viewport with 0 pageerror + 0 console.error, and shift-hours-0 auto-computed to 4 (correct); (2) `setVenue`/`venue` refactor completed — saveAsTemplate (line 189) and initial create (line 126) both hard-code 'Biesiada pod lasem'; tapping save-as-template-btn no longer red-screens, editor state stayed alive and template persisted. Statystyki 'Kalendarz — kopia zapasowa' card now includes both new buttons: wa-expenses-btn ('WhatsApp koszty') and wa-revenue-btn ('WhatsApp zyski'), both open DocumentPicker via doImportWhatsApp(). CLEANUP done on seeded account: deleted 44 residual WhatsApp-imported events (imported_source='whatsapp'); however matched_existing_events revenue additions could not be reversed by delete — restored 'Party 22:00' 2026-06-15 revenue 17812.5 → 5000.0 via PUT to unblock iter7/9 regression tests. Console warnings still present (non-blocking): 'shadow*' style props deprecated (iter10 called this out already). No red screens, no crashes.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      { "component": "app/(tabs)/pracownicy.tsx (FAB) + imprezy.tsx card + login.tsx card", "issue": "Deprecated 'shadow*' style props still emit warnings on web (2x observed at boot). Non-blocking. Replace shadowColor/shadowOffset/shadowOpacity/shadowRadius with boxShadow for RN 0.76+ web parity. Reference: iter10 report already listed this." }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iter11_results.xml"
+  ],
+  "action_items": [
+    "LOW: Silence 'shadow*' deprecation warnings by migrating to boxShadow (repeat from iter10).",
+    "LOW: doImportWhatsApp UI flow (DocumentPicker → api.importWhatsApp → alert) was not end-to-end tested because DocumentPicker can't be triggered programmatically in Playwright web preview. The buttons render and are tappable; the wired POST endpoint is fully verified via backend tests. Main agent can self-test by uploading a .txt on device/emulator.",
+    "INFO: Because the WhatsApp revenue smoke-test bumped revenues in-place on existing seed events, the testing agent had to manually reset 'Party 22:00' (2026-06-15) revenue 17812.5 → 5000.0 to restore iter7/9 baseline. Consider guarding smoke tests with a dedicated account, or stamping the pre-mutation revenue on events so it can be rolled back."
+  ],
+  "critical_code_review_comments": [
+    "server.py POST /api/import/whatsapp (lines 357-486): correct scope via ws(user); preloads all workspace events once into events_by_date (memory-safe up to 5000 events); regex `^(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}),\\s*(\\d{1,2}):(\\d{2})\\s*-\\s*([^:]+):\\s*(.+)$` correctly requires colon after author (skips system 'X utworzył grupę' lines automatically); amount regex `([0-9]+(?:[.,][0-9]+)?)` grabs first token — good for '428zl mięso' / 'Rata 59,99 sery' cases; label trimming to 80 chars — sensible.",
+    "server.py:400 skip_keywords tuple has 'Usunął' repeated — cosmetic redundancy, no bug.",
+    "server.py revenue matched path (line 442-451): correctly re-uses ev doc and updates events_by_date dict for subsequent same-day lines. However, note that when multiple revenue lines share a date with an existing event, ALL of them get merged into that ONE event (never a second event created on the same date). This is by design per problem statement; documented for future clarity.",
+    "server.py revenue no-match path (line 452-478): new event stamped with `imported_source='whatsapp'` (good — enables cleanup as testing agent did today). BUT existing events that received `matched_existing_events` additions are NOT tagged — this is what made testing agent's cleanup unable to reverse revenue bumps. Consider stamping matched events with a `whatsapp_revenue_added: [{amount, date, author}]` audit trail so revenue can be un-imported.",
+    "event/[id].tsx:26 hoursBetween now correctly defined as: normalises HH:MM to minutes, subtracts, wraps around midnight, returns 1-decimal hours. Verified auto-fills shift-hours-0=4 for 18:00→22:00 on web. `venue` state was removed intentionally in favor of hardcoded 'Biesiada pod lasem' at both create (:126) and template save (:189)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11.py (created — 6 tests: 3 whatsapp + 2 regression + 1 negative)",
+    "seeded account cleanup: deleted 44 events with imported_source='whatsapp'; PUT-reset revenue on Party 22:00 2026-06-15 (17812.5→5000.0) to restore iter7/9 baseline; deleted TEST_UI event + TEST_UI_hoursBetween template created during UI verification"
+  ],
+  "success_rate": {
+    "backend": "100% (94/94)",
+    "frontend": "100% verified for the 3 asks (hoursBetween fix + venue/setVenue fix + wa-expenses-btn/wa-revenue-btn render). DocumentPicker upload flow not automatable in Playwright web preview — main agent can self-test on device."
+  },
+  "seed_data_creation": "None persistent. Cleaned all WhatsApp import residue on test@eventa.pl (44 events deleted + 1 event revenue reset + 1 template deleted). Test users created by /api/auth/register in module fixtures are auto-deleted via DELETE /api/auth/me teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend cmd: `EXPO_PUBLIC_BACKEND_URL=https://event-profit-tracker.preview.emergentagent.com pytest -o addopts='' /app/backend/tests/`. WhatsApp import: POST /api/import/whatsapp {text, kind='expenses'|'revenue'}. testIDs added in iter11: wa-expenses-btn, wa-revenue-btn (on Statystyki 'Kalendarz — kopia zapasowa' card). To re-verify UI fixes tap 'Dodaj imprezę' on Kalendarz → shift-add-btn → picker-staff-{id} → shift-start-0='18:00' + shift-end-0='22:00' should auto-compute shift-hours-0=4 with no red screen. save-as-template-btn should not throw. IMPORTANT: if you re-run WhatsApp smoke tests on test@eventa.pl, remember the revenue matched-events path mutates existing seed events IN PLACE and cannot be un-imported by delete filters — use a throwaway account instead.",
+  "rca_of_issue": "Iter10 called out two dangling identifiers (`hoursBetween`, `venue`/`setVenue`) — main agent fixed both cleanly: hoursBetween defined at top of file (line 26), venue-state removed and both callers switched to the hardcoded string 'Biesiada pod lasem'. Verified via Playwright: zero pageerror events across all shift-input and save-as-template interactions. Backend regression pollution (7 failing tests before cleanup, 3 remaining after event delete) had two root causes: (a) 44 WhatsApp-created events on 'test@eventa.pl' — trivially fixed by DELETE /api/events/{id} filtered by imported_source; (b) `matched_existing_events` code path adds revenue to pre-existing events IN PLACE and does NOT stamp imported_source on the mutated event — this data change is irreversible via delete. Manually PUT-reset the one affected event ('Party 22:00', 2026-06-15) from 17812.5 back to the iter7 baseline 5000.0. Recommendation captured in action_items."
+}

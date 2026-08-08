@@ -23,6 +23,20 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function hoursBetween(start?: string, end?: string): number {
+  if (!start || !end) return 0;
+  const parse = (v: string) => {
+    const [h, m] = v.split(":").map(x => parseInt(x, 10));
+    if (isNaN(h)) return null;
+    return h + (isNaN(m) ? 0 : m) / 60;
+  };
+  const s = parse(start); const e = parse(end);
+  if (s === null || e === null) return 0;
+  let diff = e - s;
+  if (diff < 0) diff += 24;
+  return Math.round(diff * 100) / 100;
+}
+
 export default function EventDetail() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -172,7 +186,7 @@ export default function EventDetail() {
     if (!name.trim()) return;
     try {
       await api.createTemplate({
-        name: name.trim(), venue, notes, category,
+        name: name.trim(), venue: "Biesiada pod lasem", notes, category,
         revenue: revenueNum,
         costs, shifts, image_url: imageUrl,
       });
@@ -184,7 +198,6 @@ export default function EventDetail() {
 
   const applyTemplate = (tpl: any) => {
     setName(tpl.name || "");
-    setVenue(tpl.venue || "");
     setNotes(tpl.notes || "");
     setRevenue(String(tpl.revenue || ""));
     setCosts(tpl.costs || []);
