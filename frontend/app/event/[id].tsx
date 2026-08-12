@@ -224,6 +224,57 @@ export default function EventDetail() {
     setTemplates(templates.filter(t => t.id !== tplId));
   };
 
+  // ---- Send offer email (pre-filled from this event) ----
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [offerTo, setOfferTo] = useState("");
+  const [offerClient, setOfferClient] = useState("");
+  const [offerNote, setOfferNote] = useState("");
+  const [offerSending, setOfferSending] = useState(false);
+
+  const openOfferModal = () => {
+    setOfferTo("");
+    // best-guess client name from event name (e.g. "Urodziny Ani" -> "Ani")
+    setOfferClient("");
+    setOfferNote(notes ? `Dot. imprezy: ${name}\n\n${notes}` : `Dot. imprezy: ${name}`);
+    setOfferOpen(true);
+  };
+
+  const sendOfferForEvent = async () => {
+    if (!offerTo.trim() || !offerTo.includes("@")) {
+      Alert.alert("Błąd", "Podaj poprawny adres e-mail klienta.");
+      return;
+    }
+    setOfferSending(true);
+    try {
+      // package_set_id must be set1/set2/set3 (adult sets)
+      const isSetId = packageSet === "set1" || packageSet === "set2" || packageSet === "set3";
+      const extrasPayload = ADULT_EXTRAS
+        .map(e => {
+          const q = extras[e.id] || 0;
+          if (q <= 0) return null;
+          if (e.unit === "kwota") return { id: e.id, amount: q };
+          return { id: e.id, qty: q };
+        })
+        .filter(Boolean) as any[];
+      await api.sendOfferEmail({
+        to_email: offerTo.trim(),
+        client_name: offerClient.trim() || undefined,
+        event_date: date || undefined,
+        people_count: peopleNum || undefined,
+        package_set_id: isSetId ? (packageSet as any) : undefined,
+        extras: extrasPayload,
+        custom_note: offerNote.trim() || undefined,
+        event_id: isNew ? undefined : (id as string),
+      });
+      setOfferOpen(false);
+      Alert.alert("Wysłano ✓", `Oferta poszła na ${offerTo.trim()}.`);
+    } catch (e: any) {
+      Alert.alert("Nie udało się wysłać", e?.message || "Spróbuj ponownie.");
+    } finally {
+      setOfferSending(false);
+    }
+  };
+
   if (loading) {
     return <View style={[s.root, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator color={theme.color.brand} /></View>;
   }
@@ -237,11 +288,18 @@ export default function EventDetail() {
           <Feather name="chevron-left" size={22} color={theme.color.onSurface} />
         </Pressable>
         <Text style={s.headerTitle}>{isNew ? "Nowa impreza" : "Edytuj imprezę"}</Text>
-        {!isNew ? (
-          <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={s.backBtn}>
-            <Feather name="trash-2" size={18} color={theme.color.error} />
-          </Pressable>
-        ) : <View style={{ width: 36 }} />}
+        <View style={{ flexDirection: "row", gap: 4 }}>
+          {isAdult ? (
+            <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
+              <Feather name="mail" size={18} color={theme.color.brand} />
+            </Pressable>
+          ) : null}
+          {!isNew ? (
+            <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={s.backBtn}>
+              <Feather name="trash-2" size={18} color={theme.color.error} />
+            </Pressable>
+          ) : <View style={{ width: 36 }} />}
+        </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -635,6 +693,79 @@ export default function EventDetail() {
             ))}
           </ScrollView>
         </View>
+      </Modal>
+
+      <Modal visible={offerOpen} transparent animationType="slide" onRequestClose={() => setOfferOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setOfferOpen(false)} />
+          <View style={{
+            backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 20,
+            borderWidth: 1, borderColor: theme.color.border, maxHeight: "85%",
+          }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 }} />
+            <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>Wyślij ofertę klientowi</Text>
+            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 }}>
+              Dane imprezy wypełnią PDF automatycznie: {date}
+              {peopleNum ? ` · ${peopleNum} os.` : ""}
+              {packageSet ? ` · ${findAdultSet(packageSet)?.name || packageSet}` : ""}
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.label}>E-mail klienta *</Text>
+              <TextInput
+                testID="event-offer-email-to"
+                value={offerTo}
+                onChangeText={setOfferTo}
+                placeholder="klient@przyklad.pl"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+              <Text style={[s.label, { marginTop: 12 }]}>Imię / nazwa klienta</Text>
+              <TextInput
+                testID="event-offer-email-client"
+                value={offerClient}
+                onChangeText={setOfferClient}
+                placeholder="Jan Kowalski"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+              />
+              <Text style={[s.label, { marginTop: 12 }]}>Uwagi w mailu</Text>
+              <TextInput
+                testID="event-offer-email-note"
+                value={offerNote}
+                onChangeText={setOfferNote}
+                placeholder="Dodatkowe informacje..."
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={[s.input, { minHeight: 80, textAlignVertical: "top" }]}
+                multiline
+              />
+              <Pressable
+                testID="event-offer-send-btn"
+                onPress={sendOfferForEvent}
+                disabled={offerSending || !offerTo.trim()}
+                style={{
+                  marginTop: 18, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15,
+                  flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                  opacity: (offerSending || !offerTo.trim()) ? 0.5 : 1,
+                }}
+              >
+                {offerSending ? (
+                  <ActivityIndicator color={theme.color.onBrand} />
+                ) : (
+                  <>
+                    <Feather name="send" size={16} color={theme.color.onBrand} />
+                    <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 15 }}>Wyślij ofertę PDF</Text>
+                  </>
+                )}
+              </Pressable>
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
+                Wysyłamy z: biesiadapodlasem@gmail.com
+              </Text>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );

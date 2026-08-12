@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, Linking,
+  Modal, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,7 +9,8 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
-import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop, AdultSet } from "@/src/offers";
+import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
+import { api } from "@/src/api";
 
 type Tab = "urodziny" | "warsztaty" | "grill";
 
@@ -17,6 +19,85 @@ export default function Oferta() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("urodziny");
   const [seasonFilter, setSeasonFilter] = useState<string>("Wszystkie");
+
+  // ------ Send offer email state ------
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailMode, setEmailMode] = useState<"general" | "personalized">("general");
+  const [emailTo, setEmailTo] = useState("");
+  const [emailClient, setEmailClient] = useState("");
+  const [emailDate, setEmailDate] = useState("");
+  const [emailPeople, setEmailPeople] = useState("");
+  const [emailSet, setEmailSet] = useState<"set1" | "set2" | "set3">("set1");
+  const [emailNote, setEmailNote] = useState("");
+  const [emailExtras, setEmailExtras] = useState<Record<string, { qty?: string; amount?: string }>>({});
+  const [emailSending, setEmailSending] = useState(false);
+
+  const currentSet = ADULT_SETS.find(x => x.id === emailSet);
+  const emailPreviewTotal = useMemo(() => {
+    const ppl = parseInt(emailPeople, 10) || 0;
+    let total = (currentSet?.price_per_person || 0) * ppl;
+    for (const ex of ADULT_EXTRAS) {
+      const row = emailExtras[ex.id];
+      if (!row) continue;
+      if (ex.id === "ciasto") {
+        total += parseFloat((row.amount || "").replace(",", ".")) || 0;
+      } else {
+        total += (parseFloat((row.qty || "").replace(",", ".")) || 0) * ex.price;
+      }
+    }
+    return total;
+  }, [currentSet, emailPeople, emailExtras]);
+
+  const openEmailModal = () => {
+    setEmailMode("general");
+    setEmailTo("");
+    setEmailClient("");
+    setEmailDate("");
+    setEmailPeople("");
+    setEmailSet("set1");
+    setEmailNote("");
+    setEmailExtras({});
+    setEmailOpen(true);
+  };
+
+  const sendEmail = async () => {
+    if (!emailTo.trim() || !emailTo.includes("@")) {
+      Alert.alert("Błąd", "Podaj poprawny adres e-mail klienta.");
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const isPersonalized = emailMode === "personalized";
+      const extrasPayload = isPersonalized
+        ? (Object.entries(emailExtras)
+            .map(([id, v]) => {
+              if (id === "ciasto") {
+                const amount = parseFloat((v.amount || "").replace(",", ".")) || 0;
+                return amount > 0 ? { id, amount } : null;
+              }
+              const qty = parseFloat((v.qty || "").replace(",", ".")) || 0;
+              return qty > 0 ? { id, qty } : null;
+            })
+            .filter(Boolean) as any[])
+        : [];
+      const people = isPersonalized ? (parseInt(emailPeople, 10) || undefined) : undefined;
+      await api.sendOfferEmail({
+        to_email: emailTo.trim(),
+        client_name: emailClient.trim() || undefined,
+        event_date: emailDate.trim() || undefined,
+        people_count: people,
+        package_set_id: isPersonalized ? emailSet : undefined,
+        extras: extrasPayload,
+        custom_note: emailNote.trim() || undefined,
+      });
+      setEmailOpen(false);
+      Alert.alert("Wysłano ✓", `Oferta poszła na ${emailTo.trim()}.`);
+    } catch (e: any) {
+      Alert.alert("Nie udało się wysłać", e?.message || "Spróbuj ponownie.");
+    } finally {
+      setEmailSending(false);
+    }
+  };
 
   const seasons = useMemo(() => {
     const set = new Set(WORKSHOPS.map(w => w.season));
@@ -73,11 +154,17 @@ export default function Oferta() {
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="oferta-screen">
       <View style={s.header}>
-        <Text style={s.brand}>Oferta</Text>
-        <Text style={s.title}>Dolina Przygód</Text>
-        <Pressable testID="source-link" onPress={() => Linking.openURL(SOURCE_URL)} style={s.sourceRow}>
-          <Feather name="external-link" size={12} color={theme.color.brand} />
-          <Text style={s.sourceText}>dolinaprzygod.pl</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.brand}>Oferta</Text>
+          <Text style={s.title}>Dolina Przygód</Text>
+          <Pressable testID="source-link" onPress={() => Linking.openURL(SOURCE_URL)} style={s.sourceRow}>
+            <Feather name="external-link" size={12} color={theme.color.brand} />
+            <Text style={s.sourceText}>dolinaprzygod.pl</Text>
+          </Pressable>
+        </View>
+        <Pressable testID="send-offer-btn" onPress={openEmailModal} style={s.sendBtn} hitSlop={8}>
+          <Feather name="mail" size={16} color={theme.color.onBrand} />
+          <Text style={s.sendBtnText}>Wyślij</Text>
         </Pressable>
       </View>
 
@@ -275,13 +362,174 @@ export default function Oferta() {
           </>
         )}
       </ScrollView>
+
+      <Modal visible={emailOpen} transparent animationType="slide" onRequestClose={() => setEmailOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={s.backdrop} onPress={() => setEmailOpen(false)} />
+          <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={s.grip} />
+            <Text style={s.sheetTitle}>Wyślij ofertę na e-mail</Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <View style={s.modeRow}>
+                <Pressable
+                  testID="offer-mode-general"
+                  onPress={() => setEmailMode("general")}
+                  style={[s.modeBtn, emailMode === "general" && s.modeBtnActive]}
+                >
+                  <Feather name="list" size={13} color={emailMode === "general" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                  <Text style={[s.modeBtnText, emailMode === "general" && s.modeBtnTextActive]}>Pełny katalog</Text>
+                </Pressable>
+                <Pressable
+                  testID="offer-mode-personalized"
+                  onPress={() => setEmailMode("personalized")}
+                  style={[s.modeBtn, emailMode === "personalized" && s.modeBtnActive]}
+                >
+                  <Feather name="user-check" size={13} color={emailMode === "personalized" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                  <Text style={[s.modeBtnText, emailMode === "personalized" && s.modeBtnTextActive]}>Z propozycją</Text>
+                </Pressable>
+              </View>
+              <Text style={s.modeHint}>
+                {emailMode === "general"
+                  ? "Klient dostanie pełny katalog wszystkich 3 zestawów i dodatków — sam wybierze."
+                  : "Do pełnego katalogu dołączymy Twoją propozycję z wyliczeniem dla konkretnego zestawu."}
+              </Text>
+
+              <Text style={s.fieldLabel}>E-mail klienta *</Text>
+              <TextInput
+                testID="offer-email-to"
+                value={emailTo}
+                onChangeText={setEmailTo}
+                placeholder="klient@przyklad.pl"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
+              <Text style={s.fieldLabel}>Imię / nazwa klienta</Text>
+              <TextInput
+                testID="offer-email-client"
+                value={emailClient}
+                onChangeText={setEmailClient}
+                placeholder="Jan Kowalski"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+              />
+
+              <Text style={s.fieldLabel}>Data imprezy (opcjonalnie)</Text>
+              <TextInput
+                testID="offer-email-date"
+                value={emailDate}
+                onChangeText={setEmailDate}
+                placeholder="2026-08-15"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+              />
+
+              {emailMode === "personalized" && (
+                <>
+                  <Text style={s.fieldLabel}>Liczba osób</Text>
+                  <TextInput
+                    testID="offer-email-people"
+                    value={emailPeople}
+                    onChangeText={setEmailPeople}
+                    placeholder="25"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    style={s.input}
+                    keyboardType="number-pad"
+                  />
+
+                  <Text style={s.fieldLabel}>Sugerowany zestaw</Text>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    {ADULT_SETS.map(zs => {
+                      const active = emailSet === zs.id;
+                      return (
+                        <Pressable
+                          key={zs.id}
+                          testID={`offer-set-${zs.id}`}
+                          onPress={() => setEmailSet(zs.id as any)}
+                          style={[s.setBtn, active && s.setBtnActive]}
+                        >
+                          <Text style={[s.setBtnLabel, active && s.setBtnLabelActive]}>{zs.name.replace("Zestaw nr ", "Zestaw ")}</Text>
+                          <Text style={[s.setBtnPrice, active && s.setBtnPriceActive]}>{zs.price_per_person} zł/os.</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={s.fieldLabel}>Dodatki do propozycji (opcjonalnie)</Text>
+                  {ADULT_EXTRAS.map(ex => (
+                    <View key={ex.id} style={s.extraRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.extraName}>{ex.name}</Text>
+                        <Text style={s.extraSub}>
+                          {ex.id === "ciasto" ? "Wpisz kwotę PLN" : `${ex.price} zł / ${ex.unit}`}
+                        </Text>
+                      </View>
+                      <TextInput
+                        testID={`offer-extra-${ex.id}`}
+                        value={ex.id === "ciasto" ? (emailExtras[ex.id]?.amount ?? "") : (emailExtras[ex.id]?.qty ?? "")}
+                        onChangeText={(t) =>
+                          setEmailExtras(prev => ({
+                            ...prev,
+                            [ex.id]: ex.id === "ciasto" ? { amount: t } : { qty: t },
+                          }))
+                        }
+                        placeholder="0"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        style={s.extraInput}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  ))}
+
+                  <View style={s.totalCard}>
+                    <Text style={s.totalLabel}>Szacunkowy koszt propozycji</Text>
+                    <Text style={s.totalValue}>{formatPLN(emailPreviewTotal)}</Text>
+                  </View>
+                </>
+              )}
+
+              <Text style={s.fieldLabel}>Uwagi (opcjonalnie)</Text>
+              <TextInput
+                testID="offer-email-note"
+                value={emailNote}
+                onChangeText={setEmailNote}
+                placeholder="Dodatkowe informacje dla klienta..."
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={[s.input, { minHeight: 70, textAlignVertical: "top" }]}
+                multiline
+              />
+
+              <Pressable
+                testID="offer-send-btn"
+                onPress={sendEmail}
+                disabled={emailSending || !emailTo.trim()}
+                style={[s.saveBtn, (emailSending || !emailTo.trim()) && { opacity: 0.5 }]}
+              >
+                {emailSending ? (
+                  <ActivityIndicator color={theme.color.onBrand} />
+                ) : (
+                  <>
+                    <Feather name="send" size={16} color={theme.color.onBrand} />
+                    <Text style={s.saveBtnText}>Wyślij ofertę PDF</Text>
+                  </>
+                )}
+              </Pressable>
+              <Text style={s.footerNote}>
+                Wysyłamy z: biesiadapodlasem@gmail.com · Klient odpowie bezpośrednio do Ciebie.
+              </Text>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { paddingHorizontal: 20, paddingBottom: 12, paddingTop: 8 },
+  header: { paddingHorizontal: 20, paddingBottom: 12, paddingTop: 8, flexDirection: "row", alignItems: "flex-end" },
   brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
   title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
   sourceRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 4 },
@@ -340,4 +588,71 @@ const s = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
   },
   actionBtnText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 14, letterSpacing: 0.3 },
+  sendBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    backgroundColor: theme.color.brand, paddingHorizontal: 14, paddingVertical: 10,
+    borderRadius: 999,
+  },
+  sendBtnText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 13, letterSpacing: 0.3 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sheet: {
+    backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 12, borderWidth: 1, borderColor: theme.color.border,
+    maxHeight: "88%",
+  },
+  grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 },
+  sheetTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 4 },
+  fieldLabel: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 1, marginTop: 14, marginBottom: 6 },
+  input: {
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, color: theme.color.onSurface,
+    paddingHorizontal: 14, paddingVertical: 14, fontSize: 15, borderWidth: 1, borderColor: theme.color.border,
+  },
+  setBtn: {
+    flex: 1, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12,
+    backgroundColor: theme.color.surfaceTertiary, borderWidth: 1, borderColor: theme.color.border,
+    alignItems: "center",
+  },
+  setBtnActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  setBtnLabel: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  setBtnLabelActive: { color: theme.color.onBrand },
+  setBtnPrice: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  setBtnPriceActive: { color: theme.color.onBrand, opacity: 0.85 },
+  extraRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8,
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, padding: 10,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  extraName: { color: theme.color.onSurface, fontSize: 13, fontWeight: "600" },
+  extraSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  extraInput: {
+    width: 78, textAlign: "center", backgroundColor: theme.color.surface, borderRadius: 10,
+    color: theme.color.onSurface, paddingVertical: 10, fontSize: 14,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  totalCard: {
+    marginTop: 18, backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1, borderColor: theme.color.brand, borderRadius: 14,
+    padding: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+  },
+  totalLabel: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 1 },
+  totalValue: { color: theme.color.brand, fontSize: 22, fontWeight: "800" },
+  saveBtn: {
+    marginTop: 16, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15,
+    alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8,
+  },
+  saveBtnText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 15 },
+  footerNote: { color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" },
+  modeRow: {
+    flexDirection: "row", gap: 6, marginTop: 4, marginBottom: 6,
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 999, padding: 4,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  modeBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 10, borderRadius: 999,
+  },
+  modeBtnActive: { backgroundColor: theme.color.brand },
+  modeBtnText: { color: theme.color.onSurfaceSecondary, fontWeight: "700", fontSize: 12 },
+  modeBtnTextActive: { color: theme.color.onBrand },
+  modeHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, fontStyle: "italic", marginBottom: 2 },
 });

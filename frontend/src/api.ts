@@ -88,5 +88,15 @@ export const api = {
   importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),
   importWhatsApp: (text: string, kind: "expenses" | "revenue") =>
     request("/import/whatsapp", { method: "POST", body: JSON.stringify({ text, kind }) }),
+  sendOfferEmail: (data: {
+    to_email: string;
+    client_name?: string;
+    event_date?: string;
+    people_count?: number;
+    package_set_id?: "set1" | "set2" | "set3" | null;
+    extras?: { id: string; qty?: number; amount?: number }[];
+    custom_note?: string;
+    event_id?: string;
+  }) => request("/offers/send-email", { method: "POST", body: JSON.stringify(data) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

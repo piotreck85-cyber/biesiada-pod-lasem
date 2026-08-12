@@ -93,6 +93,16 @@ class ExpenseIn(BaseModel):
     category: Optional[str] = ""
     notes: Optional[str] = ""
 
+class SendOfferIn(BaseModel):
+    to_email: EmailStr
+    client_name: Optional[str] = ""
+    event_date: Optional[str] = ""       # YYYY-MM-DD
+    people_count: Optional[int] = None
+    package_set_id: Optional[str] = None # set1 | set2 | set3
+    extras: Optional[List[dict]] = None  # [{id, qty?, amount?}]
+    custom_note: Optional[str] = ""
+    event_id: Optional[str] = None       # optional link to event
+
 # ---------- Helpers ----------
 def now_utc():
     return datetime.now(timezone.utc)
@@ -276,6 +286,119 @@ async def delete_account(user=Depends(current_user)):
     await db.templates.delete_many({"owner_id": uid})
     await db.users.delete_one({"id": uid})
     return {"ok": True}
+
+# ---------- Offer email ----------
+@api.post("/offers/send-email")
+async def send_offer(body: SendOfferIn, user=Depends(current_user)):
+    """Generate a personalized PDF offer and email it to the client via Gmail SMTP.
+
+    Data source: mirrors /app/frontend/src/offers.ts. Only Adults/Occasion/Corporate
+    packages (Zestaw 1/2/3) are supported at the moment.
+    """
+    import asyncio
+    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln
+
+    # Personalize subject line
+    who = (body.client_name or "").strip()
+    when = (body.event_date or "").strip()
+    subj_suffix = ""
+    if when:
+        subj_suffix = f" ({when})"
+    subject = f"Oferta — Biesiada pod Lasem{subj_suffix}"
+    if who:
+        subject = f"{subject} — dla: {who}"
+
+    chosen = _find_set(body.package_set_id)
+    total_line = ""
+    if chosen and body.people_count:
+        base = chosen["price"] * body.people_count
+        extras_total = 0.0
+        for e in body.extras or []:
+            eid = e.get("id")
+            if eid == "ciasto":
+                extras_total += float(e.get("amount") or 0)
+            else:
+                from offer_email import ADULT_EXTRAS
+                src = next((x for x in ADULT_EXTRAS if x["id"] == eid), None)
+                if src:
+                    extras_total += float(e.get("qty") or 0) * float(src["price"])
+        total_line = f"\n\nSzacunkowy koszt: {_fmt_pln(base + extras_total)}"
+
+    body_text = (
+        (f"Dzień dobry {who},\n\n" if who else "Dzień dobry,\n\n") +
+        "przesyłamy propozycję oferty na Państwa wydarzenie. Szczegóły znajdą Państwo w załączonym PDF.\n"
+        + (f"\nData wydarzenia: {when}" if when else "")
+        + (f"\nLiczba osób: {body.people_count}" if body.people_count else "")
+        + (f"\nWybrany zestaw: {chosen['name']} ({_fmt_pln(chosen['price'])}/os.)" if chosen else "")
+        + total_line
+        + ((f"\n\nDodatkowe uwagi:\n{body.custom_note.strip()}") if (body.custom_note or "").strip() else "")
+        + "\n\nW razie pytań jesteśmy do dyspozycji.\n"
+          "\nPozdrawiamy serdecznie,\n"
+          "Zespół Biesiada pod Lasem\n"
+          "www.dolinaprzygod.pl · biesiadapodlasem@gmail.com"
+    )
+
+    # Simple HTML variant for nicer clients
+    who_html = f"<p>Dzień dobry <strong>{who}</strong>,</p>" if who else "<p>Dzień dobry,</p>"
+    when_html = f"<li>Data wydarzenia: <strong>{when}</strong></li>" if when else ""
+    people_html = f"<li>Liczba osób: <strong>{body.people_count}</strong></li>" if body.people_count else ""
+    set_html = f"<li>Wybrany zestaw: <strong>{chosen['name']}</strong> ({_fmt_pln(chosen['price'])}/os.)</li>" if chosen else ""
+    total_html = f"<p style='color:#D4AF37;font-weight:700;font-size:16px'>Szacunkowy koszt: {_fmt_pln(base + extras_total)}</p>" if chosen and body.people_count else ""
+    note_html = f"<p><em>{(body.custom_note or '').strip()}</em></p>" if (body.custom_note or '').strip() else ""
+
+    body_html = f"""
+    <div style="font-family: -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+                background:#F8F5EE;padding:24px;color:#111827;">
+      <div style="max-width:600px;margin:auto;background:#fff;border:1px solid #E5D9B5;
+                  border-radius:12px;padding:28px;">
+        <h1 style="color:#1F3A2E;margin:0 0 4px 0;">Biesiada pod Lasem</h1>
+        <div style="color:#D4AF37;letter-spacing:2px;font-size:11px;font-weight:700;margin-bottom:16px;">
+          KIELCE · DOLINA PRZYGÓD
+        </div>
+        {who_html}
+        <p>Przesyłamy propozycję oferty na Państwa wydarzenie. Szczegóły w załączonym PDF.</p>
+        <ul style="line-height:1.6">{when_html}{people_html}{set_html}</ul>
+        {total_html}
+        {note_html}
+        <hr style="border:none;border-top:1px solid #E5D9B5;margin:20px 0"/>
+        <p style="color:#4B5563;font-size:13px">Pozdrawiamy serdecznie,<br/>
+           <strong>Zespół Biesiada pod Lasem</strong><br/>
+           www.dolinaprzygod.pl · biesiadapodlasem@gmail.com</p>
+      </div>
+    </div>
+    """
+
+    try:
+        pdf_bytes = build_offer_pdf(
+            client_name=body.client_name or None,
+            event_date=body.event_date or None,
+            people_count=body.people_count,
+            package_set_id=body.package_set_id,
+            extras=body.extras,
+            custom_note=body.custom_note or None,
+        )
+        # smtplib is blocking — run in a threadpool
+        await asyncio.to_thread(
+            send_offer_email,
+            to_email=str(body.to_email),
+            subject=subject,
+            body_text=body_text,
+            body_html=body_html,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=f"Oferta-Biesiada-{when or 'plenerowa'}.pdf",
+            reply_to=os.getenv("SMTP_USER"),
+        )
+    except RuntimeError as e:
+        raise HTTPException(500, str(e))
+    except Exception as e:  # noqa: BLE001
+        raise HTTPException(500, f"Nie udało się wysłać maila: {e}")
+
+    await log_change(
+        user, "create", "offer_email",
+        body.event_id or "manual",
+        f"Wysłano ofertę do {body.to_email}" + (f" — {who}" if who else "") + (f" ({when})" if when else ""),
+    )
+    return {"ok": True, "to": str(body.to_email)}
 
 # ---------- Staff ----------
 @api.get("/staff")
