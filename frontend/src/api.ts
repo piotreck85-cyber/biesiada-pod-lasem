@@ -44,6 +44,9 @@ export const api = {
     request("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }),
   login: (email: string, password: string) =>
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
+  exchangeSession: (sessionId: string) =>
+    request("/auth/session", { method: "POST", body: JSON.stringify({ session_id: sessionId }) }),
+  logoutServer: () => request("/auth/logout", { method: "POST" }),
   me: () => request("/auth/me"),
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),
   workspace: () => request("/workspace"),

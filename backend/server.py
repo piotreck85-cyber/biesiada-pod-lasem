@@ -119,16 +119,34 @@ def make_token(user_id: str) -> str:
 async def current_user(cred: HTTPAuthorizationCredentials = Depends(bearer)):
     if not cred:
         raise HTTPException(401, "Brak tokenu")
+    token = cred.credentials
+
+    # 1) Try JWT (existing email/password auth)
     try:
-        payload = jwt.decode(cred.credentials, JWT_SECRET, algorithms=["HS256"])
+        payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
+        if user:
+            if not user.get("workspace_id"):
+                user["workspace_id"] = user["id"]
+            return user
     except jwt.PyJWTError:
-        raise HTTPException(401, "Nieprawidłowy token")
-    user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0, "password_hash": 0})
-    if not user:
-        raise HTTPException(401, "Użytkownik nie istnieje")
-    if not user.get("workspace_id"):
-        user["workspace_id"] = user["id"]
-    return user
+        pass  # fall through to session_token check
+
+    # 2) Try Emergent Google Auth session_token (opaque)
+    session = await db.user_sessions.find_one({"session_token": token}, {"_id": 0})
+    if session:
+        exp = session.get("expires_at")
+        # MongoDB may return naive datetimes — make timezone-aware for safe comparison
+        if isinstance(exp, datetime) and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp and exp > now_utc():
+            user = await db.users.find_one({"id": session["user_id"]}, {"_id": 0, "password_hash": 0})
+            if user:
+                if not user.get("workspace_id"):
+                    user["workspace_id"] = user["id"]
+                return user
+
+    raise HTTPException(401, "Nieprawidłowy token")
 
 def ws(user: dict) -> str:
     """Workspace id used to scope all data queries."""
@@ -225,6 +243,86 @@ async def login(body: LoginIn):
 @api.get("/auth/me")
 async def me(user=Depends(current_user)):
     return user
+
+# ---------- Emergent Google Auth ----------
+class SessionExchangeIn(BaseModel):
+    session_id: str
+
+@api.post("/auth/session")
+async def auth_session(body: SessionExchangeIn):
+    """Exchange a one-time Emergent session_id for a 7-day session_token.
+
+    Also upserts the user in MongoDB (by email — reuses existing user_id when the
+    email is already known so JWT/email auth accounts get linked automatically).
+    """
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": body.session_id},
+            )
+    except httpx.HTTPError:
+        raise HTTPException(401, "Nie udało się połączyć z Google Auth")
+
+    if resp.status_code != 200:
+        raise HTTPException(401, "Nieprawidłowy lub wygasły session_id")
+
+    data = resp.json()
+    email = (data.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(401, "Brak e-maila w danych logowania")
+    name = data.get("name") or email.split("@")[0]
+    picture = data.get("picture") or ""
+    session_token = data.get("session_token")
+    if not session_token:
+        raise HTTPException(500, "Brak session_token w odpowiedzi Emergent")
+
+    # Upsert user by email — reuse existing user_id if present (link Google to existing account)
+    user = await db.users.find_one({"email": email}, {"_id": 0, "password_hash": 0})
+    if not user:
+        user = {
+            "id": str(uuid.uuid4()),
+            "email": email,
+            "name": name,
+            "picture": picture,
+            "workspace_id": None,
+            "auth_provider": "google",
+            "created_at": now_utc().isoformat(),
+        }
+        user["workspace_id"] = user["id"]  # own workspace by default
+        await db.users.insert_one(dict(user))
+    else:
+        # Refresh picture/name if changed and mark google as an available provider
+        upd = {}
+        if picture and user.get("picture") != picture:
+            upd["picture"] = picture
+        if name and not user.get("name"):
+            upd["name"] = name
+        if upd:
+            await db.users.update_one({"id": user["id"]}, {"$set": upd})
+            user.update(upd)
+        if not user.get("workspace_id"):
+            user["workspace_id"] = user["id"]
+
+    # Store the session (7-day validity — matches Emergent)
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user["id"],
+        "expires_at": now_utc() + timedelta(days=7),
+        "created_at": now_utc(),
+    })
+
+    # Never leak Mongo _id
+    user.pop("_id", None)
+    return {"session_token": session_token, "user": user}
+
+@api.post("/auth/logout")
+async def auth_logout(cred: HTTPAuthorizationCredentials = Depends(bearer)):
+    """Best-effort revoke of a session_token (JWT tokens are stateless — client just drops them)."""
+    if cred and cred.credentials:
+        await db.user_sessions.delete_one({"session_token": cred.credentials})
+    return {"ok": True}
 
 class WorkspaceJoinIn(BaseModel):
     code: str
@@ -1168,6 +1266,11 @@ async def _startup():
     await db.users.create_index("email", unique=True)
     await db.events.create_index([("owner_id", 1), ("date", -1)])
     await db.staff.create_index([("owner_id", 1)])
+    # Emergent Google Auth session storage
+    await db.user_sessions.create_index("session_token", unique=True)
+    await db.user_sessions.create_index("user_id")
+    # TTL index — MongoDB will auto-delete expired sessions
+    await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
 
 @app.on_event("shutdown")
 async def _shutdown():
