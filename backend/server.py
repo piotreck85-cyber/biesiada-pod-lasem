@@ -336,6 +336,57 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     # ---- Email body (plaintext) using the type-specific intro
     intro = build_intro_text(body.event_type)
     greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
+
+    # Attachment strategy per event type
+    is_workshops = body.event_type == "warsztaty"
+    is_adult = body.event_type in ("okolicznosciowe", "firmowe")
+
+    if is_workshops:
+        attachments_txt = "\n\n(w załączniku szczegółowa oferta warsztatów jesiennych)\n"
+        attachments_html = ""  # user's intro already mentions "W załączniku"
+    elif is_adult:
+        attachments_txt = (
+            "\n\nW załączniku:\n"
+            "  •  Menu Biesiada pod Lasem 2026 (DOCX),\n"
+            "  •  Oferta obiadowa 2026 (DOCX).\n"
+        )
+        attachments_html = """
+        <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
+          <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
+          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
+            <li>Menu Biesiada pod Lasem 2026 (DOCX)</li>
+            <li>Oferta obiadowa 2026 (DOCX)</li>
+          </ul>
+        </div>
+        """
+    else:
+        attachments_txt = (
+            "\n\nW załączniku:\n"
+            "  •  Oferta w PDF (podsumowanie),\n"
+            "  •  Menu Biesiada pod Lasem 2026 (DOCX),\n"
+            "  •  Oferta obiadowa 2026 (DOCX).\n"
+        )
+        attachments_html = """
+        <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
+          <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
+          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
+            <li>Oferta w PDF (podsumowanie)</li>
+            <li>Menu Biesiada pod Lasem 2026 (DOCX)</li>
+            <li>Oferta obiadowa 2026 (DOCX)</li>
+          </ul>
+        </div>
+        """
+
+    # Custom sign-off per event type (e.g. warsztaty uses shorter version)
+    from offer_email import EVENT_TYPE_SIGNOFFS
+    custom_signoff = EVENT_TYPE_SIGNOFFS.get(body.event_type or "")
+    default_signoff = (
+        "Pozdrawiamy serdecznie,\n"
+        "Zespół Biesiada pod Lasem\n"
+        "www.dolinaprzygod.pl · biesiadapodlasem@gmail.com"
+    )
+    signoff_text = custom_signoff or default_signoff
+
     body_text = (
         f"{greeting}\n\n"
         f"{intro}\n"
@@ -344,13 +395,8 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         + (f"\nSugerowany zestaw: {chosen['name']} ({_fmt_pln(chosen['price'])}/os.)" if chosen else "")
         + total_line
         + ((f"\n\nDodatkowe uwagi:\n{body.custom_note.strip()}") if (body.custom_note or "").strip() else "")
-        + "\n\nW załączniku:\n"
-          "  •  Oferta w PDF (podsumowanie),\n"
-          "  •  Menu Biesiada pod Lasem 2026 (DOCX),\n"
-          "  •  Oferta obiadowa 2026 (DOCX).\n"
-        + "\nPozdrawiamy serdecznie,\n"
-          "Zespół Biesiada pod Lasem\n"
-          "www.dolinaprzygod.pl · biesiadapodlasem@gmail.com"
+        + attachments_txt
+        + f"\n{signoff_text}"
     )
 
     # ---- HTML variant (same intro rendered nicely)
@@ -363,6 +409,7 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     total_html = f"<p style='color:#D4AF37;font-weight:700;font-size:16px'>Szacunkowy koszt propozycji: {_fmt_pln(base + extras_total)}</p>" if chosen and body.people_count else ""
     note_html = f"<p><em>{(body.custom_note or '').strip()}</em></p>" if (body.custom_note or '').strip() else ""
 
+    signoff_html = signoff_text.replace("\n", "<br/>")
     body_html = f"""
     <div style="font-family: -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
                 background:#F8F5EE;padding:24px;color:#111827;">
@@ -377,33 +424,31 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         {facts_html}
         {total_html}
         {note_html}
-        <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
-          <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
-          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
-            <li>Oferta w PDF (podsumowanie)</li>
-            <li>Menu Biesiada pod Lasem 2026 (DOCX)</li>
-            <li>Oferta obiadowa 2026 (DOCX)</li>
-          </ul>
-        </div>
+        {attachments_html}
         <hr style="border:none;border-top:1px solid #E5D9B5;margin:20px 0"/>
-        <p style="color:#4B5563;font-size:13px">Pozdrawiamy serdecznie,<br/>
-           <strong>Zespół Biesiada pod Lasem</strong><br/>
-           www.dolinaprzygod.pl · biesiadapodlasem@gmail.com</p>
+        <p style="color:#4B5563;font-size:13px">{signoff_html}</p>
       </div>
     </div>
     """
 
     try:
-        pdf_bytes = build_offer_pdf(
-            client_name=body.client_name or None,
-            event_date=body.event_date or None,
-            people_count=body.people_count,
-            package_set_id=body.package_set_id,
-            extras=body.extras,
-            custom_note=body.custom_note or None,
-            event_type=body.event_type or None,
-        )
-        # smtplib is blocking — run in a threadpool
+        # Attachment strategy per event type:
+        # - okolicznosciowe/firmowe: only 2 DOCX menus, no auto PDF
+        # - warsztaty: only the hand-crafted workshops PDF, no menu DOCX, no auto PDF
+        # - urodziny / default: auto PDF (catalog + calc) + 2 DOCX menus
+        skip_auto_pdf = body.event_type in ("okolicznosciowe", "firmowe", "warsztaty")
+
+        pdf_bytes = None
+        if not skip_auto_pdf:
+            pdf_bytes = build_offer_pdf(
+                client_name=body.client_name or None,
+                event_date=body.event_date or None,
+                people_count=body.people_count,
+                package_set_id=body.package_set_id,
+                extras=body.extras,
+                custom_note=body.custom_note or None,
+                event_type=body.event_type or None,
+            )
         # Pick a nice filename that reflects the event type
         fname_type_map = {
             "okolicznosciowe": "okolicznosciowa",
@@ -413,17 +458,21 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         }
         fname_type = fname_type_map.get(body.event_type or "", "plenerowa")
 
-        # Attach the two hand-crafted DOCX menus alongside the generated PDF.
-        # For adult events (okolicznosciowe/firmowe) we attach both Grill menu and Dinner offer.
-        # For urodziny and warsztaty we attach both as well — they might be useful for
-        # combined bookings (parents/teachers often ask for the grill and dinner options too).
         assets_dir = ROOT_DIR / "assets"
-        extras_files = [
-            {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
-             "filename": "Menu-Biesiada-pod-Lasem-2026.docx"},
-            {"path": str(assets_dir / "Oferta-obiadowa-2026.docx"),
-             "filename": "Oferta-obiadowa-2026.docx"},
-        ]
+        if body.event_type == "warsztaty":
+            # Just the hand-crafted workshops PDF (no menus)
+            extras_files = [
+                {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
+                 "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
+            ]
+        else:
+            # Grill menu + dinner offer
+            extras_files = [
+                {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
+                 "filename": "Menu-Biesiada-pod-Lasem-2026.docx"},
+                {"path": str(assets_dir / "Oferta-obiadowa-2026.docx"),
+                 "filename": "Oferta-obiadowa-2026.docx"},
+            ]
 
         await asyncio.to_thread(
             send_offer_email,
