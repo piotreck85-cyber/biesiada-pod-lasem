@@ -102,6 +102,7 @@ class SendOfferIn(BaseModel):
     extras: Optional[List[dict]] = None  # [{id, qty?, amount?}]
     custom_note: Optional[str] = ""
     event_id: Optional[str] = None       # optional link to event
+    event_type: Optional[str] = None     # okolicznosciowe | firmowe | urodziny | warsztaty
 
 # ---------- Helpers ----------
 def now_utc():
@@ -296,23 +297,29 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     packages (Zestaw 1/2/3) are supported at the moment.
     """
     import asyncio
-    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln
+    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln, build_intro_text, EVENT_TYPE_LABELS
 
     # Personalize subject line
     who = (body.client_name or "").strip()
     when = (body.event_date or "").strip()
-    subj_suffix = ""
+    type_label = EVENT_TYPE_LABELS.get(body.event_type or "", "")
+    subj_bits = []
+    if type_label:
+        subj_bits.append(type_label.capitalize())
     if when:
-        subj_suffix = f" ({when})"
-    subject = f"Oferta — Biesiada pod Lasem{subj_suffix}"
+        subj_bits.append(when)
+    subj_suffix = " · ".join(subj_bits)
+    subject = f"Oferta — Biesiada pod Lasem"
+    if subj_suffix:
+        subject = f"{subject}  ·  {subj_suffix}"
     if who:
-        subject = f"{subject} — dla: {who}"
+        subject = f"{subject}  ·  {who}"
 
-    chosen = _find_set(body.package_set_id)
-    total_line = ""
+    chosen = _find_set(body.package_set_id) if body.event_type in (None, "okolicznosciowe", "firmowe") else None
+    base = 0.0
+    extras_total = 0.0
     if chosen and body.people_count:
         base = chosen["price"] * body.people_count
-        extras_total = 0.0
         for e in body.extras or []:
             eid = e.get("id")
             if eid == "ciasto":
@@ -322,44 +329,62 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
                 src = next((x for x in ADULT_EXTRAS if x["id"] == eid), None)
                 if src:
                     extras_total += float(e.get("qty") or 0) * float(src["price"])
-        total_line = f"\n\nSzacunkowy koszt: {_fmt_pln(base + extras_total)}"
+    total_line = ""
+    if chosen and body.people_count:
+        total_line = f"\n\nSzacunkowy koszt propozycji: {_fmt_pln(base + extras_total)}"
 
+    # ---- Email body (plaintext) using the type-specific intro
+    intro = build_intro_text(body.event_type)
+    greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
     body_text = (
-        (f"Dzień dobry {who},\n\n" if who else "Dzień dobry,\n\n") +
-        "przesyłamy propozycję oferty na Państwa wydarzenie. Szczegóły znajdą Państwo w załączonym PDF.\n"
+        f"{greeting}\n\n"
+        f"{intro}\n"
         + (f"\nData wydarzenia: {when}" if when else "")
         + (f"\nLiczba osób: {body.people_count}" if body.people_count else "")
-        + (f"\nWybrany zestaw: {chosen['name']} ({_fmt_pln(chosen['price'])}/os.)" if chosen else "")
+        + (f"\nSugerowany zestaw: {chosen['name']} ({_fmt_pln(chosen['price'])}/os.)" if chosen else "")
         + total_line
         + ((f"\n\nDodatkowe uwagi:\n{body.custom_note.strip()}") if (body.custom_note or "").strip() else "")
-        + "\n\nW razie pytań jesteśmy do dyspozycji.\n"
-          "\nPozdrawiamy serdecznie,\n"
+        + "\n\nW załączniku:\n"
+          "  •  Oferta w PDF (podsumowanie),\n"
+          "  •  Menu Biesiada pod Lasem 2026 (DOCX),\n"
+          "  •  Oferta obiadowa 2026 (DOCX).\n"
+        + "\nPozdrawiamy serdecznie,\n"
           "Zespół Biesiada pod Lasem\n"
           "www.dolinaprzygod.pl · biesiadapodlasem@gmail.com"
     )
 
-    # Simple HTML variant for nicer clients
+    # ---- HTML variant (same intro rendered nicely)
+    intro_html = intro.replace("\n\n", "</p><p style='margin:0 0 10px 0'>").replace("\n", "<br/>")
     who_html = f"<p>Dzień dobry <strong>{who}</strong>,</p>" if who else "<p>Dzień dobry,</p>"
     when_html = f"<li>Data wydarzenia: <strong>{when}</strong></li>" if when else ""
     people_html = f"<li>Liczba osób: <strong>{body.people_count}</strong></li>" if body.people_count else ""
-    set_html = f"<li>Wybrany zestaw: <strong>{chosen['name']}</strong> ({_fmt_pln(chosen['price'])}/os.)</li>" if chosen else ""
-    total_html = f"<p style='color:#D4AF37;font-weight:700;font-size:16px'>Szacunkowy koszt: {_fmt_pln(base + extras_total)}</p>" if chosen and body.people_count else ""
+    set_html = f"<li>Sugerowany zestaw: <strong>{chosen['name']}</strong> ({_fmt_pln(chosen['price'])}/os.)</li>" if chosen else ""
+    facts_html = f"<ul style='line-height:1.6'>{when_html}{people_html}{set_html}</ul>" if (when_html or people_html or set_html) else ""
+    total_html = f"<p style='color:#D4AF37;font-weight:700;font-size:16px'>Szacunkowy koszt propozycji: {_fmt_pln(base + extras_total)}</p>" if chosen and body.people_count else ""
     note_html = f"<p><em>{(body.custom_note or '').strip()}</em></p>" if (body.custom_note or '').strip() else ""
 
     body_html = f"""
     <div style="font-family: -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
                 background:#F8F5EE;padding:24px;color:#111827;">
-      <div style="max-width:600px;margin:auto;background:#fff;border:1px solid #E5D9B5;
+      <div style="max-width:640px;margin:auto;background:#fff;border:1px solid #E5D9B5;
                   border-radius:12px;padding:28px;">
         <h1 style="color:#1F3A2E;margin:0 0 4px 0;">Biesiada pod Lasem</h1>
         <div style="color:#D4AF37;letter-spacing:2px;font-size:11px;font-weight:700;margin-bottom:16px;">
           KIELCE · DOLINA PRZYGÓD
         </div>
         {who_html}
-        <p>Przesyłamy propozycję oferty na Państwa wydarzenie. Szczegóły w załączonym PDF.</p>
-        <ul style="line-height:1.6">{when_html}{people_html}{set_html}</ul>
+        <p style="margin:0 0 10px 0">{intro_html}</p>
+        {facts_html}
         {total_html}
         {note_html}
+        <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
+          <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
+          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
+            <li>Oferta w PDF (podsumowanie)</li>
+            <li>Menu Biesiada pod Lasem 2026 (DOCX)</li>
+            <li>Oferta obiadowa 2026 (DOCX)</li>
+          </ul>
+        </div>
         <hr style="border:none;border-top:1px solid #E5D9B5;margin:20px 0"/>
         <p style="color:#4B5563;font-size:13px">Pozdrawiamy serdecznie,<br/>
            <strong>Zespół Biesiada pod Lasem</strong><br/>
@@ -376,8 +401,30 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
             package_set_id=body.package_set_id,
             extras=body.extras,
             custom_note=body.custom_note or None,
+            event_type=body.event_type or None,
         )
         # smtplib is blocking — run in a threadpool
+        # Pick a nice filename that reflects the event type
+        fname_type_map = {
+            "okolicznosciowe": "okolicznosciowa",
+            "firmowe": "firmowa",
+            "urodziny": "urodziny",
+            "warsztaty": "warsztaty",
+        }
+        fname_type = fname_type_map.get(body.event_type or "", "plenerowa")
+
+        # Attach the two hand-crafted DOCX menus alongside the generated PDF.
+        # For adult events (okolicznosciowe/firmowe) we attach both Grill menu and Dinner offer.
+        # For urodziny and warsztaty we attach both as well — they might be useful for
+        # combined bookings (parents/teachers often ask for the grill and dinner options too).
+        assets_dir = ROOT_DIR / "assets"
+        extras_files = [
+            {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
+             "filename": "Menu-Biesiada-pod-Lasem-2026.docx"},
+            {"path": str(assets_dir / "Oferta-obiadowa-2026.docx"),
+             "filename": "Oferta-obiadowa-2026.docx"},
+        ]
+
         await asyncio.to_thread(
             send_offer_email,
             to_email=str(body.to_email),
@@ -385,7 +432,8 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
             body_text=body_text,
             body_html=body_html,
             pdf_bytes=pdf_bytes,
-            pdf_filename=f"Oferta-Biesiada-{when or 'plenerowa'}.pdf",
+            pdf_filename=f"Oferta-Biesiada-{fname_type}-{when or ''}".rstrip("-") + ".pdf",
+            extra_attachments=extras_files,
             reply_to=os.getenv("SMTP_USER"),
         )
     except RuntimeError as e:
@@ -396,7 +444,10 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     await log_change(
         user, "create", "offer_email",
         body.event_id or "manual",
-        f"Wysłano ofertę do {body.to_email}" + (f" — {who}" if who else "") + (f" ({when})" if when else ""),
+        f"Wysłano ofertę do {body.to_email}"
+          + (f" — {who}" if who else "")
+          + (f" ({type_label})" if type_label else "")
+          + (f" [{when}]" if when else ""),
     )
     return {"ok": True, "to": str(body.to_email)}
 

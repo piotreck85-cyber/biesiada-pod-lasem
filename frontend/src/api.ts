@@ -97,6 +97,7 @@ export const api = {
     extras?: { id: string; qty?: number; amount?: number }[];
     custom_note?: string;
     event_id?: string;
+    event_type?: "okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty";
   }) => request("/offers/send-email", { method: "POST", body: JSON.stringify(data) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

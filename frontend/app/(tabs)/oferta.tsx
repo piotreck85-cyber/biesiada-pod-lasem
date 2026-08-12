@@ -23,6 +23,7 @@ export default function Oferta() {
   // ------ Send offer email state ------
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailMode, setEmailMode] = useState<"general" | "personalized">("general");
+  const [emailType, setEmailType] = useState<"okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty">("okolicznosciowe");
   const [emailTo, setEmailTo] = useState("");
   const [emailClient, setEmailClient] = useState("");
   const [emailDate, setEmailDate] = useState("");
@@ -49,7 +50,17 @@ export default function Oferta() {
   }, [currentSet, emailPeople, emailExtras]);
 
   const openEmailModal = () => {
-    setEmailMode("general");
+    // Auto-select mode + type based on the currently active tab
+    if (tab === "urodziny") {
+      setEmailType("urodziny");
+      setEmailMode("general");
+    } else if (tab === "warsztaty") {
+      setEmailType("warsztaty");
+      setEmailMode("general");
+    } else {
+      setEmailType("okolicznosciowe");
+      setEmailMode("general");
+    }
     setEmailTo("");
     setEmailClient("");
     setEmailDate("");
@@ -60,6 +71,8 @@ export default function Oferta() {
     setEmailOpen(true);
   };
 
+  const isAdultType = emailType === "okolicznosciowe" || emailType === "firmowe";
+
   const sendEmail = async () => {
     if (!emailTo.trim() || !emailTo.includes("@")) {
       Alert.alert("Błąd", "Podaj poprawny adres e-mail klienta.");
@@ -67,7 +80,8 @@ export default function Oferta() {
     }
     setEmailSending(true);
     try {
-      const isPersonalized = emailMode === "personalized";
+      // Personalization only meaningful for adult grill events
+      const isPersonalized = emailMode === "personalized" && isAdultType;
       const extrasPayload = isPersonalized
         ? (Object.entries(emailExtras)
             .map(([id, v]) => {
@@ -89,6 +103,7 @@ export default function Oferta() {
         package_set_id: isPersonalized ? emailSet : undefined,
         extras: extrasPayload,
         custom_note: emailNote.trim() || undefined,
+        event_type: emailType,
       });
       setEmailOpen(false);
       Alert.alert("Wysłano ✓", `Oferta poszła na ${emailTo.trim()}.`);
@@ -370,29 +385,63 @@ export default function Oferta() {
             <View style={s.grip} />
             <Text style={s.sheetTitle}>Wyślij ofertę na e-mail</Text>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <View style={s.modeRow}>
-                <Pressable
-                  testID="offer-mode-general"
-                  onPress={() => setEmailMode("general")}
-                  style={[s.modeBtn, emailMode === "general" && s.modeBtnActive]}
-                >
-                  <Feather name="list" size={13} color={emailMode === "general" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
-                  <Text style={[s.modeBtnText, emailMode === "general" && s.modeBtnTextActive]}>Pełny katalog</Text>
-                </Pressable>
-                <Pressable
-                  testID="offer-mode-personalized"
-                  onPress={() => setEmailMode("personalized")}
-                  style={[s.modeBtn, emailMode === "personalized" && s.modeBtnActive]}
-                >
-                  <Feather name="user-check" size={13} color={emailMode === "personalized" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
-                  <Text style={[s.modeBtnText, emailMode === "personalized" && s.modeBtnTextActive]}>Z propozycją</Text>
-                </Pressable>
+              <Text style={s.fieldLabel}>Typ imprezy</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+                {([
+                  { k: "okolicznosciowe", label: "Okolicznościowa", icon: "gift" },
+                  { k: "firmowe", label: "Firmowa", icon: "briefcase" },
+                  { k: "urodziny", label: "Urodziny", icon: "star" },
+                  { k: "warsztaty", label: "Warsztaty", icon: "feather" },
+                ] as const).map(t => {
+                  const active = emailType === t.k;
+                  return (
+                    <Pressable
+                      key={t.k}
+                      testID={`offer-type-${t.k}`}
+                      onPress={() => setEmailType(t.k)}
+                      style={[s.typeBtn, active && s.typeBtnActive]}
+                    >
+                      <Feather name={t.icon as any} size={12} color={active ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                      <Text style={[s.typeBtnText, active && s.typeBtnTextActive]}>{t.label}</Text>
+                    </Pressable>
+                  );
+                })}
               </View>
-              <Text style={s.modeHint}>
-                {emailMode === "general"
-                  ? "Klient dostanie pełny katalog wszystkich 3 zestawów i dodatków — sam wybierze."
-                  : "Do pełnego katalogu dołączymy Twoją propozycję z wyliczeniem dla konkretnego zestawu."}
-              </Text>
+
+              {isAdultType && (
+                <>
+                  <View style={s.modeRow}>
+                    <Pressable
+                      testID="offer-mode-general"
+                      onPress={() => setEmailMode("general")}
+                      style={[s.modeBtn, emailMode === "general" && s.modeBtnActive]}
+                    >
+                      <Feather name="list" size={13} color={emailMode === "general" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                      <Text style={[s.modeBtnText, emailMode === "general" && s.modeBtnTextActive]}>Pełny katalog</Text>
+                    </Pressable>
+                    <Pressable
+                      testID="offer-mode-personalized"
+                      onPress={() => setEmailMode("personalized")}
+                      style={[s.modeBtn, emailMode === "personalized" && s.modeBtnActive]}
+                    >
+                      <Feather name="user-check" size={13} color={emailMode === "personalized" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                      <Text style={[s.modeBtnText, emailMode === "personalized" && s.modeBtnTextActive]}>Z propozycją</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={s.modeHint}>
+                    {emailMode === "general"
+                      ? "Klient dostanie pełny katalog wszystkich 3 zestawów i dodatków — sam wybierze."
+                      : "Do pełnego katalogu dołączymy Twoją propozycję z wyliczeniem dla konkretnego zestawu."}
+                  </Text>
+                </>
+              )}
+              {!isAdultType && (
+                <Text style={s.modeHint}>
+                  {emailType === "urodziny"
+                    ? "Klient dostanie pełny katalog pakietów urodzinowych (START, STANDARD, GADY, KONIE, TEMATYCZNY)."
+                    : "Klient dostanie pełny katalog warsztatów pogrupowanych wg pory roku."}
+                </Text>
+              )}
 
               <Text style={s.fieldLabel}>E-mail klienta *</Text>
               <TextInput
@@ -426,7 +475,7 @@ export default function Oferta() {
                 style={s.input}
               />
 
-              {emailMode === "personalized" && (
+              {isAdultType && emailMode === "personalized" && (
                 <>
                   <Text style={s.fieldLabel}>Liczba osób</Text>
                   <TextInput
@@ -655,4 +704,13 @@ const s = StyleSheet.create({
   modeBtnText: { color: theme.color.onSurfaceSecondary, fontWeight: "700", fontSize: 12 },
   modeBtnTextActive: { color: theme.color.onBrand },
   modeHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, fontStyle: "italic", marginBottom: 2 },
+  typeBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  typeBtnActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  typeBtnText: { color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "700" },
+  typeBtnTextActive: { color: theme.color.onBrand },
 });

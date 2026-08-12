@@ -256,6 +256,13 @@ export default function EventDetail() {
           return { id: e.id, qty: q };
         })
         .filter(Boolean) as any[];
+      // Derive event_type from the event's category
+      let eventType: "okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty" | undefined;
+      if (category.startsWith("dorosli/firmowe")) eventType = "firmowe";
+      else if (category.startsWith("dorosli/okolicznosciowe")) eventType = "okolicznosciowe";
+      else if (category.startsWith("dorosli")) eventType = "okolicznosciowe";
+      else if (category.startsWith("dzieci/urodzinki")) eventType = "urodziny";
+      else if (category.startsWith("dzieci/wycieczki")) eventType = "warsztaty";
       await api.sendOfferEmail({
         to_email: offerTo.trim(),
         client_name: offerClient.trim() || undefined,
@@ -265,6 +272,7 @@ export default function EventDetail() {
         extras: extrasPayload,
         custom_note: offerNote.trim() || undefined,
         event_id: isNew ? undefined : (id as string),
+        event_type: eventType,
       });
       setOfferOpen(false);
       Alert.alert("Wysłano ✓", `Oferta poszła na ${offerTo.trim()}.`);
@@ -289,7 +297,7 @@ export default function EventDetail() {
         </Pressable>
         <Text style={s.headerTitle}>{isNew ? "Nowa impreza" : "Edytuj imprezę"}</Text>
         <View style={{ flexDirection: "row", gap: 4 }}>
-          {isAdult ? (
+          {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki")) ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
               <Feather name="mail" size={18} color={theme.color.brand} />
             </Pressable>
