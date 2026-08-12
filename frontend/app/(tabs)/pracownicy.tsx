@@ -24,6 +24,10 @@ export default function Pracownicy() {
   const [workspace, setWorkspace] = useState<any>(null);
   const [wsModalOpen, setWsModalOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState<"all" | "event" | "staff" | "expense" | "delete">("all");
 
   const load = useCallback(async () => {
     try {
@@ -31,6 +35,19 @@ export default function Pracownicy() {
       setItems(staff);
       setWorkspace(ws);
     } catch {}
+  }, []);
+
+  const openHistory = useCallback(async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      const rows = await api.history(200);
+      setHistory(Array.isArray(rows) ? rows : []);
+    } catch (e: any) {
+      Alert.alert("Błąd", e.message || "Nie udało się załadować historii");
+    } finally {
+      setHistoryLoading(false);
+    }
   }, []);
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
 
@@ -63,6 +80,9 @@ export default function Pracownicy() {
         </View>
         <Pressable testID="workspace-btn" onPress={() => setWsModalOpen(true)} hitSlop={10} style={[s.logoutBtn, { marginRight: 8 }]}>
           <Feather name="users" size={18} color={theme.color.brand} />
+        </Pressable>
+        <Pressable testID="history-btn" onPress={openHistory} hitSlop={10} style={[s.logoutBtn, { marginRight: 8 }]}>
+          <Feather name="clock" size={18} color={theme.color.brand} />
         </Pressable>
         <Pressable
           testID="delete-account-btn"
@@ -153,6 +173,89 @@ export default function Pracownicy() {
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={historyOpen} transparent animationType="slide" onRequestClose={() => setHistoryOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setHistoryOpen(false)} />
+        <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={s.grip} />
+          <Text style={s.sheetTitle}>Historia zmian ({history.length})</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 12 }}>
+            {([
+              { k: "all", label: "Wszystko" },
+              { k: "event", label: "Imprezy" },
+              { k: "staff", label: "Pracownicy" },
+              { k: "expense", label: "Koszty" },
+              { k: "delete", label: "Usunięcia" },
+            ] as const).map((f) => (
+              <Pressable
+                key={f.k}
+                testID={`history-filter-${f.k}`}
+                onPress={() => setHistoryFilter(f.k)}
+                style={[s.chip, historyFilter === f.k && s.chipActive]}
+              >
+                <Text style={[s.chipText, historyFilter === f.k && s.chipTextActive]}>{f.label}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <ScrollView>
+            {historyLoading ? (
+              <ActivityIndicator color={theme.color.brand} style={{ marginTop: 20 }} />
+            ) : (() => {
+              const filtered = history.filter((h) => {
+                if (historyFilter === "all") return true;
+                if (historyFilter === "delete") return h.action === "delete";
+                return h.entity_type === historyFilter;
+              });
+              if (filtered.length === 0) {
+                return (
+                  <Text style={{ color: theme.color.onSurfaceSecondary, textAlign: "center", padding: 20 }}>
+                    Brak zapisanych zmian
+                  </Text>
+                );
+              }
+              return filtered.map((h) => (
+                <View key={h.id} style={s.historyRow} testID={`history-${h.id}`}>
+                  <View style={[s.historyIcon, {
+                    backgroundColor: h.action === "create" ? "rgba(16,185,129,0.15)" : h.action === "delete" ? "rgba(239,68,68,0.15)" : "rgba(212,175,55,0.15)"
+                  }]}>
+                    <Feather
+                      name={h.action === "create" ? "plus" : h.action === "delete" ? "trash-2" : "edit-3"}
+                      size={14}
+                      color={h.action === "create" ? theme.color.success : h.action === "delete" ? theme.color.error : theme.color.brand}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.historyText}>{h.summary || `${h.action} ${h.entity_type}`}</Text>
+                    <Text style={s.historyMeta}>{h.user_name}  ·  {new Date(h.at).toLocaleString("pl-PL")}</Text>
+                  </View>
+                </View>
+              ));
+            })()}
+            <Pressable
+              testID="history-clear-btn"
+              onPress={async () => {
+                const doClear = async () => {
+                  try {
+                    await api.clearHistory();
+                    setHistory([]);
+                  } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+                };
+                if (Platform.OS === "web") {
+                  if (window.confirm("Wyczyścić całą historię zmian? Ta operacja jest nieodwracalna.")) doClear();
+                } else {
+                  Alert.alert("Wyczyść historię", "Ta operacja jest nieodwracalna.", [
+                    { text: "Anuluj", style: "cancel" },
+                    { text: "Wyczyść", style: "destructive", onPress: doClear },
+                  ]);
+                }
+              }}
+              style={[s.saveBtn, { backgroundColor: "transparent", borderWidth: 1, borderColor: theme.color.borderStrong }]}
+            >
+              <Text style={[s.saveBtnText, { color: theme.color.onSurfaceSecondary }]}>Wyczyść historię</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
       </Modal>
 
       <Modal visible={wsModalOpen} transparent animationType="slide" onRequestClose={() => setWsModalOpen(false)}>
@@ -291,4 +394,22 @@ const s = StyleSheet.create({
     backgroundColor: theme.color.surfaceTertiary, borderRadius: 12,
     borderWidth: 1, borderColor: theme.color.border,
   },
+  historyRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, padding: 10, marginBottom: 6,
+    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  historyIcon: {
+    width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center",
+  },
+  historyText: { color: theme.color.onSurface, fontSize: 13, fontWeight: "600" },
+  historyMeta: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  chip: {
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  chipActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  chipText: { color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
+  chipTextActive: { color: theme.color.onBrand },
 });

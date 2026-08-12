@@ -49,6 +49,8 @@ export const api = {
   workspace: () => request("/workspace"),
   joinWorkspace: (code: string) => request("/workspace/join", { method: "POST", body: JSON.stringify({ code }) }),
   leaveWorkspace: () => request("/workspace/leave", { method: "POST" }),
+  history: (limit: number = 200) => request(`/history?limit=${limit}`),
+  clearHistory: () => request("/history", { method: "DELETE" }),
 
   listStaff: () => request("/staff"),
   createStaff: (data: any) => request("/staff", { method: "POST", body: JSON.stringify(data) }),

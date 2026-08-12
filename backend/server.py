@@ -123,6 +123,23 @@ def ws(user: dict) -> str:
     """Workspace id used to scope all data queries."""
     return user.get("workspace_id") or user["id"]
 
+async def log_change(user: dict, action: str, entity_type: str, entity_id: str, summary: str = ""):
+    """Append an audit-log entry for the current workspace."""
+    try:
+        await db.audit_log.insert_one({
+            "id": str(uuid.uuid4()),
+            "owner_id": ws(user),
+            "user_id": user.get("id"),
+            "user_name": user.get("name") or user.get("email", ""),
+            "action": action,           # "create" | "update" | "delete"
+            "entity_type": entity_type, # "event" | "staff" | "template" | "expense" | "shift" | "auth"
+            "entity_id": entity_id,
+            "summary": summary,
+            "at": now_utc().isoformat(),
+        })
+    except Exception:
+        pass
+
 def hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
@@ -236,6 +253,20 @@ async def workspace_leave(user=Depends(current_user)):
     await db.users.update_one({"id": user["id"]}, {"$set": {"workspace_id": user["id"]}})
     return {"ok": True, "workspace_id": user["id"]}
 
+@api.get("/history")
+async def history(user=Depends(current_user), limit: int = 200):
+    """Return recent audit-log entries for the workspace, newest first."""
+    items = await db.audit_log.find(
+        {"owner_id": ws(user)}, {"_id": 0}
+    ).sort("at", -1).to_list(max(1, min(limit, 500)))
+    return items
+
+@api.delete("/history")
+async def clear_history(user=Depends(current_user)):
+    """Clear the workspace audit log."""
+    await db.audit_log.delete_many({"owner_id": ws(user)})
+    return {"ok": True}
+
 @api.delete("/auth/me")
 async def delete_account(user=Depends(current_user)):
     """Delete user account and all associated data (events, staff, templates)."""
@@ -260,6 +291,7 @@ async def create_staff(body: StaffIn, user=Depends(current_user)):
     doc["created_at"] = now_utc().isoformat()
     await db.staff.insert_one(doc)
     doc.pop("_id", None)
+    await log_change(user, "create", "staff", doc["id"], f"Dodano pracownika: {doc.get('name','')}")
     return doc
 
 @api.put("/staff/{staff_id}")
@@ -271,11 +303,14 @@ async def update_staff(staff_id: str, body: StaffIn, user=Depends(current_user))
     if res.matched_count == 0:
         raise HTTPException(404, "Pracownik nie znaleziony")
     doc = await db.staff.find_one({"id": staff_id}, {"_id": 0})
+    await log_change(user, "update", "staff", staff_id, f"Edytowano pracownika: {doc.get('name','')}")
     return doc
 
 @api.delete("/staff/{staff_id}")
 async def delete_staff(staff_id: str, user=Depends(current_user)):
+    doc = await db.staff.find_one({"id": staff_id, "owner_id": ws(user)}, {"_id": 0})
     await db.staff.delete_one({"id": staff_id, "owner_id": ws(user)})
+    if doc: await log_change(user, "delete", "staff", staff_id, f"Usunięto pracownika: {doc.get('name','')}")
     return {"ok": True}
 
 # ---------- Events ----------
@@ -300,6 +335,7 @@ async def create_event(body: EventIn, user=Depends(current_user)):
     doc["created_at"] = now_utc().isoformat()
     await db.events.insert_one(doc)
     doc.pop("_id", None)
+    await log_change(user, "create", "event", doc["id"], f"Utworzono imprezę: {doc.get('name','')} ({doc.get('date','')})")
     return await compute_event_summary(doc)
 
 @api.get("/events/{event_id}")
@@ -318,11 +354,14 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
     if res.matched_count == 0:
         raise HTTPException(404, "Impreza nie znaleziona")
     ev = await db.events.find_one({"id": event_id}, {"_id": 0})
+    await log_change(user, "update", "event", event_id, f"Edytowano imprezę: {ev.get('name','')} ({ev.get('date','')})")
     return await compute_event_summary(ev)
 
 @api.delete("/events/{event_id}")
 async def delete_event(event_id: str, user=Depends(current_user)):
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     await db.events.delete_one({"id": event_id, "owner_id": ws(user)})
+    if ev: await log_change(user, "delete", "event", event_id, f"Usunięto imprezę: {ev.get('name','')} ({ev.get('date','')})")
     return {"ok": True}
 
 # ---------- Templates ----------
@@ -673,6 +712,7 @@ async def create_expense(body: ExpenseIn, user=Depends(current_user)):
     doc["created_at"] = now_utc().isoformat()
     await db.expenses.insert_one(doc)
     doc.pop("_id", None)
+    await log_change(user, "create", "expense", doc["id"], f"Dodano koszt: {doc.get('label','')} ({doc.get('amount',0)} zł)")
     return doc
 
 @api.put("/expenses/{expense_id}")
@@ -684,11 +724,14 @@ async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_
     if res.matched_count == 0:
         raise HTTPException(404, "Koszt nie znaleziony")
     doc = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
+    await log_change(user, "update", "expense", expense_id, f"Edytowano koszt: {doc.get('label','')} ({doc.get('amount',0)} zł)")
     return doc
 
 @api.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: str, user=Depends(current_user)):
+    doc = await db.expenses.find_one({"id": expense_id, "owner_id": ws(user)}, {"_id": 0})
     await db.expenses.delete_one({"id": expense_id, "owner_id": ws(user)})
+    if doc: await log_change(user, "delete", "expense", expense_id, f"Usunięto koszt: {doc.get('label','')} ({doc.get('amount',0)} zł)")
     return {"ok": True}
 
 # ---------- Stats ----------
