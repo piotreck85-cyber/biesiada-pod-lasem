@@ -856,7 +856,13 @@ async def export_ics(user=Depends(current_user)):
 
 @api.post("/import/ics")
 async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
-    """Parse an iCal file and create events. Only events within the last N years are imported."""
+    """Parse an iCal file and create events. Only events within the last N years are imported.
+
+    Deduplication rules (all scoped to the current workspace):
+      1. If VEVENT has a UID → dedup by ``imported_uid``.
+      2. Otherwise (or if no UID match) fallback: skip when an event with the SAME
+         (date, name) already exists — case-insensitive, name trimmed.
+    """
     import re
     content = body.ics.replace("\r\n", "\n").replace("\r", "\n")
     # Unfold long lines (RFC 5545: lines starting with space/tab continue previous line)
@@ -893,7 +899,16 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
     cutoff = (datetime.now(timezone.utc) - timedelta(days=365 * max(1, body.years_back))).date()
     imported = 0
     skipped_old = 0
-    skipped_future_limit = 0
+    skipped_dup_uid = 0
+    skipped_dup_name = 0
+
+    # Preload existing (date, name-lowercased) pairs for the workspace for O(1) fallback dedup
+    existing_docs = await db.events.find(
+        {"owner_id": ws(user)}, {"_id": 0, "date": 1, "name": 1, "imported_uid": 1}
+    ).to_list(20000)
+    existing_uids = {d.get("imported_uid") for d in existing_docs if d.get("imported_uid")}
+    existing_date_name = {(d.get("date", ""), (d.get("name") or "").strip().lower()) for d in existing_docs}
+
     for ev in events_raw:
         dtstart = ev.get("DTSTART", "")
         date_str, time_str = parse_ics_date(dtstart)
@@ -906,12 +921,34 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
         if ev_date < cutoff:
             skipped_old += 1
             continue
+
+        dtend = ev.get("DTEND", "")
+        _, time_end = parse_ics_date(dtend) if dtend else ("", "")
+
+        name = (ev.get("SUMMARY") or "Impreza").strip()
+
+        # Dedup 1: UID (if present)
+        uid = ev.get("UID")
+        if uid and uid in existing_uids:
+            skipped_dup_uid += 1
+            continue
+
+        # Dedup 2: same (date, name) already in DB
+        dedup_key = (date_str, name.lower())
+        if dedup_key in existing_date_name:
+            skipped_dup_name += 1
+            continue
+
         doc = {
             "id": str(uuid.uuid4()),
             "owner_id": ws(user),
-            "name": ev.get("SUMMARY", "Impreza"),
+            "created_by_id": user["id"],
+            "created_by_name": user.get("name") or user.get("email", ""),
+            "name": name,
             "date": date_str,
             "time": time_str,
+            "time_start": time_str,
+            "time_end": time_end or "",
             "venue": ev.get("LOCATION", ""),
             "notes": ev.get("DESCRIPTION", "").replace("\\n", "\n").replace("\\,", ","),
             "category": "",
@@ -921,16 +958,22 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
             "image_url": "",
             "created_at": now_utc().isoformat(),
         }
-        # De-dup by UID if provided
-        uid = ev.get("UID")
         if uid:
-            existing = await db.events.find_one({"owner_id": ws(user), "imported_uid": uid})
-            if existing:
-                continue
             doc["imported_uid"] = uid
+            existing_uids.add(uid)
+        existing_date_name.add(dedup_key)
+
         await db.events.insert_one(doc)
         imported += 1
-    return {"ok": True, "imported": imported, "skipped_older_than_cutoff": skipped_old, "total_parsed": len(events_raw)}
+
+    return {
+        "ok": True,
+        "imported": imported,
+        "skipped_older_than_cutoff": skipped_old,
+        "skipped_duplicate_uid": skipped_dup_uid,
+        "skipped_duplicate_name_date": skipped_dup_name,
+        "total_parsed": len(events_raw),
+    }
 
 # ---------- Company Expenses ----------
 @api.get("/expenses")
