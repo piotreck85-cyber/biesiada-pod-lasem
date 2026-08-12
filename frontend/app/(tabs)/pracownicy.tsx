@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
@@ -9,6 +9,53 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+
+// Predefined role palette (Polish role names common for the venue). Any other role
+// falls back to a stable hash-based color so it's consistent across renders.
+const ROLE_COLORS: Record<string, { bg: string; fg: string }> = {
+  "kucharz":       { bg: "#7C2D12", fg: "#FED7AA" },  // deep orange-brown
+  "grill":         { bg: "#7C2D12", fg: "#FED7AA" },
+  "grillmaster":   { bg: "#7C2D12", fg: "#FED7AA" },
+  "kelner":        { bg: "#1E3A8A", fg: "#BFDBFE" },  // deep blue
+  "kelnerka":      { bg: "#1E3A8A", fg: "#BFDBFE" },
+  "animator":      { bg: "#5B21B6", fg: "#DDD6FE" },  // deep purple
+  "animatorka":    { bg: "#5B21B6", fg: "#DDD6FE" },
+  "prowadzący":    { bg: "#065F46", fg: "#A7F3D0" },  // deep green
+  "prowadzacy":    { bg: "#065F46", fg: "#A7F3D0" },
+  "obsługa":       { bg: "#374151", fg: "#E5E7EB" },  // neutral grey
+  "obsluga":       { bg: "#374151", fg: "#E5E7EB" },
+  "barman":        { bg: "#831843", fg: "#FBCFE8" },  // burgundy
+  "sprzątanie":    { bg: "#164E63", fg: "#A5F3FC" },  // teal
+  "sprzatanie":    { bg: "#164E63", fg: "#A5F3FC" },
+  "opiekun":       { bg: "#78350F", fg: "#FDE68A" },  // amber
+  "koordynator":   { bg: "#312E81", fg: "#C7D2FE" },
+  "manager":       { bg: "#312E81", fg: "#C7D2FE" },
+  "kierownik":     { bg: "#312E81", fg: "#C7D2FE" },
+};
+const FALLBACK_PALETTE = [
+  { bg: "#7C2D12", fg: "#FED7AA" },
+  { bg: "#1E3A8A", fg: "#BFDBFE" },
+  { bg: "#5B21B6", fg: "#DDD6FE" },
+  { bg: "#065F46", fg: "#A7F3D0" },
+  { bg: "#831843", fg: "#FBCFE8" },
+  { bg: "#164E63", fg: "#A5F3FC" },
+  { bg: "#78350F", fg: "#FDE68A" },
+  { bg: "#312E81", fg: "#C7D2FE" },
+  { bg: "#4C1D95", fg: "#DDD6FE" },
+  { bg: "#134E4A", fg: "#99F6E4" },
+];
+function roleColor(role: string) {
+  const key = (role || "").trim().toLowerCase();
+  if (!key) return { bg: "#374151", fg: "#9CA3AF" };
+  if (ROLE_COLORS[key]) return ROLE_COLORS[key];
+  // Stable hash → palette index
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) & 0xffffffff;
+  return FALLBACK_PALETTE[Math.abs(h) % FALLBACK_PALETTE.length];
+}
+
+type SortKey = "name" | "rate" | "role";
+type SortDir = "asc" | "desc";
 
 export default function Pracownicy() {
   const insets = useSafeAreaInsets();
@@ -28,6 +75,51 @@ export default function Pracownicy() {
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<"all" | "event" | "staff" | "expense" | "delete">("all");
+
+  // ---- Sort + filter state ----
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
+
+  const uniqueRoles = useMemo(() => {
+    const set = new Set<string>();
+    for (const it of items) {
+      const r = (it.role || "").trim();
+      if (r) set.add(r);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pl"));
+  }, [items]);
+
+  const visibleItems = useMemo(() => {
+    let arr = [...items];
+    // Search by name/role
+    const q = search.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter(x =>
+        (x.name || "").toLowerCase().includes(q) ||
+        (x.role || "").toLowerCase().includes(q)
+      );
+    }
+    // Filter by role
+    if (roleFilter !== "all") {
+      arr = arr.filter(x => (x.role || "").trim() === roleFilter);
+    }
+    // Sort
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") cmp = (a.name || "").localeCompare(b.name || "", "pl");
+      else if (sortKey === "rate") cmp = (a.hourly_rate || 0) - (b.hourly_rate || 0);
+      else if (sortKey === "role") cmp = (a.role || "zzz").localeCompare(b.role || "zzz", "pl");
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [items, search, roleFilter, sortKey, sortDir]);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -120,34 +212,135 @@ export default function Pracownicy() {
       {loading ? (
         <ActivityIndicator color={theme.color.brand} style={{ marginTop: 40 }} />
       ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(i) => i.id}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 120 }}
-          ListEmptyComponent={
-            <View style={s.emptyBox}>
-              <Feather name="users" size={40} color={theme.color.onSurfaceSecondary} />
-              <Text style={s.emptyTitle}>Brak pracowników</Text>
-              <Text style={s.emptySub}>Dodaj pierwszego pracownika, aby przypisywać go do imprez.</Text>
+        <>
+          {/* Search + Sort + Filter toolbar */}
+          <View style={s.toolbar}>
+            <View style={s.searchBox}>
+              <Feather name="search" size={14} color={theme.color.onSurfaceSecondary} />
+              <TextInput
+                testID="staff-search"
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Szukaj po imieniu lub stanowisku"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.searchInput}
+              />
+              {search.length > 0 && (
+                <Pressable onPress={() => setSearch("")} hitSlop={10}>
+                  <Feather name="x" size={14} color={theme.color.onSurfaceSecondary} />
+                </Pressable>
+              )}
             </View>
-          }
-          renderItem={({ item }) => (
-            <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
-              <View style={s.avatar}><Text style={s.avatarText}>{initials(item.name)}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.rowName}>{item.name}</Text>
-                <Text style={s.rowRole}>{item.role || "Bez stanowiska"}</Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={s.rowRate}>{formatPLN(item.hourly_rate)}</Text>
-                <Text style={s.rowRateSub}>/godz.</Text>
-              </View>
-              <Pressable testID={`staff-delete-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 12 }}>
-                <Feather name="trash-2" size={18} color={theme.color.onSurfaceSecondary} />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
+              {([
+                { k: "name", label: "Imię", icon: "user" },
+                { k: "role", label: "Stanowisko", icon: "tag" },
+                { k: "rate", label: "Stawka", icon: "dollar-sign" },
+              ] as const).map(o => {
+                const active = sortKey === o.k;
+                return (
+                  <Pressable
+                    key={o.k}
+                    testID={`staff-sort-${o.k}`}
+                    onPress={() => toggleSort(o.k)}
+                    style={[s.sortChip, active && s.sortChipActive]}
+                  >
+                    <Feather name={o.icon as any} size={11} color={active ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                    <Text style={[s.sortChipText, active && s.sortChipTextActive]}>{o.label}</Text>
+                    {active && (
+                      <Feather
+                        name={sortDir === "asc" ? "arrow-up" : "arrow-down"}
+                        size={11}
+                        color={theme.color.onBrand}
+                      />
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {uniqueRoles.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={s.roleFilterRow}
+            >
+              <Pressable
+                testID="staff-role-filter-all"
+                onPress={() => setRoleFilter("all")}
+                style={[s.roleFilterChip, roleFilter === "all" && s.roleFilterChipActive]}
+              >
+                <Text style={[s.roleFilterText, roleFilter === "all" && s.roleFilterTextActive]}>
+                  Wszyscy · {items.length}
+                </Text>
               </Pressable>
-            </Pressable>
+              {uniqueRoles.map(r => {
+                const col = roleColor(r);
+                const active = roleFilter === r;
+                const count = items.filter(x => (x.role || "").trim() === r).length;
+                return (
+                  <Pressable
+                    key={r}
+                    testID={`staff-role-filter-${r}`}
+                    onPress={() => setRoleFilter(active ? "all" : r)}
+                    style={[
+                      s.roleFilterChip,
+                      { backgroundColor: active ? col.bg : theme.color.surfaceTertiary, borderColor: active ? col.bg : theme.color.border },
+                    ]}
+                  >
+                    <View style={[s.roleDot, { backgroundColor: col.bg }]} />
+                    <Text style={[s.roleFilterText, active && { color: col.fg }]}>{r} · {count}</Text>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           )}
-        />
+
+          <FlatList
+            data={visibleItems}
+            keyExtractor={(i) => i.id}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 120 }}
+            ListEmptyComponent={
+              <View style={s.emptyBox}>
+                <Feather name="users" size={40} color={theme.color.onSurfaceSecondary} />
+                <Text style={s.emptyTitle}>{items.length === 0 ? "Brak pracowników" : "Brak wyników"}</Text>
+                <Text style={s.emptySub}>
+                  {items.length === 0
+                    ? "Dodaj pierwszego pracownika, aby przypisywać go do imprez."
+                    : "Zmień kryteria wyszukiwania lub filtr stanowiska."}
+                </Text>
+              </View>
+            }
+            renderItem={({ item }) => {
+              const col = roleColor(item.role || "");
+              return (
+                <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
+                  <View style={[s.avatar, { backgroundColor: col.bg }]}>
+                    <Text style={[s.avatarText, { color: col.fg }]}>{initials(item.name)}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.rowName}>{item.name}</Text>
+                    {item.role ? (
+                      <View style={[s.roleBadge, { backgroundColor: col.bg }]}>
+                        <Text style={[s.roleBadgeText, { color: col.fg }]}>{item.role}</Text>
+                      </View>
+                    ) : (
+                      <Text style={s.rowRole}>Bez stanowiska</Text>
+                    )}
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Text style={s.rowRate}>{formatPLN(item.hourly_rate)}</Text>
+                    <Text style={s.rowRateSub}>/godz.</Text>
+                  </View>
+                  <Pressable testID={`staff-delete-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 12 }}>
+                    <Feather name="trash-2" size={18} color={theme.color.onSurfaceSecondary} />
+                  </Pressable>
+                </Pressable>
+              );
+            }}
+          />
+        </>
       )}
 
       <Pressable testID="add-staff-btn" style={[s.fab, { bottom: insets.bottom + 80 }]} onPress={openNew}>
@@ -412,4 +605,43 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
   chipText: { color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
   chipTextActive: { color: theme.color.onBrand },
+
+  // ---- Toolbar (search + sort chips) ----
+  toolbar: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 8, gap: 10 },
+  searchBox: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  searchInput: { flex: 1, color: theme.color.onSurface, fontSize: 14, padding: 0 },
+  sortChip: {
+    flexDirection: "row", alignItems: "center", gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  sortChipActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  sortChipText: { color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "700" },
+  sortChipTextActive: { color: theme.color.onBrand },
+
+  // ---- Role filter row ----
+  roleFilterRow: { paddingHorizontal: 20, gap: 6, paddingBottom: 10 },
+  roleFilterChip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
+    backgroundColor: theme.color.surfaceTertiary,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  roleFilterChipActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  roleFilterText: { color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
+  roleFilterTextActive: { color: theme.color.onBrand },
+  roleDot: { width: 8, height: 8, borderRadius: 4 },
+
+  // ---- Role badge (in each row) ----
+  roleBadge: {
+    alignSelf: "flex-start", marginTop: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  roleBadgeText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.3 },
 });

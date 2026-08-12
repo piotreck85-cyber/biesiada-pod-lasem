@@ -44,8 +44,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="imprezy"
         options={{
-          title: "Imprezy",
-          tabBarIcon: ({ color }) => <Feather name="star" color={color} size={20} />,
+          title: "Ostatnie",
+          tabBarIcon: ({ color }) => <Feather name="clock" color={color} size={20} />,
         }}
       />
       <Tabs.Screen
