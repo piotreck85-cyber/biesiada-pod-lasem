@@ -297,23 +297,33 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     packages (Zestaw 1/2/3) are supported at the moment.
     """
     import asyncio
-    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln, build_intro_text, EVENT_TYPE_LABELS
+    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln, build_intro_text, EVENT_TYPE_LABELS, EVENT_TYPE_SUBJECTS
 
     # Personalize subject line
     who = (body.client_name or "").strip()
     when = (body.event_date or "").strip()
     type_label = EVENT_TYPE_LABELS.get(body.event_type or "", "")
-    subj_bits = []
-    if type_label:
-        subj_bits.append(type_label.capitalize())
-    if when:
-        subj_bits.append(when)
-    subj_suffix = " · ".join(subj_bits)
-    subject = f"Oferta — Biesiada pod Lasem"
-    if subj_suffix:
-        subject = f"{subject}  ·  {subj_suffix}"
-    if who:
-        subject = f"{subject}  ·  {who}"
+
+    # Per-type subject override (e.g. urodziny → "Oferta urodzinek")
+    subject_base = EVENT_TYPE_SUBJECTS.get(body.event_type or "")
+    if subject_base:
+        subject = subject_base
+        if when:
+            subject = f"{subject}  ·  {when}"
+        if who:
+            subject = f"{subject}  ·  {who}"
+    else:
+        subj_bits = []
+        if type_label:
+            subj_bits.append(type_label.capitalize())
+        if when:
+            subj_bits.append(when)
+        subj_suffix = " · ".join(subj_bits)
+        subject = f"Oferta — Biesiada pod Lasem"
+        if subj_suffix:
+            subject = f"{subject}  ·  {subj_suffix}"
+        if who:
+            subject = f"{subject}  ·  {who}"
 
     chosen = _find_set(body.package_set_id) if body.event_type in (None, "okolicznosciowe", "firmowe") else None
     base = 0.0
@@ -340,8 +350,13 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     # Attachment strategy per event type
     is_workshops = body.event_type == "warsztaty"
     is_adult = body.event_type in ("okolicznosciowe", "firmowe")
+    is_birthday = body.event_type == "urodziny"
 
-    if is_workshops:
+    if is_birthday:
+        # Owner's request: pure text email, no attachments at all
+        attachments_txt = ""
+        attachments_html = ""
+    elif is_workshops:
         attachments_txt = "\n\n(w załączniku szczegółowa oferta warsztatów jesiennych)\n"
         attachments_html = ""  # user's intro already mentions "W załączniku"
     elif is_adult:
@@ -435,8 +450,9 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         # Attachment strategy per event type:
         # - okolicznosciowe/firmowe: only 2 DOCX menus, no auto PDF
         # - warsztaty: only the hand-crafted workshops PDF, no menu DOCX, no auto PDF
-        # - urodziny / default: auto PDF (catalog + calc) + 2 DOCX menus
-        skip_auto_pdf = body.event_type in ("okolicznosciowe", "firmowe", "warsztaty")
+        # - urodziny: NOTHING — pure text email
+        # - default: auto PDF (catalog + calc) + 2 DOCX menus
+        skip_auto_pdf = body.event_type in ("okolicznosciowe", "firmowe", "warsztaty", "urodziny")
 
         pdf_bytes = None
         if not skip_auto_pdf:
@@ -459,14 +475,14 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         fname_type = fname_type_map.get(body.event_type or "", "plenerowa")
 
         assets_dir = ROOT_DIR / "assets"
-        if body.event_type == "warsztaty":
-            # Just the hand-crafted workshops PDF (no menus)
+        if body.event_type == "urodziny":
+            extras_files = []  # pure text email — no attachments
+        elif body.event_type == "warsztaty":
             extras_files = [
                 {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
             ]
         else:
-            # Grill menu + dinner offer
             extras_files = [
                 {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
                  "filename": "Menu-Biesiada-pod-Lasem-2026.docx"},
