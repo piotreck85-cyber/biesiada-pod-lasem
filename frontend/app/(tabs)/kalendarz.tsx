@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, MONTHS_PL, DAYS_PL, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { categoryLabel } from "@/src/categories";
+import { findAdultSet } from "@/src/offers";
 import { useAuth } from "@/src/auth";
 import { printSchedule, printMonthCalendar } from "@/src/printSchedule";
 
@@ -234,8 +235,15 @@ export default function Kalendarz() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={s.evName}>{ev.name}</Text>
-                    <Text style={s.evMeta}>{formatTimeRange(ev.time_start, ev.time_end, ev.time)}</Text>
-                    {ev.category ? <Text style={s.evCat}>{categoryLabel(ev.category)}</Text> : null}
+                    <Text style={s.evMeta}>{formatTimeRange(ev.time_start, ev.time_end, ev.time)}{ev.people ? `  ·  ${ev.people} os.` : ""}</Text>
+                    <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                      {ev.category ? <Text style={s.evCat}>{categoryLabel(ev.category)}</Text> : null}
+                      {ev.package_set && findAdultSet(ev.package_set) ? (
+                        <View style={s.setBadge}>
+                          <Text style={s.setBadgeText}>{findAdultSet(ev.package_set)!.name} · {findAdultSet(ev.package_set)!.price_per_person} zł/os.</Text>
+                        </View>
+                      ) : null}
+                    </View>
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={s.evProfit}>{formatPLN(ev.profit)}</Text>
@@ -336,7 +344,11 @@ const s = StyleSheet.create({
   },
   evName: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700", marginBottom: 4 },
   evMeta: { color: theme.color.onSurfaceSecondary, fontSize: 13 },
-  evCat: { color: theme.color.brand, fontSize: 11, fontWeight: "700", letterSpacing: 0.5, marginTop: 4 },
+  evCat: { color: theme.color.brand, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
+  setBadge: {
+    backgroundColor: theme.color.brand, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+  },
+  setBadgeText: { color: theme.color.onBrand, fontSize: 10, fontWeight: "800" },
   evProfit: { color: theme.color.brand, fontSize: 16, fontWeight: "700" },
   evSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
   modeToggle: {

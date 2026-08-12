@@ -8,9 +8,9 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
-import { BIRTHDAY_PACKAGES, WORKSHOPS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
+import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop, AdultSet } from "@/src/offers";
 
-type Tab = "urodziny" | "warsztaty";
+type Tab = "urodziny" | "warsztaty" | "grill";
 
 export default function Oferta() {
   const insets = useSafeAreaInsets();
@@ -98,6 +98,14 @@ export default function Oferta() {
           <Feather name="feather" size={14} color={tab === "warsztaty" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
           <Text style={[s.tabText, tab === "warsztaty" && s.tabTextActive]}>Warsztaty ({WORKSHOPS.length})</Text>
         </Pressable>
+        <Pressable
+          testID="tab-grill"
+          onPress={() => setTab("grill")}
+          style={[s.tabBtn, tab === "grill" && s.tabBtnActive]}
+        >
+          <Feather name="disc" size={14} color={tab === "grill" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+          <Text style={[s.tabText, tab === "grill" && s.tabTextActive]}>Grill ({ADULT_SETS.length})</Text>
+        </Pressable>
       </View>
 
       {tab === "warsztaty" && (
@@ -127,7 +135,49 @@ export default function Oferta() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120, paddingTop: 4 }}
         showsVerticalScrollIndicator={false}
       >
-        {tab === "urodziny" ? (
+        {tab === "grill" ? (
+          <>
+            <View style={s.infoBox}>
+              <Feather name="info" size={14} color={theme.color.brand} />
+              <Text style={s.infoText}>Grill menu · Imprezy dla dorosłych (firmowe / okolicznościowe) · cena od osoby</Text>
+            </View>
+            {ADULT_SETS.map(zs => (
+              <View key={zs.id} style={s.card} testID={`grill-card-${zs.id}`}>
+                <View style={s.cardBody}>
+                  <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
+                    <Text style={s.cardName}>{zs.name}</Text>
+                    <Text style={[s.priceValue, { color: theme.color.brand }]}>{zs.price_per_person} zł<Text style={{ fontSize: 13, color: theme.color.onSurfaceSecondary }}> /os.</Text></Text>
+                  </View>
+                  <Text style={s.sectionLabel}>W zestawie</Text>
+                  {zs.items.map((it, i) => (
+                    <View key={i} style={s.featureRow}>
+                      <Feather name="check" size={14} color={theme.color.brand} />
+                      <Text style={s.featureText}>{it}</Text>
+                    </View>
+                  ))}
+                  <Text style={[s.sectionLabel, { marginTop: 12 }]}>Dodatki w cenie</Text>
+                  {zs.addons.map((it, i) => (
+                    <View key={i} style={s.featureRow}>
+                      <Feather name="plus" size={14} color={theme.color.onSurfaceSecondary} />
+                      <Text style={s.featureText}>{it}</Text>
+                    </View>
+                  ))}
+                  <Pressable
+                    testID={`grill-create-${zs.id}`}
+                    style={s.actionBtn}
+                    onPress={() => {
+                      const desc = [`Grill menu · ${zs.name} · ${zs.price_per_person} zł/os.`, "", "W zestawie:", ...zs.items.map(f => `• ${f}`), "", "Dodatki w cenie:", ...zs.addons.map(f => `• ${f}`)].join("\n");
+                      router.push({ pathname: "/event/[id]", params: { id: "new", name: `Impreza firmowa · ${zs.name}`, category: "dorosli/firmowe", notes: desc } as any });
+                    }}
+                  >
+                    <Feather name="plus" size={14} color={theme.color.onBrand} />
+                    <Text style={s.actionBtnText}>Utwórz imprezę z tego zestawu</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </>
+        ) : tab === "urodziny" ? (
           BIRTHDAY_PACKAGES.map(p => (
             <View key={p.id} style={s.card} testID={`bday-card-${p.id}`}>
               <View style={s.cardHero}>

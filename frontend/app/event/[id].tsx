@@ -13,7 +13,7 @@ import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
-import { ADULT_SETS, findAdultSet } from "@/src/offers";
+import { ADULT_SETS, ADULT_EXTRAS, findAdultSet } from "@/src/offers";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -57,6 +57,7 @@ export default function EventDetail() {
   const [packageSet, setPackageSet] = useState<string>("");
   const [revenueNet, setRevenueNet] = useState("");
   const [autoPrice, setAutoPrice] = useState(true);
+  const [extras, setExtras] = useState<Record<string, number>>({}); // extra_id -> qty (or amount for 'kwota')
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
@@ -105,15 +106,26 @@ export default function EventDetail() {
   const profit = revenueNum - laborCost - materialCost;
 
   const peopleNum = parseInt(people, 10) || 0;
+  const isAdult = category.startsWith("dorosli");
+  const extrasTotal = useMemo(() => {
+    return ADULT_EXTRAS.reduce((sum, e) => {
+      const q = extras[e.id] || 0;
+      if (e.unit === "kwota") return sum + q;
+      return sum + q * e.price;
+    }, 0);
+  }, [extras]);
   const pricing = useMemo(
     () => computePricing(category, date, peopleNum, packageSet),
     [category, date, peopleNum, packageSet]
   );
+  const combinedTotal = (pricing?.total || 0) + extrasTotal;
 
   // Auto-price when computable and user hasn't manually overridden
   useEffect(() => {
-    if (autoPrice && pricing) setRevenue(String(pricing.total));
-  }, [pricing, autoPrice]);
+    if (autoPrice && (pricing || extrasTotal > 0)) {
+      setRevenue(String(combinedTotal));
+    }
+  }, [combinedTotal, autoPrice]);
 
   const parseAmt = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
@@ -335,24 +347,88 @@ export default function EventDetail() {
                 </Field>
               </View>
             </View>
+            {isAdult && (
+              <View style={s.zestawRow} testID="adult-sets">
+                {ADULT_SETS.map(zs => {
+                  const sel = packageSet === zs.id;
+                  return (
+                    <Pressable
+                      key={zs.id}
+                      testID={`zestaw-${zs.id}`}
+                      onPress={() => { setPackageSet(sel ? "" : zs.id); setAutoPrice(true); }}
+                      style={[s.zestawBtn, sel && s.zestawBtnActive]}
+                    >
+                      <Text style={[s.zestawName, sel && { color: theme.color.onBrand }]}>{zs.name}</Text>
+                      <Text style={[s.zestawPrice, sel && { color: theme.color.onBrand }]}>{zs.price_per_person} zł/os.</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            {isAdult && packageSet && findAdultSet(packageSet) && (
+              <View style={s.zestawDetails}>
+                <Text style={s.zestawDetailsTitle}>W {findAdultSet(packageSet)!.name}:</Text>
+                {findAdultSet(packageSet)!.items.map((it, i) => (
+                  <Text key={i} style={s.zestawItem}>• {it}</Text>
+                ))}
+                <Text style={[s.zestawDetailsTitle, { marginTop: 6 }]}>Dodatki w cenie:</Text>
+                {findAdultSet(packageSet)!.addons.map((it, i) => (
+                  <Text key={i} style={s.zestawItem}>• {it}</Text>
+                ))}
+              </View>
+            )}
             {pricing && (
               <View style={s.pricingCard} testID="pricing-breakdown">
                 <View style={{ flex: 1 }}>
                   <Text style={s.pricingBreakdown}>{pricing.breakdown}</Text>
+                  {extrasTotal > 0 && <Text style={s.pricingBreakdown}>+ Dodatki: {extrasTotal.toFixed(0)} zł</Text>}
                   <Text style={s.pricingHint}>{autoPrice ? "Cena wpisana automatycznie" : "Cena ręczna — dotknij, aby użyć auto"}</Text>
                 </View>
                 <Pressable
                   testID="pricing-apply-btn"
-                  onPress={() => { setRevenue(String(pricing.total)); setAutoPrice(true); }}
+                  onPress={() => { setRevenue(String(combinedTotal)); setAutoPrice(true); }}
                   style={s.pricingApply}
                 >
-                  <Text style={s.pricingApplyText}>{formatPLN(pricing.total)}</Text>
+                  <Text style={s.pricingApplyText}>{formatPLN(combinedTotal)}</Text>
                 </Pressable>
               </View>
             )}
-            <View style={{ marginTop: 8, marginBottom: 4 }}>
-              <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
+
+            <View style={{ marginTop: 12, marginBottom: 4 }}>
+              <Text style={s.label}>{isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)" : "Koszty (materiały, wynajem itp.)"}</Text>
             </View>
+            {isAdult && ADULT_EXTRAS.map(ex => {
+              const q = extras[ex.id] || 0;
+              const line = ex.unit === "kwota" ? q : q * ex.price;
+              return (
+                <View key={ex.id} style={s.extraRow} testID={`extra-${ex.id}`}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.extraName}>{ex.name}</Text>
+                    <Text style={s.extraHint}>{ex.unit === "kwota" ? "Wpisz kwotę (zł)" : `${ex.price} zł / ${ex.unit}`}{ex.hint ? ` · ${ex.hint}` : ""}</Text>
+                  </View>
+                  <TextInput
+                    testID={`extra-qty-${ex.id}`}
+                    value={q ? String(q) : ""}
+                    onChangeText={(v) => {
+                      const n = parseAmt(v);
+                      setExtras(prev => ({ ...prev, [ex.id]: n }));
+                      setAutoPrice(true);
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="decimal-pad"
+                    style={s.extraQtyInput}
+                  />
+                  <Text style={s.extraLine}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
+                </View>
+              );
+            })}
+
+            {isAdult && (
+              <View style={{ marginTop: 12, marginBottom: 4 }}>
+                <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
+              </View>
+            )}
             {costs.map((c, i) => (
               <View key={i} style={s.costRow}>
                 <TextInput
@@ -648,6 +724,32 @@ const s = StyleSheet.create({
     backgroundColor: theme.color.brand, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
   },
   pricingApplyText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 13 },
+  zestawRow: { flexDirection: "row", gap: 8, marginTop: 6 },
+  zestawBtn: {
+    flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 12,
+    borderWidth: 1, borderColor: theme.color.brandTertiary, backgroundColor: theme.color.surfaceTertiary,
+  },
+  zestawBtnActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  zestawName: { color: theme.color.onSurface, fontSize: 12, fontWeight: "800" },
+  zestawPrice: { color: theme.color.brand, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  zestawDetails: {
+    marginTop: 10, padding: 12, borderRadius: 12,
+    backgroundColor: "rgba(212,175,55,0.06)", borderWidth: 1, borderColor: theme.color.brandTertiary,
+  },
+  zestawDetailsTitle: { color: theme.color.brand, fontSize: 11, letterSpacing: 1, fontWeight: "800", marginBottom: 4 },
+  zestawItem: { color: theme.color.onSurface, fontSize: 12, marginBottom: 2 },
+  extraRow: {
+    flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+  },
+  extraName: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
+  extraHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  extraQtyInput: {
+    width: 60, backgroundColor: theme.color.surfaceTertiary, borderRadius: 8,
+    color: theme.color.onSurface, paddingHorizontal: 8, paddingVertical: 8, fontSize: 13,
+    textAlign: "center", borderWidth: 1, borderColor: theme.color.border,
+  },
+  extraLine: { color: theme.color.brand, fontSize: 13, fontWeight: "700", width: 62, textAlign: "right" },
   summary: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.color.brandTertiary },
   sumRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
   sumLabel: { color: theme.color.onSurfaceSecondary, fontSize: 13 },

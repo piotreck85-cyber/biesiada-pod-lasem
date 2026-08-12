@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
 import { api } from "@/src/api";
 import { categoryLabel, categoryTopGroup } from "@/src/categories";
+import { findAdultSet } from "@/src/offers";
 
 const FILTER_CHIPS: { id: string; label: string }[] = [
   { id: "all",       label: "Wszystkie" },
@@ -120,6 +121,13 @@ export default function Imprezy() {
                   {item.category ? (
                     <View style={s.catChip}>
                       <Text style={s.catChipText}>{categoryLabel(item.category)}</Text>
+                    </View>
+                  ) : null}
+                  {item.package_set && findAdultSet(item.package_set) ? (
+                    <View style={[s.catChip, { backgroundColor: theme.color.brand, borderColor: theme.color.brand }]}>
+                      <Text style={[s.catChipText, { color: theme.color.onBrand, fontWeight: "800" }]}>
+                        {findAdultSet(item.package_set)!.name}{item.people ? ` · ${item.people} os.` : ""}
+                      </Text>
                     </View>
                   ) : null}
                   {item.created_by_name ? (

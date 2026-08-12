@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 13 (both) — ALL GREEN. BACKEND: 94/94 pytest pass in 28.17s (no regression on /api/events package_set/revenue/people). FRONTEND bundle clean (no SyntaxError / no red screen / 0 console.error / 0 'Unexpected text node' warnings — iter12 stray whitespace warning is FIXED). Verified end-to-end on 390×844 mobile viewport with test@eventa.pl/test123: (1) Oferta screen shows 3 tabs — testIDs tab-urodziny ('Urodziny (5)'), tab-warsztaty ('Warsztaty (12)'), tab-grill ('Grill (3)'); (2) Grill tab renders exactly 3 cards testIDs grill-card-set1/set2/set3 with prices 150 zł/180 zł/200 zł per os., each with 'W zestawie' menu items + 'Dodatki w cenie' addons + grill-create-{id} button; (3) Clicking grill-create-set2 opens /event/[id]?id=new with event-name-input='Impreza firmowa · Zestaw nr 2', category='Dorośli · Firmowe', event-notes-input containing full breakdown ('Grill menu · Zestaw nr 2 · 180 zł/os.' + 6 menu bullets + 5 addon bullets); (4) After saving with 40 os + set2 + napoje×40, Imprezy card shows gold chip 'Zestaw nr 2 · 40 os.' next to 'Dorośli · Firmowe' catChip and Kalendarz day list (Aug 12, 2026) shows gold badge 'Zestaw nr 2 · 180 zł/os.' below the 'Dorośli · Firmowe' chip — both visible together with correct styling (screenshots captured); (5) isAdult gating (iter12 UX polish) FIXED: switching category to cat-dzieci/urodzinki/gady HIDES all 4 ADULT_EXTRAS testIDs (extra-qty-napoje, extra-qty-ciasto, extra-qty-salatka, extra-qty-taca_mies) AND zestaw-set1 picker — while switching back to cat-dorosli/firmowe shows them again; (6) Pricing math still exact: pricing-apply-btn='8 000,00 zł', event-revenue-input='8000' for 40×180+40×20=7200+800=8000; (7) Backend regression 94/94 (28.17s). No new issues found.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "app/(tabs)/imprezy.tsx (FAB, lines 216-221) + login.tsx card + pracownicy.tsx FAB",
+        "issue": "Deprecated 'shadow*' style props (shadowColor/shadowOffset/shadowOpacity/shadowRadius) still present. React Native web parity (RN 0.76+) prefers boxShadow. Emits a boot-time warning but non-blocking. Same finding as iter10/11/12."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/",
+    "/app/test_reports/pytest/iter13_results.xml"
+  ],
+  "action_items": [
+    "LOW (repeat): Migrate remaining shadow* style props to boxShadow across imprezy.tsx FAB, login card, pracownicy.tsx FAB — non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "oferta.tsx:101-108 — third Pressable testID=tab-grill with `Grill (${ADULT_SETS.length})` label; StyleSheet reused (tabBtn/tabBtnActive) — consistent with existing tabs, 3-way flex:1 row still fits within 375px viewport without truncation.",
+    "oferta.tsx:138-179 — tab==='grill' branch iterates ADULT_SETS (3 items), each card has infoBox banner, price 'X zł /os.', 'W zestawie' items + 'Dodatki w cenie' addons, and grill-create-{id} button prefilling name='Impreza firmowa · <name>', category='dorosli/firmowe', notes with full menu breakdown. Correct.",
+    "kalendarz.tsx:11 imports findAdultSet; lines 241-245 render a setBadge with brand background + onBrand text when ev.package_set matches a known adult set — placed inside the same row as evCat chip with flexWrap and gap 6, correct.",
+    "imprezy.tsx:13 imports findAdultSet; lines 126-132 render a gold-filled catChip variant with 'Zestaw nr X · N os.' — correctly positioned in the chip row alongside dateChip + catChip. Verified in UI.",
+    "event/[id].tsx:400,427 — ADULT_EXTRAS.map + 'Podsumowanie ekstras' block now both correctly gated by `{isAdult && …}` (iter12 medium bug FIXED). extras label at line 398 has ternary `{isAdult ? 'Dodatki (napoje...)' : 'Koszty (materiały...)'}` which is correct — costs section stays for kids.",
+    "server.py — untouched; backend regression 94/94 green in 28.17s."
+  ],
+  "updated_files": [
+    "/app/test_reports/pytest/iter13_results.xml (new — 94 passed)",
+    "/app/test_reports/iteration_13.json (this report)"
+  ],
+  "success_rate": {
+    "backend": "100% (94/94)",
+    "frontend": "100% for all 7 review items — Grill tab (3 cards), grill-create prefill, Kalendarz badge, Imprezy badge, isAdult gating (kids hides extras + zestaw), adult math (8000 zł), console clean."
+  },
+  "seed_data_creation": "One test event saved via UI ('Impreza firmowa · Zestaw nr 2', 40 os., package_set='set2', revenue=8000) — used to verify Imprezy + Kalendarz badge rendering. Main agent may delete via /api/events/{id} if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend: `EXPO_PUBLIC_BACKEND_URL=https://event-profit-tracker.preview.emergentagent.com pytest -o addopts='' /app/backend/tests/` → 94 pass. Nav tabs at bottom have no testIDs; use `page.get_by_text('Oferta'|'Imprezy'|'Kalendarz', exact=True).first.click(force=True)` OR `page.goto('.../oferta' | '/imprezy' | '/kalendarz')`. Login testIDs: login-email-input, login-password-input, login-submit-button (NOT login-submit-btn). Oferta tabs: tab-urodziny, tab-warsztaty, tab-grill. Grill cards: grill-card-set1/2/3 + grill-create-set1/2/3. Adult flow testIDs still: zestaw-set1/2/3, extra-qty-{napoje,ciasto,salatka,taca_mies,taca_mix}, pricing-apply-btn, event-people-input, event-revenue-input, event-category-btn, cat-dorosli/firmowe, cat-dzieci/urodzinki/gady, event-save-btn, event-notes-input, event-name-input.",
+  "rca_of_issue": "No issues found this iteration. Iter12 medium bug (ADULT_EXTRAS rendering on kids categories) is now correctly gated by `{isAdult && …}` at event/[id].tsx lines 400 and 427 — verified in UI: switching category picker to cat-dzieci/urodzinki/gady HIDES all extras testIDs and zestaw-set1; switching back to cat-dorosli/firmowe shows them. Iter12 'Unexpected text node' console warning is also gone (0 warnings during full session). All 3 iter13 additions (3rd Grill tab, Kalendarz badge, Imprezy badge) render exactly per spec with the correct testIDs and price/os. formatting."
+}

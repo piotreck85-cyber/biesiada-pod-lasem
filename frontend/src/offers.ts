@@ -311,10 +311,29 @@ export const ADULT_SETS: AdultSet[] = [
   },
 ];
 
-export function findAdultSet(id?: string): AdultSet | undefined {
+export type AdultExtra = {
+  id: string;
+  name: string;
+  unit: string;         // "osoba" | "porcja" | "sztuka"
+  price: number;
+  hint?: string;
+};
+
+export const ADULT_EXTRAS: AdultExtra[] = [
+  { id: "napoje", name: "Napoje (cola, soki)", unit: "osoba", price: 20 },
+  { id: "taca_mies", name: "Półmisek mięs (5–6 os.)", unit: "sztuka", price: 200 },
+  { id: "taca_mix", name: "Taca przystawek mix (5–6 os.)", unit: "sztuka", price: 180 },
+  { id: "salatka", name: "Sałatka", unit: "porcja", price: 13, hint: "Farfalle · Gyros · Grecka · Cezar itp." },
+  { id: "ciasto", name: "Ciasto (własne)", unit: "kwota", price: 0, hint: "Wpisz kwotę ręcznie" },
+];
+
+
+function _findAdultSetImpl(id?: string): AdultSet | undefined {
   if (!id) return undefined;
   return ADULT_SETS.find(x => x.id === id);
 }
+export { _findAdultSetImpl as findAdultSet };
+
 
 export const WORKSHOP_INFO = "3–4 godziny · Opiekunowie gratis · Kiełbaska i napoje w cenie";
 export const SOURCE_URL = "https://www.dolinaprzygod.pl";

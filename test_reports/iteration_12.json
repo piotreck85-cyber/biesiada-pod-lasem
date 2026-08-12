@@ -1,0 +1,52 @@
+{
+  "summary": "Iteration 12 (both). BACKEND: 94/94 pytest pass in 29.01s (no regression on package_set / revenue_net / people fields — /api/events CRUD unchanged). FRONTEND bundle: /var/log/supervisor/expo.out.log shows 'Web Bundled 6127ms … 1352 modules' with zero SyntaxError — the two iter11 bugs (offers.ts orphan return, event/[id].tsx:666 bundle error) are FIXED. New adult zestaw + extras flow verified end-to-end on 390×844 mobile viewport: (a) selecting cat-dzieci/urodzinki/gady HIDES zestaw picker; (b) selecting cat-dorosli/firmowe SHOWS testIDs zestaw-set1 (150 zł/os.), zestaw-set2 (180), zestaw-set3 (200) in a 3-button row; (c) tapping zestaw-set2 expands details card with all 6 menu items + 5 'Dodatki w cenie' entries; (d) core arithmetic — 40 osób × Zestaw 2 (180 zł) + 40 napoje × 20 zł = 8 000 zł EXACT — pricing-apply-btn shows '8 000,00 zł', event-revenue-input auto-fills '8000'; (e) manual override — typing '9999' into event-revenue-input flips hint to 'Cena ręczna — dotknij, aby użyć auto' and tapping pricing-apply-btn snaps back to auto (8000); (f) all 5 extras (extra-qty-napoje/taca_mies/taca_mix/salatka/ciasto) render with correct unit labels (20 zł/osoba, 200 zł/sztuka, 180 zł/sztuka, 13 zł/porcja, kwota-własna). REGRESSION verified same session: dzieci/urodzinki/gady with 25 osób → 'GADY (Pon–Czw) · baza 1450 zł + 5 × 30 zł' → 1 600 zł auto-fill; dzieci/wycieczki with 25 osób → 'Warsztaty · 25 × 90 zł / dziecko' → 2 250 zł auto-fill. TWO minor issues found (see frontend_issues).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/event/[id].tsx (Dodatki section, lines 397-425)",
+        "issue": "The 'Dodatki (napoje, ciasto, tace, sałatki)' block (ADULT_EXTRAS.map + label 'Dodatki (napoje, ciasto, tace, sałatki)') is NOT gated behind `isAdult` — it renders for kids urodzinki AND warsztaty categories too. Zestaw picker IS correctly gated (line 350 `{isAdult && …}`), but the extras UI is unconditional. Since default qty is 0 the total is unaffected, but it is confusing UX (customer editing a GADY event sees napoje/tace inputs). Suggest wrapping lines 397-425 with `{isAdult && (…)}` for consistency.",
+        "testID": "extra-napoje / extra-qty-napoje (and 4 others)",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "app/event/[id].tsx (some sub-tree rendered on editor open)",
+        "issue": "Console warning emitted twice per editor open: 'Unexpected text node: . A text node cannot be a child of a <View>.' — a stray whitespace/text node lives inside a View. Likely a template literal or conditional render that returns a bare space. Non-blocking (no red screen) but should be located and wrapped in <Text>. Repro: login → cal-add-event → console shows the error before any interaction with category picker."
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      { "component": "app/(tabs)/pracownicy.tsx (FAB) + imprezy.tsx card + login.tsx card", "issue": "Deprecated 'shadow*' style props (iter10/iter11 already flagged) still emit warning at boot. Replace with boxShadow for RN 0.76+ web parity. Non-blocking." }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/",
+    "/app/test_reports/pytest/iter12_results.xml"
+  ],
+  "action_items": [
+    "MEDIUM: Wrap the 'Dodatki' block (event/[id].tsx lines 397-425) with `{isAdult && (…)}` so napoje/tace/salatka/ciasto inputs only show for dorosli/firmowe + dorosli/okolicznosciowe. Also consider gating the section label + spacing view (line 397-399).",
+    "LOW: Track down the 'Unexpected text node' console warning fired on event editor mount — likely a bare space inside a View somewhere in the Finanse or Dodatki section. Grep for `>{' '}` or `> </`, or an inline conditional returning a bare string.",
+    "LOW: Migrate remaining shadow* style props to boxShadow (repeat from iter10/iter11)."
+  ],
+  "critical_code_review_comments": [
+    "offers.ts:331-335 — `_findAdultSetImpl` + `export { _findAdultSetImpl as findAdultSet }` correctly wraps the body inside a function and the previous orphan-return SyntaxError is gone. ADULT_SETS (3 entries) and ADULT_EXTRAS (5 entries) match the docx spec: 150/180/200 zł per person, napoje 20 zł/os., taca_mies 200/szt, taca_mix 180/szt, salatka 13/porcja, ciasto kwota-własna.",
+    "pricing.ts:30-46 — adult branch checks `category.startsWith('dorosli') && adultSetId`. Falls through cleanly for kids categories → BIRTHDAY_PACKAGES lookup unchanged (verified GADY 1450+5×30=1600 in UI).",
+    "event/[id].tsx:117-121 — `combinedTotal = (pricing?.total || 0) + extrasTotal` and useEffect at 124-128 (autoPrice guarded) is correct; verified 7200+800=8000 in UI and manual override path.",
+    "event/[id].tsx:350-379 — zestaw row + expandable details card correctly gated by `isAdult`. HOWEVER at line 397-425 the ADULT_EXTRAS.map is NOT gated → renders for all categories (see UI bug).",
+    "server.py — no changes touching /api/events package_set/revenue_net/people; 94/94 pytest pass end-to-end (26.9s previously → 29.01s now, both fine)."
+  ],
+  "updated_files": [
+    "/app/test_reports/pytest/iter12_results.xml (new — 94 passed)",
+    "/app/test_reports/iteration_12.json (this report)"
+  ],
+  "success_rate": {
+    "backend": "100% (94/94)",
+    "frontend": "100% for the 6 asks in the review request. New adult flow works exactly per spec: 40 × Zestaw 2 + 40 napoje → 8 000,00 zł. Kids + warsztaty regression PASS."
+  },
+  "seed_data_creation": "None. Editor opened but not saved — no persistent data written this iteration.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend test cmd: `EXPO_PUBLIC_BACKEND_URL=https://event-profit-tracker.preview.emergentagent.com pytest -o addopts='' /app/backend/tests/`. Adult zestaw testIDs: zestaw-set1/2/3, extra-qty-{napoje,taca_mies,taca_mix,salatka,ciasto}, pricing-apply-btn, pricing-breakdown, adult-sets. Category picker options: cat-dorosli/firmowe, cat-dorosli/okolicznosciowe, cat-dzieci/urodzinki/{start,standard,tematyczne,konie,gady}, cat-dzieci/wycieczki, cat-clear. Repro pricing: login test@eventa.pl/test123 → cal-add-event → event-category-btn → cat-dorosli/firmowe → event-people-input='40' → zestaw-set2 → extra-qty-napoje='40' → expect 8 000,00 zł.",
+  "rca_of_issue": "Only ONE meaningful new finding: ADULT_EXTRAS is rendered unconditionally in event/[id].tsx (line 400 `{ADULT_EXTRAS.map(ex => …)}`), so the 'Dodatki' inputs (napoje/tace/salatka/ciasto) also appear on kids urodzinki + warsztaty screens. Because default qty is 0 and extrasTotal is 0, the pricing math is unaffected (verified: gady still shows 1600 zł, warsztaty 2250 zł). Fix: wrap the section (label at line 397-399 plus the map at 400-425) in `{isAdult && (…)}`. All other iter12 asks (bundle, zestaw show/hide, pricing 8000, manual override, extras math, kids/warsztaty regression, backend 94/94) verified GREEN."
+}
