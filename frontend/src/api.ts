@@ -106,4 +106,9 @@ export const api = {
     attachments_mode?: "grill" | "dinner" | "both";
   }) => request("/offers/send-email", { method: "POST", body: JSON.stringify(data) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
+
+  listAlerts: () => request("/alerts"),
+  dismissAlert: (id: string) => request(`/alerts/${id}/dismiss`, { method: "POST" }),
+  dismissAllAlerts: () => request("/alerts/dismiss-all", { method: "POST" }),
+  scanAlertsNow: () => request("/alerts/scan", { method: "POST" }),
 };

@@ -715,9 +715,24 @@ async def get_event(event_id: str, user=Depends(current_user)):
 
 @api.put("/events/{event_id}")
 async def update_event(event_id: str, body: EventIn, user=Depends(current_user)):
+    # Detect status transitions to clear/reset alerts appropriately
+    prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "status": 1})
+    prev_status = (prev or {}).get("status") or ""
+    new_status = (body.status or "")
+    updates = body.dict()
+    # If status moved OUT of tracked set, dismiss any existing alerts for this event
+    if prev_status in _TRACKED_STATUSES and new_status not in _TRACKED_STATUSES:
+        updates["alert_sent"] = False  # reset for future re-tracking if flipped back
+        await db.alerts.update_many(
+            {"event_id": event_id, "owner_id": ws(user), "dismissed": {"$ne": True}},
+            {"$set": {"dismissed": True, "dismissed_at": now_utc().isoformat(), "auto_dismissed": True}}
+        )
+    # If status moved INTO tracked set from another, allow future alerts
+    elif new_status in _TRACKED_STATUSES and prev_status not in _TRACKED_STATUSES:
+        updates["alert_sent"] = False
     res = await db.events.update_one(
         {"id": event_id, "owner_id": ws(user)},
-        {"$set": body.dict()},
+        {"$set": updates},
     )
     if res.matched_count == 0:
         raise HTTPException(404, "Impreza nie znaleziona")
@@ -1280,9 +1295,15 @@ async def root():
     return {"app": "Eventa", "ok": True}
 
 
-# ---------- Weather (Open-Meteo, no API key required) ----------
+# ---------- Weather (multi-provider with fallbacks, no API key required) ----------
 KIELCE_ZASTAWIE_LAT = 50.83
 KIELCE_ZASTAWIE_LON = 20.68
+
+# In-memory cache to avoid hitting provider rate limits.
+# Key: (date, h_start, h_end); Value: (fetched_at_utc, payload_dict)
+_WEATHER_CACHE: dict = {}
+_WEATHER_TTL_SECONDS = 60 * 60  # 1 hour for successful results
+_WEATHER_NEG_TTL_SECONDS = 5 * 60  # 5 minutes for "unavailable" results
 
 _WMO = {
     0: ("sun", "Bezchmurnie", False),
@@ -1310,6 +1331,158 @@ _WMO = {
     99: ("cloud-lightning", "Silna burza z gradem", True),
 }
 
+# ---- Provider helpers ----
+async def _wx_open_meteo(cli, date: str, h_start: int, h_end: int):
+    """Primary provider: Open-Meteo (best quality, but daily rate-limited on shared IPs)."""
+    params = {
+        "latitude": KIELCE_ZASTAWIE_LAT,
+        "longitude": KIELCE_ZASTAWIE_LON,
+        "hourly": "temperature_2m,precipitation_probability,precipitation,wind_speed_10m,weather_code",
+        "timezone": "Europe/Warsaw",
+        "start_date": date,
+        "end_date": date,
+    }
+    resp = await cli.get("https://api.open-meteo.com/v1/forecast", params=params,
+                         headers={"User-Agent": "BiesiadaPodLasem/1.0 (kontakt.biesiadapodlasem@gmail.com)"})
+    if resp.status_code == 429:
+        raise RuntimeError("open-meteo rate limited")
+    resp.raise_for_status()
+    data = resp.json()
+    hourly = data.get("hourly") or {}
+    times = hourly.get("time") or []
+    temps = hourly.get("temperature_2m") or []
+    precs = hourly.get("precipitation_probability") or []
+    winds = hourly.get("wind_speed_10m") or []
+    codes = hourly.get("weather_code") or []
+    idx = [i for i, t in enumerate(times) if h_start <= int(t.split("T")[1].split(":")[0]) <= h_end]
+    if not idx: idx = list(range(len(times)))
+    def _pick(arr): return [arr[i] for i in idx if i < len(arr) and arr[i] is not None]
+    tmin = min(_pick(temps)) if _pick(temps) else None
+    tmax = max(_pick(temps)) if _pick(temps) else None
+    pmax = max(_pick(precs)) if _pick(precs) else 0
+    wmax = max(_pick(winds)) if _pick(winds) else 0
+    code_slice = [codes[i] for i in idx if i < len(codes)]
+    dominant = max(set(code_slice), key=code_slice.count) if code_slice else 0
+    return {"temp_min": tmin, "temp_max": tmax, "precipitation_prob": pmax,
+            "wind_kmh": wmax, "code": dominant, "source": "open-meteo"}
+
+
+# WMO code mapping for 7timer weather strings
+_SEVENTIMER_MAP = {
+    "clearday": 0, "clearnight": 0,
+    "pcloudyday": 1, "pcloudynight": 1,
+    "mcloudyday": 2, "mcloudynight": 2,
+    "cloudyday": 3, "cloudynight": 3,
+    "humidday": 3, "humidnight": 3,
+    "lightrainday": 61, "lightrainnight": 61,
+    "oshowerday": 80, "oshowernight": 80,
+    "ishowerday": 81, "ishowernight": 81,
+    "lightsnowday": 71, "lightsnownight": 71,
+    "rainday": 63, "rainnight": 63,
+    "snowday": 73, "snownight": 73,
+    "rainsnowday": 68, "rainsnownight": 68,
+    "tsday": 95, "tsnight": 95,
+    "tsrainday": 95, "tsrainnight": 95,
+    "fogday": 45, "fognight": 45,
+}
+
+async def _wx_7timer(cli, date: str, h_start: int, h_end: int):
+    """Fallback: 7Timer! (civil forecast, 8 days ahead, 3h resolution)."""
+    url = f"https://www.7timer.info/bin/civil.php?lon={KIELCE_ZASTAWIE_LON}&lat={KIELCE_ZASTAWIE_LAT}&ac=0&unit=metric&output=json&tzshift=0"
+    resp = await cli.get(url, follow_redirects=True)
+    resp.raise_for_status()
+    data = resp.json()
+    init_s = str(data.get("init") or "")
+    # init format: YYYYMMDDHH (UTC)
+    if len(init_s) != 10:
+        raise RuntimeError("bad 7timer init")
+    init_dt = datetime.strptime(init_s, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+    ds = data.get("dataseries") or []
+    target = datetime.strptime(date, "%Y-%m-%d").date()
+    # Warsaw = UTC+2 in summer; use naive local match against timepoint hour
+    temps, precs, winds, codes = [], [], [], []
+    for entry in ds:
+        tp = int(entry.get("timepoint") or 0)
+        fdt_utc = init_dt + timedelta(hours=tp)
+        # Convert to Warsaw local (approx +2h summer, +1h winter — use +2 as safe bet)
+        fdt_local = fdt_utc + timedelta(hours=2)
+        if fdt_local.date() != target: continue
+        hh = fdt_local.hour
+        if hh < h_start or hh > h_end: continue
+        temps.append(entry.get("temp2m"))
+        # 7timer uses cloudcover 1-9 scale and prec_type
+        prec_type = entry.get("prec_type") or "none"
+        prec_amount = entry.get("prec_amount") or 0
+        prob = 0
+        if prec_type != "none":
+            # rough: prec_amount 1..9 → 20..90%
+            try: prob = min(90, 20 + int(prec_amount) * 10)
+            except: prob = 40
+        precs.append(prob)
+        w = (entry.get("wind10m") or {})
+        try: winds.append(int(w.get("speed") or 0) * 3)  # 7timer speed 1-8 scale → rough km/h
+        except: winds.append(0)
+        codes.append(_SEVENTIMER_MAP.get(entry.get("weather") or "", 3))
+    if not temps:
+        raise RuntimeError("7timer: no matching hours")
+    temps_f = [t for t in temps if t is not None]
+    return {
+        "temp_min": min(temps_f) if temps_f else None,
+        "temp_max": max(temps_f) if temps_f else None,
+        "precipitation_prob": max(precs) if precs else 0,
+        "wind_kmh": max(winds) if winds else 0,
+        "code": max(set(codes), key=codes.count) if codes else 3,
+        "source": "7timer",
+    }
+
+
+async def _wx_wttr(cli, date: str, h_start: int, h_end: int):
+    """Fallback #2: wttr.in (0-3 days ahead)."""
+    url = f"https://wttr.in/{KIELCE_ZASTAWIE_LAT},{KIELCE_ZASTAWIE_LON}?format=j1"
+    resp = await cli.get(url, headers={"Accept": "application/json"})
+    resp.raise_for_status()
+    data = resp.json()
+    days = data.get("weather") or []
+    day = next((d for d in days if d.get("date") == date), None)
+    if not day:
+        raise RuntimeError("wttr.in: no matching date")
+    hourly = day.get("hourly") or []
+    temps, precs, winds, codes = [], [], [], []
+    for h in hourly:
+        try: hr = int(h.get("time") or "0") // 100
+        except: hr = 0
+        if hr < h_start or hr > h_end: continue
+        try: temps.append(float(h.get("tempC")))
+        except: pass
+        try: precs.append(float(h.get("chanceofrain") or 0))
+        except: pass
+        try: winds.append(float(h.get("windspeedKmph") or 0))
+        except: pass
+        # wttr weatherCode → WMO approximate mapping
+        try:
+            wc = int(h.get("weatherCode") or 113)
+            if wc == 113: codes.append(0)
+            elif wc in (116,): codes.append(2)
+            elif wc in (119, 122): codes.append(3)
+            elif wc in (143, 248, 260): codes.append(45)
+            elif wc in (176, 263, 266, 293, 296, 353): codes.append(61)
+            elif wc in (302, 308, 356, 359): codes.append(65)
+            elif wc in (179, 227, 230, 320, 323, 326, 329, 332, 335, 338, 368, 371): codes.append(73)
+            elif wc in (200, 386, 389, 392, 395): codes.append(95)
+            else: codes.append(3)
+        except: codes.append(3)
+    if not temps:
+        raise RuntimeError("wttr.in: no matching hours")
+    return {
+        "temp_min": min(temps),
+        "temp_max": max(temps),
+        "precipitation_prob": max(precs) if precs else 0,
+        "wind_kmh": max(winds) if winds else 0,
+        "code": max(set(codes), key=codes.count) if codes else 3,
+        "source": "wttr.in",
+    }
+
+
 @api.get("/weather")
 async def weather_forecast(date: str, time_start: str = "", time_end: str = ""):
     import httpx
@@ -1333,59 +1506,260 @@ async def weather_forecast(date: str, time_start: str = "", time_end: str = ""):
         h_start = 12; h_end = 20
     h_end = min(h_end, 23)
 
-    params = {
-        "latitude": KIELCE_ZASTAWIE_LAT,
-        "longitude": KIELCE_ZASTAWIE_LON,
-        "hourly": "temperature_2m,precipitation_probability,precipitation,wind_speed_10m,weather_code",
-        "timezone": "Europe/Warsaw",
-        "start_date": date,
-        "end_date": date,
-    }
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as cli:
-            resp = await cli.get("https://api.open-meteo.com/v1/forecast", params=params)
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception as e:
-        raise HTTPException(502, f"Nie udało się pobrać prognozy: {e}")
+    # Cache check (both positive and negative)
+    cache_key = (date, h_start, h_end)
+    cached = _WEATHER_CACHE.get(cache_key)
+    if cached:
+        fetched_at, payload = cached
+        age = (now_utc() - fetched_at).total_seconds()
+        ttl = _WEATHER_TTL_SECONDS if payload.get("available") else _WEATHER_NEG_TTL_SECONDS
+        if age < ttl:
+            return payload
 
-    hourly = data.get("hourly") or {}
-    times = hourly.get("time") or []
-    temps = hourly.get("temperature_2m") or []
-    precs = hourly.get("precipitation_probability") or []
-    winds = hourly.get("wind_speed_10m") or []
-    codes = hourly.get("weather_code") or []
-    idx = [i for i, t in enumerate(times) if h_start <= int(t.split("T")[1].split(":")[0]) <= h_end]
-    if not idx: idx = list(range(len(times)))
+    # Try providers in order until one succeeds
+    providers = [_wx_open_meteo, _wx_7timer]
+    if days_ahead <= 3:
+        providers.append(_wx_wttr)
+    result = None
+    last_err = None
+    async with httpx.AsyncClient(timeout=8.0) as cli:
+        for fn in providers:
+            try:
+                result = await fn(cli, date, h_start, h_end)
+                if result: break
+            except Exception as e:
+                last_err = e
+                logging.getLogger("weather").info(f"Provider {fn.__name__} failed: {e}")
+                continue
 
-    def _agg(arr, fn):
-        vals = [arr[i] for i in idx if i < len(arr) and arr[i] is not None]
-        return fn(vals) if vals else None
+    if not result:
+        # Different message based on how far ahead
+        if days_ahead > 8:
+            msg = "Prognoza dokładna dostępna do 8 dni przed imprezą. Sprawdź ponownie za kilka dni."
+        else:
+            msg = "Prognoza chwilowo niedostępna — spróbuj ponownie za chwilę."
+        payload = {"available": False, "message": msg}
+        _WEATHER_CACHE[cache_key] = (now_utc(), payload)
+        return payload
 
-    temp_min = _agg(temps, min); temp_max = _agg(temps, max)
-    prec_max = _agg(precs, max) or 0; wind_max = _agg(winds, max) or 0
-    code_slice = [codes[i] for i in idx if i < len(codes)]
-    dominant = max(set(code_slice), key=code_slice.count) if code_slice else 0
+    dominant = result["code"] or 0
     icon, desc, is_rainy = _WMO.get(dominant, ("cloud", "Nieznane", False))
+    prec_max = result.get("precipitation_prob") or 0
+    wind_max = result.get("wind_kmh") or 0
     warning = None
     if is_rainy and prec_max >= 30:
         warning = f"⚠ Możliwy deszcz podczas imprezy ({int(prec_max)}% szans)."
     elif wind_max >= 40:
         warning = f"⚠ Silny wiatr do {int(wind_max)} km/h."
-    return {
+    payload = {
         "available": True,
         "location": "Kielce, ul. Zastawie 4",
         "date": date,
         "time_window": f"{h_start:02d}:00–{h_end:02d}:00",
-        "temp_min": round(temp_min, 1) if temp_min is not None else None,
-        "temp_max": round(temp_max, 1) if temp_max is not None else None,
+        "temp_min": round(result["temp_min"], 1) if result.get("temp_min") is not None else None,
+        "temp_max": round(result["temp_max"], 1) if result.get("temp_max") is not None else None,
         "precipitation_prob": int(prec_max),
         "wind_kmh": int(wind_max),
         "code": dominant,
         "icon": icon,
         "description": desc,
         "warning": warning,
+        "source": result.get("source"),
     }
+    _WEATHER_CACHE[cache_key] = (now_utc(), payload)
+    return payload
+
+
+# =====================================================================
+# ---------- Alerts (2-day auto reminders for tentative bookings) -----
+# =====================================================================
+# When an event is in status "wstepne" (preliminary inquiry) or "rezerwacja"
+# (reservation) and has been sitting untouched for 2+ days without being
+# confirmed, the system creates an in-app alert AND sends an email to the
+# workspace owner. Alerts are deduplicated per (event_id, kind).
+
+# Which statuses should be tracked
+_TRACKED_STATUSES = {"wstepne", "rezerwacja"}
+_ALERT_AGE_DAYS = 2  # trigger threshold
+
+
+def _status_label(s: str) -> str:
+    return {
+        "wstepne": "Wstępne zapytanie",
+        "rezerwacja": "Rezerwacja",
+        "potwierdzona": "Potwierdzona",
+        "zakonczona": "Zakończona",
+        "anulowana": "Anulowana",
+    }.get(s or "", s or "")
+
+
+async def _send_alert_email(owner_email: str, owner_name: str, alerts_for_owner: List[dict]):
+    """Send a single digest email listing all overdue tentative events."""
+    if not owner_email or not alerts_for_owner:
+        return
+    try:
+        from offer_email import send_offer_email  # reuse SMTP helper
+    except Exception as e:
+        logging.getLogger("alerts").warning(f"offer_email import failed: {e}")
+        return
+
+    rows_txt = []
+    rows_html = []
+    for a in alerts_for_owner:
+        ev_name = a.get("event_name") or "(bez nazwy)"
+        ev_date = a.get("event_date") or "?"
+        st = _status_label(a.get("status"))
+        client = a.get("client_name") or a.get("client_phone") or "-"
+        rows_txt.append(f"• {ev_name} — {ev_date} — status: {st} — klient: {client}")
+        rows_html.append(
+            f"<li><strong>{ev_name}</strong> — {ev_date} — <em>{st}</em> — klient: {client}</li>"
+        )
+    body_txt = (
+        f"Cześć {owner_name or ''}!\n\n"
+        f"Poniższe imprezy mają status \"wstępne zapytanie\" lub \"rezerwacja\" "
+        f"od co najmniej {_ALERT_AGE_DAYS} dni i wciąż nie są potwierdzone:\n\n"
+        + "\n".join(rows_txt) + "\n\n"
+        "Rozważ kontakt z klientem lub zmianę statusu, aby zwolnić terminy w kalendarzu.\n\n"
+        "— Biesiada pod Lasem"
+    )
+    body_html = (
+        f"<p>Cześć {owner_name or ''}!</p>"
+        f"<p>Poniższe imprezy mają status <em>wstępne zapytanie</em> lub <em>rezerwacja</em> "
+        f"od co najmniej <strong>{_ALERT_AGE_DAYS} dni</strong> i wciąż nie są potwierdzone:</p>"
+        f"<ul>{''.join(rows_html)}</ul>"
+        "<p>Rozważ kontakt z klientem lub zmianę statusu, aby zwolnić terminy w kalendarzu.</p>"
+        "<p>— Biesiada pod Lasem</p>"
+    )
+    try:
+        # Run blocking SMTP call in a thread
+        import asyncio as _asyncio
+        await _asyncio.to_thread(
+            send_offer_email,
+            to_email=owner_email,
+            subject=f"🔔 {len(alerts_for_owner)} niepotwierdzon" + ("a impreza" if len(alerts_for_owner) == 1 else "e imprezy") + " — Biesiada pod Lasem",
+            body_text=body_txt,
+            body_html=body_html,
+        )
+    except Exception as e:
+        logging.getLogger("alerts").warning(f"Alert email failed to {owner_email}: {e}")
+
+
+async def scan_and_create_alerts():
+    """Scan all events across all workspaces and create alerts for stale tentative bookings."""
+    log = logging.getLogger("alerts")
+    try:
+        threshold = now_utc() - timedelta(days=_ALERT_AGE_DAYS)
+        threshold_iso = threshold.isoformat()
+
+        # Find candidate events: status in tracked set, not already alerted
+        cursor = db.events.find(
+            {
+                "status": {"$in": list(_TRACKED_STATUSES)},
+                "created_at": {"$lte": threshold_iso},
+                "$or": [{"alert_sent": {"$exists": False}}, {"alert_sent": False}],
+            },
+            {"_id": 0}
+        )
+        pending_by_owner: dict = {}
+        touched_event_ids: List[str] = []
+        async for ev in cursor:
+            owner_id = ev.get("owner_id")
+            if not owner_id: continue
+            # Skip if event is already in the past (already resolved by time)
+            ev_date = ev.get("date") or ""
+            try:
+                if datetime.strptime(ev_date, "%Y-%m-%d").date() < now_utc().date():
+                    continue
+            except Exception:
+                pass
+            # Skip if valid_until has passed (user already knows it's expired)
+            # (keep alert though — but don't duplicate)
+
+            # Create alert doc if not exists
+            existing = await db.alerts.find_one({"event_id": ev.get("id"), "kind": "stale_status"})
+            if not existing:
+                alert_doc = {
+                    "id": str(uuid.uuid4()),
+                    "owner_id": owner_id,
+                    "event_id": ev.get("id"),
+                    "event_name": ev.get("name") or "",
+                    "event_date": ev_date,
+                    "status": ev.get("status") or "",
+                    "kind": "stale_status",
+                    "client_name": ev.get("client_name") or "",
+                    "client_phone": ev.get("client_phone") or "",
+                    "created_at": now_utc().isoformat(),
+                    "dismissed": False,
+                    "emailed": False,
+                }
+                await db.alerts.insert_one(alert_doc)
+                pending_by_owner.setdefault(owner_id, []).append(alert_doc)
+                touched_event_ids.append(ev.get("id"))
+
+        # Mark events as alerted (so we don't re-scan them)
+        if touched_event_ids:
+            await db.events.update_many(
+                {"id": {"$in": touched_event_ids}},
+                {"$set": {"alert_sent": True, "alert_sent_at": now_utc().isoformat()}}
+            )
+
+        # Send digest email per workspace owner (find workspace owner's email)
+        for owner_id, alerts in pending_by_owner.items():
+            # workspace owner = user whose id == owner_id (the workspace root user)
+            owner = await db.users.find_one({"id": owner_id}, {"_id": 0, "password_hash": 0})
+            if not owner:
+                # owner_id might be a workspace id; find any member and pick the "root"
+                owner = await db.users.find_one({"workspace_id": owner_id}, {"_id": 0, "password_hash": 0})
+            if not owner:
+                continue
+            await _send_alert_email(owner.get("email") or "", owner.get("name") or "", alerts)
+            # Mark alerts as emailed
+            await db.alerts.update_many(
+                {"id": {"$in": [a["id"] for a in alerts]}},
+                {"$set": {"emailed": True}}
+            )
+        if pending_by_owner:
+            log.info(f"Alerts scan: created {sum(len(v) for v in pending_by_owner.values())} alert(s) for {len(pending_by_owner)} owner(s)")
+    except Exception as e:
+        log.exception(f"scan_and_create_alerts failed: {e}")
+
+
+@api.get("/alerts")
+async def list_alerts(user=Depends(current_user)):
+    """List active (not-dismissed) alerts for the current workspace, newest first."""
+    items = await db.alerts.find(
+        {"owner_id": ws(user), "dismissed": {"$ne": True}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return items
+
+
+@api.post("/alerts/{alert_id}/dismiss")
+async def dismiss_alert(alert_id: str, user=Depends(current_user)):
+    res = await db.alerts.update_one(
+        {"id": alert_id, "owner_id": ws(user)},
+        {"$set": {"dismissed": True, "dismissed_at": now_utc().isoformat()}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Alert nie znaleziony")
+    return {"ok": True}
+
+
+@api.post("/alerts/dismiss-all")
+async def dismiss_all_alerts(user=Depends(current_user)):
+    await db.alerts.update_many(
+        {"owner_id": ws(user), "dismissed": {"$ne": True}},
+        {"$set": {"dismissed": True, "dismissed_at": now_utc().isoformat()}}
+    )
+    return {"ok": True}
+
+
+@api.post("/alerts/scan")
+async def alerts_scan_now(user=Depends(current_user)):
+    """Trigger the alerts scan immediately (useful for testing / manual refresh)."""
+    await scan_and_create_alerts()
+    return {"ok": True}
+
 
 app.include_router(api)
 
@@ -1400,6 +1774,9 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# APScheduler for periodic alert scans
+_scheduler = None
+
 @app.on_event("startup")
 async def _startup():
     await db.users.create_index("email", unique=True)
@@ -1410,8 +1787,38 @@ async def _startup():
     await db.user_sessions.create_index("user_id")
     # TTL index — MongoDB will auto-delete expired sessions
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    # Alerts indices
+    await db.alerts.create_index([("owner_id", 1), ("dismissed", 1), ("created_at", -1)])
+    await db.alerts.create_index([("event_id", 1), ("kind", 1)])
+
+    # Start APScheduler for 2-day stale-status alerts
+    global _scheduler
+    try:
+        from apscheduler.schedulers.asyncio import AsyncIOScheduler
+        from apscheduler.triggers.interval import IntervalTrigger
+        _scheduler = AsyncIOScheduler(timezone="Europe/Warsaw")
+        # Run every 2 hours; also run once shortly after startup
+        _scheduler.add_job(
+            scan_and_create_alerts,
+            IntervalTrigger(hours=2),
+            id="alerts_scan",
+            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=30),
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        _scheduler.start()
+        logger.info("APScheduler started: alerts_scan every 2h")
+    except Exception as e:
+        logger.warning(f"APScheduler failed to start: {e}")
 
 @app.on_event("shutdown")
 async def _shutdown():
+    global _scheduler
+    try:
+        if _scheduler:
+            _scheduler.shutdown(wait=False)
+    except Exception:
+        pass
     client.close()
 
