@@ -9,7 +9,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
-import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
+import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, DINNER_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
 import { api } from "@/src/api";
 
 type Tab = "urodziny" | "warsztaty" | "grill";
@@ -45,6 +45,12 @@ export default function Oferta() {
       } else {
         total += (parseFloat((row.qty || "").replace(",", ".")) || 0) * ex.price;
       }
+    }
+    // Dinner items — same qty × price rule
+    for (const di of DINNER_EXTRAS) {
+      const row = emailExtras[di.id];
+      if (!row) continue;
+      total += (parseFloat((row.qty || "").replace(",", ".")) || 0) * di.price;
     }
     return total;
   }, [currentSet, emailPeople, emailExtras]);
@@ -82,7 +88,7 @@ export default function Oferta() {
     try {
       // Personalization only meaningful for adult grill events
       const isPersonalized = emailMode === "personalized" && isAdultType;
-      const extrasPayload = isPersonalized
+      const extrasPayload: any[] = isPersonalized
         ? (Object.entries(emailExtras)
             .map(([id, v]) => {
               if (id === "ciasto") {
@@ -529,6 +535,31 @@ export default function Oferta() {
                         style={s.extraInput}
                         keyboardType="decimal-pad"
                       />
+                    </View>
+                  ))}
+
+                  {(["Zupa", "Danie główne", "Dodatek"] as const).map(section => (
+                    <View key={section}>
+                      <Text style={[s.fieldLabel, { marginTop: 16 }]}>Menu obiadowe · {section}</Text>
+                      {DINNER_EXTRAS.filter(d => d.section === section).map(di => (
+                        <View key={di.id} style={s.extraRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.extraName}>{di.name}</Text>
+                            <Text style={s.extraSub}>{di.price} zł / porcja</Text>
+                          </View>
+                          <TextInput
+                            testID={`offer-dinner-${di.id}`}
+                            value={emailExtras[di.id]?.qty ?? ""}
+                            onChangeText={(t) =>
+                              setEmailExtras(prev => ({ ...prev, [di.id]: { qty: t } }))
+                            }
+                            placeholder="0"
+                            placeholderTextColor={theme.color.onSurfaceSecondary}
+                            style={s.extraInput}
+                            keyboardType="decimal-pad"
+                          />
+                        </View>
+                      ))}
                     </View>
                   ))}
 

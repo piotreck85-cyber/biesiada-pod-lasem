@@ -395,7 +395,10 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     packages (Zestaw 1/2/3) are supported at the moment.
     """
     import asyncio
-    from offer_email import build_offer_pdf, send_offer_email, _find_set, _fmt_pln, build_intro_text, EVENT_TYPE_LABELS, EVENT_TYPE_SUBJECTS
+    from offer_email import (
+        build_offer_pdf, send_offer_email, _find_set, _fmt_pln, build_intro_text,
+        EVENT_TYPE_LABELS, EVENT_TYPE_SUBJECTS, find_extra,
+    )
 
     # Personalize subject line
     who = (body.client_name or "").strip()

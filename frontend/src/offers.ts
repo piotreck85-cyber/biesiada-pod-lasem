@@ -327,6 +327,42 @@ export const ADULT_EXTRAS: AdultExtra[] = [
   { id: "ciasto", name: "Ciasto (własne)", unit: "kwota", price: 0, hint: "Wpisz kwotę ręcznie" },
 ];
 
+// ---- Menu obiadowe (dinner offer 2026) ----
+// Positions from the hand-crafted "Oferta obiadowa 2026" DOCX. Prices per portion.
+export type DinnerItem = {
+  id: string;
+  name: string;
+  unit: "porcja";
+  price: number;
+  section: "Zupa" | "Danie główne" | "Dodatek";
+};
+
+export const DINNER_EXTRAS: DinnerItem[] = [
+  // Zupa
+  { id: "d_zupa_rosol",      name: "Rosół / makaron",                                   unit: "porcja", price: 20, section: "Zupa" },
+  { id: "d_zupa_zalewajka",  name: "Zalewajka Świętokrzyska",                           unit: "porcja", price: 22, section: "Zupa" },
+  { id: "d_zupa_pomidor",    name: "Krem pomidorowo-paprykowy / mozzarella",            unit: "porcja", price: 22, section: "Zupa" },
+  { id: "d_zupa_krem_bialy", name: "Krem z białych warzyw",                             unit: "porcja", price: 22, section: "Zupa" },
+  // Danie główne
+  { id: "d_dg_poledwiczka",  name: "Polędwiczka WP / sos serowy z orzechami lub leśny", unit: "porcja", price: 29, section: "Danie główne" },
+  { id: "d_dg_roladka",      name: "Roladka DR / sos serowy",                           unit: "porcja", price: 27, section: "Danie główne" },
+  { id: "d_dg_schabowy",     name: "Kotlet schabowy",                                   unit: "porcja", price: 22, section: "Danie główne" },
+  { id: "d_dg_kurczak",      name: "Filet z kurczaka",                                  unit: "porcja", price: 22, section: "Danie główne" },
+  { id: "d_dg_filet_zap",    name: "Filet zapiekany (pomidory, szpinak, mozz.)",        unit: "porcja", price: 27, section: "Danie główne" },
+  { id: "d_dg_cordon",       name: "Cordon Bleu",                                       unit: "porcja", price: 27, section: "Danie główne" },
+  { id: "d_dg_karczek",      name: "Karczek pieczony / sos myśliwski",                  unit: "porcja", price: 27, section: "Danie główne" },
+  { id: "d_dg_szydlowiecki", name: "Kotlet szydłowiecki (faszerowany)",                 unit: "porcja", price: 26, section: "Danie główne" },
+  // Dodatek
+  { id: "d_add_ziem_woda",   name: "Ziemniaki z wody",                                  unit: "porcja", price:  8, section: "Dodatek" },
+  { id: "d_add_ziem_op",     name: "Ziemniaki opiekane",                                unit: "porcja", price:  9, section: "Dodatek" },
+  { id: "d_add_slaskie",     name: "Kluski śląskie",                                    unit: "porcja", price: 12, section: "Dodatek" },
+  { id: "d_add_kopytka",     name: "Kopytka",                                           unit: "porcja", price: 10, section: "Dodatek" },
+  { id: "d_add_ryz",         name: "Ryż z warzywami",                                   unit: "porcja", price: 12, section: "Dodatek" },
+  { id: "d_add_surowki",     name: "Zestaw surówek",                                    unit: "porcja", price:  9, section: "Dodatek" },
+  { id: "d_add_wiosenna",    name: "Wiosenna",                                          unit: "porcja", price:  9, section: "Dodatek" },
+  { id: "d_add_kapusta",     name: "Kapusta zasmażana",                                 unit: "porcja", price: 10, section: "Dodatek" },
+];
+
 
 function _findAdultSetImpl(id?: string): AdultSet | undefined {
   if (!id) return undefined;

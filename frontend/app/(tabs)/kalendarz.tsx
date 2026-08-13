@@ -33,6 +33,17 @@ function formatTimeRange(start?: string, end?: string, legacy?: string): string 
   return legacy || "—";
 }
 
+// Color per event category — matches offer types (firmowe/okolicznościowe/urodziny/warsztaty)
+function categoryColor(category?: string): string {
+  const c = (category || "").toLowerCase();
+  if (c.startsWith("dorosli/firmowe")) return "#60A5FA";           // niebieski – firmowe
+  if (c.startsWith("dorosli/okolicznosciowe")) return "#D4AF37";   // złoto – okolicznościowe
+  if (c.startsWith("dorosli")) return "#D4AF37";                   // fallback dla dorosłych
+  if (c.startsWith("dzieci/urodzinki")) return "#F472B6";          // róż – urodziny
+  if (c.startsWith("dzieci/wycieczki")) return "#34D399";          // zielony – warsztaty
+  return "#9CA3AF";                                                // szary – bez kategorii
+}
+
 export default function Kalendarz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -59,11 +70,11 @@ export default function Kalendarz() {
   useEffect(() => { load(); }, [load]);
 
   const eventDates = useMemo(() => {
-    const map: Record<string, { count: number; names: string[] }> = {};
+    const map: Record<string, { count: number; entries: { name: string; color: string }[] }> = {};
     events.forEach(e => {
-      if (!map[e.date]) map[e.date] = { count: 0, names: [] };
+      if (!map[e.date]) map[e.date] = { count: 0, entries: [] };
       map[e.date].count += 1;
-      map[e.date].names.push(e.name);
+      map[e.date].entries.push({ name: e.name, color: categoryColor(e.category) });
     });
     return map;
   }, [events]);
@@ -159,7 +170,7 @@ export default function Kalendarz() {
               const isToday = dateStr === fmt(today.getFullYear(), today.getMonth(), today.getDate());
               const info = eventDates[dateStr];
               const count = info?.count || 0;
-              const names = info?.names || [];
+              const entries = info?.entries || [];
               return (
                 <Pressable
                   key={i}
@@ -169,18 +180,22 @@ export default function Kalendarz() {
                 >
                   <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
                   {count > 0 && (
-                    <View style={s.dotRow}>
-                      {Array.from({ length: Math.min(count, 3) }).map((_, di) => (
-                        <View
-                          key={di}
+                    <View style={s.cellEventList}>
+                      {entries.slice(0, 2).map((en, idx) => (
+                        <Text
+                          key={idx}
+                          numberOfLines={1}
                           style={[
-                            s.dot,
-                            isSel ? { backgroundColor: theme.color.onBrand } : { backgroundColor: theme.color.brand },
+                            s.cellEventName,
+                            { color: en.color },
+                            isSel && { color: theme.color.onBrand },
                           ]}
-                        />
+                        >
+                          {en.name}
+                        </Text>
                       ))}
-                      {count > 3 && (
-                        <Text style={[s.dotMore, isSel && { color: theme.color.onBrand }]}>+{count - 3}</Text>
+                      {count > 2 && (
+                        <Text style={[s.cellEventMore, isSel && { color: theme.color.onBrand }]}>+{count - 2}</Text>
                       )}
                     </View>
                   )}

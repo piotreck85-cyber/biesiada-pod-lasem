@@ -102,6 +102,43 @@ ADULT_EXTRAS = [
     {"id": "salatka", "name": "Sałatka (Farfalle, Gyros, Grecka, Cezar...)", "unit": "porcja", "price": 13},
 ]
 
+# ---------- Dinner offer (oferta obiadowa) ----------
+# Each item: {id, name, unit, price, section}. Priced per portion. Used both in the
+# offer email calculation and in the frontend picker (grouped by section).
+DINNER_EXTRAS = [
+    # Zupa
+    {"id": "d_zupa_rosol",     "name": "Rosół / makaron",                                    "unit": "porcja", "price": 20, "section": "Zupa"},
+    {"id": "d_zupa_zalewajka", "name": "Zalewajka Świętokrzyska",                            "unit": "porcja", "price": 22, "section": "Zupa"},
+    {"id": "d_zupa_pomidor",   "name": "Krem pomidorowo-paprykowy / mozzarella",             "unit": "porcja", "price": 22, "section": "Zupa"},
+    {"id": "d_zupa_krem_bialy","name": "Krem z białych warzyw",                              "unit": "porcja", "price": 22, "section": "Zupa"},
+    # Danie główne
+    {"id": "d_dg_poledwiczka", "name": "Polędwiczka WP / sos serowy z orzechami lub leśny",  "unit": "porcja", "price": 29, "section": "Danie główne"},
+    {"id": "d_dg_roladka",     "name": "Roladka DR / sos serowy",                            "unit": "porcja", "price": 27, "section": "Danie główne"},
+    {"id": "d_dg_schabowy",    "name": "Kotlet schabowy",                                    "unit": "porcja", "price": 22, "section": "Danie główne"},
+    {"id": "d_dg_kurczak",     "name": "Filet z kurczaka",                                   "unit": "porcja", "price": 22, "section": "Danie główne"},
+    {"id": "d_dg_filet_zap",   "name": "Filet zapiekany (pomidory suszone, szpinak, mozz.)", "unit": "porcja", "price": 27, "section": "Danie główne"},
+    {"id": "d_dg_cordon",      "name": "Cordon Bleu",                                        "unit": "porcja", "price": 27, "section": "Danie główne"},
+    {"id": "d_dg_karczek",     "name": "Karczek pieczony / sos myśliwski",                   "unit": "porcja", "price": 27, "section": "Danie główne"},
+    {"id": "d_dg_szydlowiecki","name": "Kotlet szydłowiecki (faszerowany)",                  "unit": "porcja", "price": 26, "section": "Danie główne"},
+    # Dodatki
+    {"id": "d_add_ziem_woda",  "name": "Ziemniaki z wody",                                   "unit": "porcja", "price":  8, "section": "Dodatek"},
+    {"id": "d_add_ziem_op",    "name": "Ziemniaki opiekane",                                 "unit": "porcja", "price":  9, "section": "Dodatek"},
+    {"id": "d_add_slaskie",    "name": "Kluski śląskie",                                     "unit": "porcja", "price": 12, "section": "Dodatek"},
+    {"id": "d_add_kopytka",    "name": "Kopytka",                                            "unit": "porcja", "price": 10, "section": "Dodatek"},
+    {"id": "d_add_ryz",        "name": "Ryż z warzywami",                                    "unit": "porcja", "price": 12, "section": "Dodatek"},
+    {"id": "d_add_surowki",    "name": "Zestaw surówek",                                     "unit": "porcja", "price":  9, "section": "Dodatek"},
+    {"id": "d_add_wiosenna",   "name": "Wiosenna",                                           "unit": "porcja", "price":  9, "section": "Dodatek"},
+    {"id": "d_add_kapusta",    "name": "Kapusta zasmażana",                                  "unit": "porcja", "price": 10, "section": "Dodatek"},
+]
+
+def find_extra(extra_id: str) -> Optional[dict]:
+    """Look up an extra by id in either ADULT_EXTRAS or DINNER_EXTRAS."""
+    for src in (ADULT_EXTRAS, DINNER_EXTRAS):
+        for e in src:
+            if e["id"] == extra_id:
+                return e
+    return None
+
 # ---------- Birthday packages (kids) ----------
 BIRTHDAY_PACKAGES = [
     {
@@ -511,7 +548,7 @@ def build_offer_pdf(
                     label = "Ciasto (własne)"
                     qty_label = "kwota"
                 else:
-                    src = next((x for x in ADULT_EXTRAS if x["id"] == eid), None)
+                    src = find_extra(eid)
                     if not src or qty <= 0:
                         continue
                     price_each = src["price"]
