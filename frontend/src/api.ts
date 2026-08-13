@@ -47,6 +47,8 @@ export const api = {
   exchangeSession: (sessionId: string) =>
     request("/auth/session", { method: "POST", body: JSON.stringify({ session_id: sessionId }) }),
   logoutServer: () => request("/auth/logout", { method: "POST" }),
+  weather: (date: string, timeStart?: string, timeEnd?: string) =>
+    request(`/weather?date=${encodeURIComponent(date)}&time_start=${encodeURIComponent(timeStart || "")}&time_end=${encodeURIComponent(timeEnd || "")}`),
   me: () => request("/auth/me"),
   deleteAccount: () => request("/auth/me", { method: "DELETE" }),
   workspace: () => request("/workspace"),

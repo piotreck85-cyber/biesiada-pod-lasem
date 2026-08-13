@@ -72,6 +72,19 @@ class EventIn(BaseModel):
     costs: List[CostItem] = []
     shifts: List[StaffShift] = []
     image_url: Optional[str] = ""
+    # ---- Status ----
+    status: Optional[str] = ""        # wstepne | rezerwacja | potwierdzona | zakonczona | anulowana
+    valid_until: Optional[str] = ""   # YYYY-MM-DD — for "wstepne zapytanie"
+    # ---- Client ----
+    client_name: Optional[str] = ""
+    client_phone: Optional[str] = ""
+    client_email: Optional[str] = ""
+    client_notes: Optional[str] = ""
+    # ---- Payment ----
+    price_total: Optional[float] = 0.0
+    deposit_paid: Optional[bool] = False
+    deposit_amount: Optional[float] = 0.0
+    deposit_date: Optional[str] = ""
 
 class TemplateIn(BaseModel):
     name: str
@@ -1266,6 +1279,114 @@ async def export_events(user=Depends(current_user), year: Optional[int] = None, 
 async def root():
     return {"app": "Eventa", "ok": True}
 
+
+# ---------- Weather (Open-Meteo, no API key required) ----------
+KIELCE_ZASTAWIE_LAT = 50.83
+KIELCE_ZASTAWIE_LON = 20.68
+
+_WMO = {
+    0: ("sun", "Bezchmurnie", False),
+    1: ("sun", "Głównie słonecznie", False),
+    2: ("cloud-sun", "Częściowe zachmurzenie", False),
+    3: ("cloud", "Zachmurzenie", False),
+    45: ("cloud-drizzle", "Mgła", False),
+    48: ("cloud-drizzle", "Osadzająca się szadź", False),
+    51: ("cloud-drizzle", "Lekka mżawka", True),
+    53: ("cloud-drizzle", "Mżawka", True),
+    55: ("cloud-rain", "Gęsta mżawka", True),
+    61: ("cloud-rain", "Lekki deszcz", True),
+    63: ("cloud-rain", "Deszcz", True),
+    65: ("cloud-rain", "Ulewny deszcz", True),
+    71: ("cloud-snow", "Lekkie opady śniegu", True),
+    73: ("cloud-snow", "Opady śniegu", True),
+    75: ("cloud-snow", "Silne opady śniegu", True),
+    80: ("cloud-rain", "Lekkie przelotne opady", True),
+    81: ("cloud-rain", "Przelotne opady", True),
+    82: ("cloud-rain", "Ulewne przelotne opady", True),
+    85: ("cloud-snow", "Przelotne opady śniegu", True),
+    86: ("cloud-snow", "Silne przelotne opady śniegu", True),
+    95: ("cloud-lightning", "Burza", True),
+    96: ("cloud-lightning", "Burza z gradem", True),
+    99: ("cloud-lightning", "Silna burza z gradem", True),
+}
+
+@api.get("/weather")
+async def weather_forecast(date: str, time_start: str = "", time_end: str = ""):
+    import httpx
+    try:
+        target = datetime.strptime(date, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(400, "Nieprawidłowa data (YYYY-MM-DD)")
+    today = datetime.now(timezone.utc).date()
+    days_ahead = (target - today).days
+    if days_ahead < 0:
+        return {"available": False, "message": "Prognoza dla wydarzeń z przeszłości nie jest dostępna."}
+    if days_ahead > 15:
+        return {"available": False, "message": "Prognoza będzie dostępna bliżej terminu imprezy (do 16 dni)."}
+
+    def h(t: str):
+        try: return int(t.split(":")[0])
+        except: return None
+    h_start = h(time_start) if time_start else 12
+    h_end = h(time_end) if time_end else (h_start or 12) + 4
+    if h_start is None or h_end is None or h_end < h_start:
+        h_start = 12; h_end = 20
+    h_end = min(h_end, 23)
+
+    params = {
+        "latitude": KIELCE_ZASTAWIE_LAT,
+        "longitude": KIELCE_ZASTAWIE_LON,
+        "hourly": "temperature_2m,precipitation_probability,precipitation,wind_speed_10m,weather_code",
+        "timezone": "Europe/Warsaw",
+        "start_date": date,
+        "end_date": date,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as cli:
+            resp = await cli.get("https://api.open-meteo.com/v1/forecast", params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        raise HTTPException(502, f"Nie udało się pobrać prognozy: {e}")
+
+    hourly = data.get("hourly") or {}
+    times = hourly.get("time") or []
+    temps = hourly.get("temperature_2m") or []
+    precs = hourly.get("precipitation_probability") or []
+    winds = hourly.get("wind_speed_10m") or []
+    codes = hourly.get("weather_code") or []
+    idx = [i for i, t in enumerate(times) if h_start <= int(t.split("T")[1].split(":")[0]) <= h_end]
+    if not idx: idx = list(range(len(times)))
+
+    def _agg(arr, fn):
+        vals = [arr[i] for i in idx if i < len(arr) and arr[i] is not None]
+        return fn(vals) if vals else None
+
+    temp_min = _agg(temps, min); temp_max = _agg(temps, max)
+    prec_max = _agg(precs, max) or 0; wind_max = _agg(winds, max) or 0
+    code_slice = [codes[i] for i in idx if i < len(codes)]
+    dominant = max(set(code_slice), key=code_slice.count) if code_slice else 0
+    icon, desc, is_rainy = _WMO.get(dominant, ("cloud", "Nieznane", False))
+    warning = None
+    if is_rainy and prec_max >= 30:
+        warning = f"⚠ Możliwy deszcz podczas imprezy ({int(prec_max)}% szans)."
+    elif wind_max >= 40:
+        warning = f"⚠ Silny wiatr do {int(wind_max)} km/h."
+    return {
+        "available": True,
+        "location": "Kielce, ul. Zastawie 4",
+        "date": date,
+        "time_window": f"{h_start:02d}:00–{h_end:02d}:00",
+        "temp_min": round(temp_min, 1) if temp_min is not None else None,
+        "temp_max": round(temp_max, 1) if temp_max is not None else None,
+        "precipitation_prob": int(prec_max),
+        "wind_kmh": int(wind_max),
+        "code": dominant,
+        "icon": icon,
+        "description": desc,
+        "warning": warning,
+    }
+
 app.include_router(api)
 
 app.add_middleware(
@@ -1293,3 +1414,4 @@ async def _startup():
 @app.on_event("shutdown")
 async def _shutdown():
     client.close()
+
