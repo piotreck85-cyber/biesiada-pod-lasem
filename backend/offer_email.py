@@ -370,6 +370,8 @@ _INTRO_WORKSHOPS = (
 EVENT_TYPE_SIGNOFFS = {
     "warsztaty": "Serdecznie pozdrawiamy\nBiesiada Pod Lasem",
     "urodziny": "Pozdrawiamy serdecznie\nDolina Przygód | Biesiada pod Lasem\ndolinaprzygod.pl",
+    "okolicznosciowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
+    "firmowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
 }
 
 # Custom subject overrides per event type. Falls back to the default subject builder.

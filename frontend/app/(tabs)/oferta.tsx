@@ -24,6 +24,7 @@ export default function Oferta() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailMode, setEmailMode] = useState<"general" | "personalized">("general");
   const [emailType, setEmailType] = useState<"okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty">("okolicznosciowe");
+  const [emailAtt, setEmailAtt] = useState<"grill" | "dinner" | "both">("both");
   const [emailTo, setEmailTo] = useState("");
   const [emailClient, setEmailClient] = useState("");
   const [emailDate, setEmailDate] = useState("");
@@ -74,6 +75,7 @@ export default function Oferta() {
     setEmailSet("set1");
     setEmailNote("");
     setEmailExtras({});
+    setEmailAtt("both");
     setEmailOpen(true);
   };
 
@@ -110,6 +112,7 @@ export default function Oferta() {
         extras: extrasPayload,
         custom_note: emailNote.trim() || undefined,
         event_type: emailType,
+        attachments_mode: isAdultType ? emailAtt : undefined,
       });
       setEmailOpen(false);
       Alert.alert("Wysłano ✓", `Oferta poszła na ${emailTo.trim()}.`);
@@ -438,6 +441,33 @@ export default function Oferta() {
                     {emailMode === "general"
                       ? "Klient dostanie pełny katalog wszystkich 3 zestawów i dodatków — sam wybierze."
                       : "Do pełnego katalogu dołączymy Twoją propozycję z wyliczeniem dla konkretnego zestawu."}
+                  </Text>
+
+                  <Text style={[s.fieldLabel, { marginTop: 12 }]}>Załączniki</Text>
+                  <View style={s.modeRow}>
+                    {([
+                      { k: "grill",  label: "Grill",     icon: "aperture" },
+                      { k: "dinner", label: "Obiadowa",  icon: "coffee" },
+                      { k: "both",   label: "Obydwa",    icon: "layers" },
+                    ] as const).map(a => {
+                      const active = emailAtt === a.k;
+                      return (
+                        <Pressable
+                          key={a.k}
+                          testID={`offer-att-${a.k}`}
+                          onPress={() => setEmailAtt(a.k)}
+                          style={[s.modeBtn, active && s.modeBtnActive]}
+                        >
+                          <Feather name={a.icon as any} size={13} color={active ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                          <Text style={[s.modeBtnText, active && s.modeBtnTextActive]}>{a.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={s.modeHint}>
+                    {emailAtt === "grill" && "W mailu będzie tylko Menu Biesiada pod Lasem 2026 (grill)."}
+                    {emailAtt === "dinner" && "W mailu będzie tylko Oferta obiadowa 2026."}
+                    {emailAtt === "both" && "W mailu będą oba pliki — Menu grill + Oferta obiadowa."}
                   </Text>
                 </>
               )}

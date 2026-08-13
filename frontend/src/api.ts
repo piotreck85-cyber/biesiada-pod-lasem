@@ -101,6 +101,7 @@ export const api = {
     custom_note?: string;
     event_id?: string;
     event_type?: "okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty";
+    attachments_mode?: "grill" | "dinner" | "both";
   }) => request("/offers/send-email", { method: "POST", body: JSON.stringify(data) }),
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 };

@@ -103,6 +103,7 @@ class SendOfferIn(BaseModel):
     custom_note: Optional[str] = ""
     event_id: Optional[str] = None       # optional link to event
     event_type: Optional[str] = None     # okolicznosciowe | firmowe | urodziny | warsztaty
+    attachments_mode: Optional[str] = "both"  # For adult events: grill | dinner | both
 
 # ---------- Helpers ----------
 def now_utc():
@@ -452,29 +453,36 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     is_workshops = body.event_type == "warsztaty"
     is_adult = body.event_type in ("okolicznosciowe", "firmowe")
     is_birthday = body.event_type == "urodziny"
+    att_mode = (body.attachments_mode or "both").lower()
+    if att_mode not in ("grill", "dinner", "both"):
+        att_mode = "both"
 
     if is_birthday:
-        # Owner's request: pure text email, no attachments at all
         attachments_txt = ""
         attachments_html = ""
     elif is_workshops:
         attachments_txt = "\n\n(w załączniku szczegółowa oferta warsztatów jesiennych)\n"
-        attachments_html = ""  # user's intro already mentions "W załączniku"
+        attachments_html = ""
     elif is_adult:
-        attachments_txt = (
-            "\n\nW załączniku:\n"
-            "  •  Menu Biesiada pod Lasem 2026 (DOCX),\n"
-            "  •  Oferta obiadowa 2026 (DOCX).\n"
-        )
-        attachments_html = """
+        parts_txt = []
+        parts_html_li = []
+        if att_mode in ("grill", "both"):
+            parts_txt.append("  •  Menu Biesiada pod Lasem 2026 (DOCX — grill),")
+            parts_html_li.append("<li>Menu Biesiada pod Lasem 2026 (DOCX — grill)</li>")
+        if att_mode in ("dinner", "both"):
+            parts_txt.append("  •  Oferta obiadowa 2026 (DOCX),")
+            parts_html_li.append("<li>Oferta obiadowa 2026 (DOCX)</li>")
+        if parts_txt:
+            attachments_txt = "\n\nW załączniku:\n" + "\n".join(parts_txt) + "\n"
+            attachments_html = f"""
         <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
           <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
-          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
-            <li>Menu Biesiada pod Lasem 2026 (DOCX)</li>
-            <li>Oferta obiadowa 2026 (DOCX)</li>
-          </ul>
+          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">{''.join(parts_html_li)}</ul>
         </div>
         """
+        else:
+            attachments_txt = ""
+            attachments_html = ""
     else:
         attachments_txt = (
             "\n\nW załączniku:\n"
@@ -576,20 +584,27 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         fname_type = fname_type_map.get(body.event_type or "", "plenerowa")
 
         assets_dir = ROOT_DIR / "assets"
+        grill_file = {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
+                      "filename": "Menu-Biesiada-pod-Lasem-2026.docx"}
+        dinner_file = {"path": str(assets_dir / "Oferta-obiadowa-2026.docx"),
+                       "filename": "Oferta-obiadowa-2026.docx"}
+
         if body.event_type == "urodziny":
-            extras_files = []  # pure text email — no attachments
+            extras_files = []
         elif body.event_type == "warsztaty":
             extras_files = [
                 {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
             ]
+        elif body.event_type in ("okolicznosciowe", "firmowe"):
+            # User picks: grill only / dinner only / both
+            extras_files = []
+            if att_mode in ("grill", "both"):
+                extras_files.append(grill_file)
+            if att_mode in ("dinner", "both"):
+                extras_files.append(dinner_file)
         else:
-            extras_files = [
-                {"path": str(assets_dir / "Menu-Biesiada-pod-Lasem-2026.docx"),
-                 "filename": "Menu-Biesiada-pod-Lasem-2026.docx"},
-                {"path": str(assets_dir / "Oferta-obiadowa-2026.docx"),
-                 "filename": "Oferta-obiadowa-2026.docx"},
-            ]
+            extras_files = [grill_file, dinner_file]
 
         await asyncio.to_thread(
             send_offer_email,
