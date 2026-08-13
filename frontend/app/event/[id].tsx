@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TextInput, Pressable, KeyboardAvoidingView,
-  Platform, ActivityIndicator, Modal, Alert,
+  Platform, ActivityIndicator, Modal, Alert, Linking,
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
@@ -67,6 +67,19 @@ export default function EventDetail() {
   const [catPickerOpen, setCatPickerOpen] = useState(false);
   const [templates, setTemplates] = useState<any[]>([]);
   const [tplPickerOpen, setTplPickerOpen] = useState(false);
+  // ---- Status, Client, Payment, Weather (new) ----
+  const [status, setStatus] = useState<string>("");
+  const [validUntil, setValidUntil] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
+  const [clientPhone, setClientPhone] = useState<string>("");
+  const [clientEmail, setClientEmail] = useState<string>("");
+  const [clientNotes, setClientNotes] = useState<string>("");
+  const [priceTotal, setPriceTotal] = useState<string>("");
+  const [depositPaid, setDepositPaid] = useState<boolean>(false);
+  const [depositAmount, setDepositAmount] = useState<string>("");
+  const [depositDate, setDepositDate] = useState<string>("");
+  const [weather, setWeather] = useState<any | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -84,6 +97,17 @@ export default function EventDetail() {
           setCategory(ev.category || "");
           setPeople(ev.people ? String(ev.people) : "");
           setAutoPrice(false); // editing existing event: don't override user's saved revenue
+          // New fields
+          setStatus(ev.status || "");
+          setValidUntil(ev.valid_until || "");
+          setClientName(ev.client_name || "");
+          setClientPhone(ev.client_phone || "");
+          setClientEmail(ev.client_email || "");
+          setClientNotes(ev.client_notes || "");
+          setPriceTotal(ev.price_total ? String(ev.price_total) : "");
+          setDepositPaid(!!ev.deposit_paid);
+          setDepositAmount(ev.deposit_amount ? String(ev.deposit_amount) : "");
+          setDepositDate(ev.deposit_date || "");
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -141,6 +165,19 @@ export default function EventDetail() {
       package_set: packageSet,
       revenue: revenueNum,
       revenue_net: parseFloat(revenueNet.replace(",", ".")) || 0,
+      // ---- Status ----
+      status: status || "",
+      valid_until: validUntil || "",
+      // ---- Client ----
+      client_name: clientName.trim(),
+      client_phone: clientPhone.trim(),
+      client_email: clientEmail.trim(),
+      client_notes: clientNotes.trim(),
+      // ---- Payment ----
+      price_total: parseAmt(priceTotal),
+      deposit_paid: !!depositPaid,
+      deposit_amount: parseAmt(depositAmount),
+      deposit_date: depositDate || "",
       costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
       shifts: shifts.map(sh => ({
         staff_id: sh.staff_id,
@@ -381,6 +418,228 @@ export default function EventDetail() {
             <Field label="Notatki">
               <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="..." placeholderTextColor={theme.color.onSurfaceSecondary} style={[s.input, { height: 80, textAlignVertical: "top" }]} multiline />
             </Field>
+          </Section>
+
+          {/* Status */}
+          <Section title="Status imprezy">
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {([
+                { k: "wstepne",     label: "Wstępne zapytanie", color: "#F59E0B" },
+                { k: "rezerwacja",  label: "Rezerwacja",        color: "#F97316" },
+                { k: "potwierdzona",label: "Potwierdzona",      color: "#10B981" },
+                { k: "zakonczona",  label: "Zakończona",        color: "#3B82F6" },
+                { k: "anulowana",   label: "Anulowana",         color: "#EF4444" },
+              ] as const).map(st => {
+                const active = status === st.k;
+                return (
+                  <Pressable
+                    key={st.k}
+                    testID={`status-${st.k}`}
+                    onPress={() => setStatus(active ? "" : st.k)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 6,
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                      backgroundColor: active ? st.color : theme.color.surfaceTertiary,
+                      borderWidth: 1, borderColor: active ? st.color : theme.color.border,
+                    }}
+                  >
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
+                    <Text style={{ color: active ? "#0A0A0A" : theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {status === "wstepne" && (
+              <Field label="Ważne do (data ważności zapytania)">
+                <TextInput
+                  testID="event-valid-until"
+                  value={validUntil}
+                  onChangeText={setValidUntil}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  style={s.input}
+                />
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                  💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
+                </Text>
+              </Field>
+            )}
+          </Section>
+
+          {/* Client */}
+          <Section title="Klient">
+            <Field label="Imię i nazwisko / nazwa firmy">
+              <TextInput testID="client-name" value={clientName} onChangeText={setClientName}
+                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+            </Field>
+            <Field label="Telefon">
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <TextInput testID="client-phone" value={clientPhone} onChangeText={setClientPhone}
+                  placeholder="+48 123 456 789" placeholderTextColor={theme.color.onSurfaceSecondary}
+                  keyboardType="phone-pad" style={[s.input, { flex: 1 }]} />
+                <Pressable
+                  testID="client-call"
+                  disabled={!clientPhone.trim()}
+                  onPress={() => Linking.openURL(`tel:${clientPhone.replace(/\s/g, "")}`)}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? theme.color.brand : theme.color.surfaceTertiary }}
+                >
+                  <Feather name="phone" size={18} color={clientPhone.trim() ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                </Pressable>
+                <Pressable
+                  testID="client-sms"
+                  disabled={!clientPhone.trim()}
+                  onPress={() => Linking.openURL(`sms:${clientPhone.replace(/\s/g, "")}`)}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? theme.color.brand : theme.color.surfaceTertiary }}
+                >
+                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                </Pressable>
+              </View>
+            </Field>
+            <Field label="E-mail">
+              <TextInput testID="client-email" value={clientEmail} onChangeText={setClientEmail}
+                placeholder="klient@example.com" placeholderTextColor={theme.color.onSurfaceSecondary}
+                keyboardType="email-address" autoCapitalize="none" style={s.input} />
+            </Field>
+            <Field label="Notatki o kliencie">
+              <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
+                placeholder="Preferencje, historia współpracy..." placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={[s.input, { height: 60, textAlignVertical: "top" }]} multiline />
+            </Field>
+          </Section>
+
+          {/* Payment */}
+          <Section title="Płatność">
+            <Field label="Całkowita cena imprezy">
+              <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
+                placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                keyboardType="decimal-pad" style={s.input} />
+            </Field>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              {[{v: true, lbl: "Zaliczka wpłacona"}, {v: false, lbl: "Brak zaliczki"}].map(o => {
+                const active = depositPaid === o.v;
+                return (
+                  <Pressable
+                    key={String(o.v)}
+                    testID={`deposit-${o.v}`}
+                    onPress={() => setDepositPaid(o.v)}
+                    style={{
+                      flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
+                      backgroundColor: active ? (o.v ? theme.color.success : theme.color.surfaceTertiary) : theme.color.surfaceTertiary,
+                      borderWidth: 1, borderColor: active ? (o.v ? theme.color.success : theme.color.borderStrong) : theme.color.border,
+                    }}
+                  >
+                    <Text style={{ color: active && o.v ? "#022C22" : theme.color.onSurface, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {depositPaid && (
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Kwota zaliczki">
+                    <TextInput testID="deposit-amount" value={depositAmount} onChangeText={setDepositAmount}
+                      placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                      keyboardType="decimal-pad" style={s.input} />
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Data wpłaty">
+                    <TextInput testID="deposit-date" value={depositDate} onChangeText={setDepositDate}
+                      placeholder="YYYY-MM-DD" placeholderTextColor={theme.color.onSurfaceSecondary}
+                      style={s.input} />
+                  </Field>
+                </View>
+              </View>
+            )}
+            {parseAmt(priceTotal) > 0 && (
+              <View style={{
+                marginTop: 14, padding: 14, borderRadius: 12,
+                backgroundColor: theme.color.surfaceTertiary,
+                borderWidth: 1, borderColor: theme.color.brand,
+              }}>
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
+                <Text style={{
+                  color: (parseAmt(priceTotal) - (depositPaid ? parseAmt(depositAmount) : 0)) > 0 ? theme.color.brand : theme.color.success,
+                  fontSize: 24, fontWeight: "800", marginTop: 4,
+                }}>
+                  {(parseAmt(priceTotal) - (depositPaid ? parseAmt(depositAmount) : 0)).toFixed(2)} zł
+                </Text>
+              </View>
+            )}
+          </Section>
+
+          {/* Weather */}
+          <Section title="Pogoda w dniu imprezy">
+            <Pressable
+              testID="weather-fetch"
+              onPress={async () => {
+                if (!date) return;
+                setWeatherLoading(true);
+                try {
+                  const w = await api.weather(date, timeStart, timeEnd);
+                  setWeather(w);
+                } catch (e: any) {
+                  setWeather({ available: false, message: e?.message || "Błąd pobierania prognozy" });
+                } finally { setWeatherLoading(false); }
+              }}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                paddingVertical: 12, borderRadius: 10,
+                backgroundColor: theme.color.surfaceTertiary, borderWidth: 1, borderColor: theme.color.brand,
+              }}
+            >
+              {weatherLoading ? (
+                <ActivityIndicator color={theme.color.brand} size="small" />
+              ) : (
+                <>
+                  <Feather name="cloud" size={16} color={theme.color.brand} />
+                  <Text style={{ color: theme.color.brand, fontWeight: "700", fontSize: 13 }}>
+                    {weather ? "Odśwież prognozę" : "Sprawdź prognozę pogody"}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            {weather && !weather.available && (
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
+                {weather.message || "Prognoza niedostępna"}
+              </Text>
+            )}
+            {weather && weather.available && (
+              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: theme.color.surfaceTertiary, borderWidth: 1, borderColor: theme.color.border }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <Feather name={weather.icon || "cloud"} size={40} color={theme.color.brand} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "800" }}>
+                      {weather.temp_min !== null ? `${weather.temp_min}°` : "—"}
+                      {" – "}
+                      {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
+                    </Text>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 }}>
+                      {weather.description}  ·  {weather.time_window}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
+                  <View>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
+                    <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
+                    <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
+                    <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
+                  </View>
+                </View>
+                {weather.warning && (
+                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: theme.color.warning }}>
+                    <Text style={{ color: theme.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
+                  </View>
+                )}
+              </View>
+            )}
           </Section>
 
           {/* Financials */}

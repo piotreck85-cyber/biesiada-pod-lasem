@@ -239,7 +239,24 @@ export default function Ostatnie() {
               </View>
 
               <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={s.rowName} numberOfLines={1}>{item.name || "Bez nazwy"}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <Text style={s.rowName} numberOfLines={1}>{item.name || "Bez nazwy"}</Text>
+                  {item.status ? (() => {
+                    const map: any = {
+                      wstepne:     { c: "#F59E0B", l: "Wstępne" },
+                      rezerwacja:  { c: "#F97316", l: "Rezerwacja" },
+                      potwierdzona:{ c: "#10B981", l: "Potwierdzona" },
+                      zakonczona:  { c: "#3B82F6", l: "Zakończona" },
+                      anulowana:   { c: "#EF4444", l: "Anulowana" },
+                    };
+                    const st = map[item.status];
+                    return st ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: st.c }}>
+                        <Text style={{ color: "#0A0A0A", fontSize: 9, fontWeight: "800", letterSpacing: 0.2 }}>{st.l}</Text>
+                      </View>
+                    ) : null;
+                  })() : null}
+                </View>
                 <View style={s.rowMeta}>
                   {item.category ? (
                     <View style={s.metaChip}>
