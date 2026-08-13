@@ -169,18 +169,18 @@ export default function Kalendarz() {
                 >
                   <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
                   {count > 0 && (
-                    <View style={s.cellEventList}>
-                      {names.slice(0, 2).map((n, idx) => (
-                        <Text
-                          key={idx}
-                          numberOfLines={1}
-                          style={[s.cellEventName, isSel && { color: theme.color.onBrand }]}
-                        >
-                          {n}
-                        </Text>
+                    <View style={s.dotRow}>
+                      {Array.from({ length: Math.min(count, 3) }).map((_, di) => (
+                        <View
+                          key={di}
+                          style={[
+                            s.dot,
+                            isSel ? { backgroundColor: theme.color.onBrand } : { backgroundColor: theme.color.brand },
+                          ]}
+                        />
                       ))}
-                      {count > 2 && (
-                        <Text style={[s.cellEventMore, isSel && { color: theme.color.onBrand }]}>+{count - 2}</Text>
+                      {count > 3 && (
+                        <Text style={[s.dotMore, isSel && { color: theme.color.onBrand }]}>+{count - 3}</Text>
                       )}
                     </View>
                   )}
@@ -324,6 +324,11 @@ const s = StyleSheet.create({
   cellEventMore: {
     fontSize: 10, color: theme.color.brand, fontWeight: "700", marginTop: 1,
   },
+  dotRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, marginTop: 4,
+  },
+  dot: { width: 5, height: 5, borderRadius: 3 },
+  dotMore: { color: theme.color.brand, fontSize: 9, fontWeight: "700", marginLeft: 2 },
   listSection: { paddingHorizontal: 20, paddingTop: 20 },
   listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
   sectionTitle: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },

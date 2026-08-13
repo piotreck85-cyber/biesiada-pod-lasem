@@ -15,7 +15,7 @@ import { useAuth, extractSessionId } from "@/src/auth";
 // Handles auth session return on iOS/Android (safe no-op on web).
 WebBrowser.maybeCompleteAuthSession();
 
-const BG = "https://images.unsplash.com/photo-1630395822970-acd6a691d97e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMG5pZ2h0bGlmZSUyMGNsdWIlMjBsaWdodHMlMjBkYXJrfGVufDB8fHx8MTc4NjExOTQ3NXww&ixlib=rb-4.1.0&q=85";
+const BG = "https://images.unsplash.com/photo-1464457312035-3d7d0e0c058e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxkYXJrJTIwcGluZSUyMGZvcmVzdCUyMGZvZ3xlbnwwfHx8fDE3ODY1MDg2MDd8MA&ixlib=rb-4.1.0&q=85";
 
 export default function Login() {
   const insets = useSafeAreaInsets();
