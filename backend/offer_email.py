@@ -97,8 +97,8 @@ ADULT_SETS = [
 
 ADULT_EXTRAS = [
     {"id": "napoje", "name": "Napoje (cola, soki)", "unit": "os.", "price": 20},
-    {"id": "taca_mies", "name": "Półmisek mięs (5–6 os.)", "unit": "szt.", "price": 200},
-    {"id": "taca_mix", "name": "Taca przystawek mix (5–6 os.)", "unit": "szt.", "price": 180},
+    {"id": "taca_mies", "name": "Półmisek mięs (5–6 os.)", "unit": "szt.", "price": 240},
+    {"id": "taca_mix", "name": "Taca przystawek mix (5–6 os.)", "unit": "szt.", "price": 220},
     {"id": "salatka", "name": "Sałatka (Farfalle, Gyros, Grecka, Cezar...)", "unit": "porcja", "price": 13},
 ]
 

@@ -11,7 +11,7 @@ import { api } from "@/src/api";
 import { categoryLabel, categoryTopGroup } from "@/src/categories";
 import { findAdultSet } from "@/src/offers";
 
-type FilterKey = "all" | "Dorośli" | "Dzieci" | "upcoming" | "past" | "profitable" | "loss" | "none";
+type FilterKey = "all" | "Dorośli" | "Dzieci" | "Warsztaty" | "upcoming" | "past" | "profitable" | "loss" | "none";
 type SortKey = "created" | "date" | "name" | "revenue" | "profit";
 type SortDir = "asc" | "desc";
 
@@ -21,6 +21,7 @@ const FILTER_CHIPS: { id: FilterKey; label: string; icon: string }[] = [
   { id: "past",        label: "Odbyte",        icon: "check-circle" },
   { id: "Dorośli",     label: "Dorośli",       icon: "users" },
   { id: "Dzieci",      label: "Dzieci",        icon: "smile" },
+  { id: "Warsztaty",   label: "Warsztaty",     icon: "feather" },
   { id: "profitable",  label: "Zyskowne",      icon: "trending-up" },
   { id: "loss",        label: "Ze stratą",     icon: "trending-down" },
   { id: "none",        label: "Bez kategorii", icon: "help-circle" },
@@ -93,7 +94,7 @@ export default function Ostatnie() {
     else if (filter === "profitable") arr = arr.filter(e => (e.profit || 0) > 0);
     else if (filter === "loss") arr = arr.filter(e => (e.profit || 0) < 0);
     else if (filter === "none") arr = arr.filter(e => !e.category);
-    else if (filter === "Dorośli" || filter === "Dzieci") {
+    else if (filter === "Dorośli" || filter === "Dzieci" || filter === "Warsztaty") {
       arr = arr.filter(e => categoryTopGroup(e.category) === filter);
     }
 

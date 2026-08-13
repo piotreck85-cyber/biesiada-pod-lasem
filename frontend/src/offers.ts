@@ -321,8 +321,8 @@ export type AdultExtra = {
 
 export const ADULT_EXTRAS: AdultExtra[] = [
   { id: "napoje", name: "Napoje (cola, soki)", unit: "osoba", price: 20 },
-  { id: "taca_mies", name: "Półmisek mięs (5–6 os.)", unit: "sztuka", price: 200 },
-  { id: "taca_mix", name: "Taca przystawek mix (5–6 os.)", unit: "sztuka", price: 180 },
+  { id: "taca_mies", name: "Półmisek mięs (5–6 os.)", unit: "sztuka", price: 240 },
+  { id: "taca_mix", name: "Taca przystawek mix (5–6 os.)", unit: "sztuka", price: 220 },
   { id: "salatka", name: "Sałatka", unit: "porcja", price: 13, hint: "Farfalle · Gyros · Grecka · Cezar itp." },
   { id: "ciasto", name: "Ciasto (własne)", unit: "kwota", price: 0, hint: "Wpisz kwotę ręcznie" },
 ];

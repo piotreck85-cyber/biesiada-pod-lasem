@@ -15,6 +15,9 @@ export const CATEGORIES: Category[] = [
   { id: "dzieci/urodzinki/konie",       label: "Urodzinki · Konie",              path: ["Dzieci", "Urodzinki", "Konie"] },
   { id: "dzieci/urodzinki/gady",        label: "Urodzinki · Gady",               path: ["Dzieci", "Urodzinki", "Gady"] },
   { id: "dzieci/wycieczki",             label: "Dzieci · Wycieczki szkolne",     path: ["Dzieci", "Wycieczki szkolne"] },
+  { id: "warsztaty/przyrodnicze",       label: "Warsztaty · Przyrodnicze",       path: ["Warsztaty", "Przyrodnicze"] },
+  { id: "warsztaty/sezonowe",           label: "Warsztaty · Sezonowe (jesień)",  path: ["Warsztaty", "Sezonowe"] },
+  { id: "warsztaty",                    label: "Warsztaty · Inne",               path: ["Warsztaty", "Inne"] },
 ];
 
 export const CATEGORY_GROUPS = [
@@ -28,7 +31,7 @@ export const CATEGORY_GROUPS = [
   },
   {
     key: "Dzieci",
-    color: "#EED888",
+    color: "#F472B6",
     items: [
       { id: "dzieci/urodzinki/start",      label: "Urodzinki · Start" },
       { id: "dzieci/urodzinki/standard",   label: "Urodzinki · Standard" },
@@ -36,6 +39,15 @@ export const CATEGORY_GROUPS = [
       { id: "dzieci/urodzinki/konie",      label: "Urodzinki · Konie" },
       { id: "dzieci/urodzinki/gady",       label: "Urodzinki · Gady" },
       { id: "dzieci/wycieczki",            label: "Wycieczki szkolne" },
+    ],
+  },
+  {
+    key: "Warsztaty",
+    color: "#34D399",
+    items: [
+      { id: "warsztaty/przyrodnicze", label: "Przyrodnicze" },
+      { id: "warsztaty/sezonowe",     label: "Sezonowe (jesień)" },
+      { id: "warsztaty",              label: "Inne" },
     ],
   },
 ];
@@ -50,5 +62,6 @@ export function categoryTopGroup(id?: string): string | null {
   if (!id) return null;
   if (id.startsWith("dorosli")) return "Dorośli";
   if (id.startsWith("dzieci")) return "Dzieci";
+  if (id.startsWith("warsztaty")) return "Warsztaty";
   return null;
 }
