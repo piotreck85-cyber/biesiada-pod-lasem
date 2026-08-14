@@ -27,6 +27,106 @@ app = FastAPI(title="Eventa API")
 api = APIRouter(prefix="/api")
 bearer = HTTPBearer(auto_error=False)
 
+# ---------- Google Calendar sync helpers ----------
+import google_calendar as gcal
+from fastapi.responses import HTMLResponse
+
+
+async def _get_gcal_conn(user_id: str) -> Optional[dict]:
+    """Return the google connection doc for a user (or None)."""
+    doc = await db.google_calendar_connections.find_one({"user_id": user_id}, {"_id": 0})
+    if not doc or not doc.get("refresh_token_encrypted"):
+        return None
+    if doc.get("revoked_at"):
+        return None
+    return doc
+
+
+async def _get_access_token(user_id: str) -> Optional[str]:
+    """Return a fresh access token for the user or None if not connected/revoked."""
+    conn = await _get_gcal_conn(user_id)
+    if not conn:
+        return None
+    try:
+        rt = gcal.decrypt_token(conn["refresh_token_encrypted"])
+    except Exception as e:
+        logging.getLogger("gcal").warning(f"decrypt failed for user {user_id}: {e}")
+        return None
+    at = await gcal.refresh_access_token(rt)
+    if not at:
+        # Mark revoked so we don't hammer
+        await db.google_calendar_connections.update_one(
+            {"user_id": user_id},
+            {"$set": {"revoked_at": gcal.now_iso()}},
+        )
+        return None
+    return at
+
+
+async def _sync_event_to_google(user_id: str, event_id: str, operation: str) -> None:
+    """Best-effort mirror of a Mongo event into the user's dedicated Google Calendar."""
+    if not gcal.is_configured():
+        return
+    conn = await _get_gcal_conn(user_id)
+    if not conn:
+        return  # user not connected — silently skip
+    ev = await db.events.find_one({"id": event_id}, {"_id": 0})
+    calendar_id = conn.get("calendar_id")
+    if not calendar_id:
+        return
+    at = await _get_access_token(user_id)
+    if not at:
+        return
+
+    google_event_id = (ev or {}).get("google_event_ids", {}).get(user_id) if ev else None
+
+    log = logging.getLogger("gcal")
+    try:
+        if operation == "delete":
+            if google_event_id:
+                await gcal.delete_event(at, calendar_id, google_event_id)
+            return
+        if not ev:
+            return
+        if operation == "create" or (operation in ("update", "upsert") and not google_event_id):
+            created = await gcal.create_event(at, calendar_id, ev)
+            gid = created.get("id")
+            if gid:
+                await db.events.update_one(
+                    {"id": event_id},
+                    {"$set": {f"google_event_ids.{user_id}": gid,
+                              f"google_last_sync.{user_id}": gcal.now_iso()}},
+                )
+            return
+        if operation == "update":
+            await gcal.update_event(at, calendar_id, google_event_id, ev)
+            await db.events.update_one(
+                {"id": event_id},
+                {"$set": {f"google_last_sync.{user_id}": gcal.now_iso()}},
+            )
+            return
+    except Exception as e:
+        log.warning(f"sync {operation} event={event_id} user={user_id} failed: {e}")
+
+
+async def _sync_event_for_workspace(owner_id: str, event_id: str, operation: str) -> None:
+    """Mirror the operation for every user in the workspace that has connected Google."""
+    if not gcal.is_configured():
+        return
+    # Find every user with a google connection in the workspace
+    users_in_ws = await db.users.find(
+        {"$or": [{"id": owner_id}, {"workspace_id": owner_id}]},
+        {"_id": 0, "id": 1},
+    ).to_list(50)
+    for u in users_in_ws:
+        uid = u.get("id")
+        if not uid: continue
+        try:
+            await _sync_event_to_google(uid, event_id, operation)
+        except Exception as e:
+            logging.getLogger("gcal").info(f"sync skipped for {uid}: {e}")
+
+
 # ---------- Models ----------
 class RegisterIn(BaseModel):
     email: EmailStr
@@ -718,6 +818,11 @@ async def create_event(body: EventIn, user=Depends(current_user)):
     await db.events.insert_one(doc)
     doc.pop("_id", None)
     await log_change(user, "create", "event", doc["id"], f"Utworzono imprezę: {doc.get('name','')} ({doc.get('date','')})")
+    # Best-effort Google Calendar sync (non-blocking of API response)
+    try:
+        await _sync_event_for_workspace(ws(user), doc["id"], "create")
+    except Exception:
+        pass
     return await compute_event_summary(doc)
 
 @api.get("/events/{event_id}")
@@ -752,11 +857,21 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
         raise HTTPException(404, "Impreza nie znaleziona")
     ev = await db.events.find_one({"id": event_id}, {"_id": 0})
     await log_change(user, "update", "event", event_id, f"Edytowano imprezę: {ev.get('name','')} ({ev.get('date','')})")
+    try:
+        await _sync_event_for_workspace(ws(user), event_id, "update")
+    except Exception:
+        pass
     return await compute_event_summary(ev)
 
 @api.delete("/events/{event_id}")
 async def delete_event(event_id: str, user=Depends(current_user)):
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    # sync BEFORE delete so we still have google_event_ids
+    try:
+        if ev:
+            await _sync_event_for_workspace(ws(user), event_id, "delete")
+    except Exception:
+        pass
     await db.events.delete_one({"id": event_id, "owner_id": ws(user)})
     if ev: await log_change(user, "delete", "event", event_id, f"Usunięto imprezę: {ev.get('name','')} ({ev.get('date','')})")
     return {"ok": True}
@@ -1071,6 +1186,158 @@ async def public_calendar_feed(token: str):
     wsid = user.get("workspace_id") or user["id"]
     events = await db.events.find({"owner_id": wsid}, {"_id": 0}).sort("date", 1).to_list(10000)
     return _build_ics_feed(events)
+
+
+# =====================================================================
+# ---------- Google Calendar sync (OAuth + status/backfill) -----------
+# =====================================================================
+
+@api.get("/google-calendar/status")
+async def gcal_status(user=Depends(current_user)):
+    if not gcal.is_configured():
+        return {"configured": False, "connected": False, "reason": "server_missing_credentials"}
+    conn = await db.google_calendar_connections.find_one(
+        {"user_id": user["id"]},
+        {"_id": 0, "refresh_token_encrypted": 0}
+    )
+    return {
+        "configured": True,
+        "connected": bool(conn and not conn.get("revoked_at")),
+        "connection": conn,
+    }
+
+
+@api.get("/google-calendar/oauth/start")
+async def gcal_oauth_start(user=Depends(current_user)):
+    if not gcal.is_configured():
+        raise HTTPException(500, "Google Calendar nie jest skonfigurowany na serwerze")
+    state = gcal.new_state()
+    await db.oauth_states.insert_one({
+        "state": state,
+        "user_id": user["id"],
+        "provider": "google_calendar",
+        "created_at": now_utc(),
+        "expires_at": now_utc() + timedelta(minutes=10),
+        "used": False,
+    })
+    return {"authorization_url": gcal.build_authorization_url(state)}
+
+
+@api.get("/google-calendar/oauth/callback", include_in_schema=False)
+async def gcal_oauth_callback(code: Optional[str] = None, state: Optional[str] = None,
+                              error: Optional[str] = None):
+    """Google redirects here after consent. We render a small HTML page that
+    self-closes / deep-links back to the app."""
+    def _html(status: str, msg: str) -> HTMLResponse:
+        emoji = {"ok": "✅", "err": "❌", "denied": "⚠️"}.get(status, "ℹ️")
+        return HTMLResponse(f"""
+<!doctype html><html><head><meta charset="utf-8"><title>Google Calendar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background:#1F3A2E; color:#F8F5EE; min-height:100vh; margin:0;
+        display:flex; align-items:center; justify-content:center; padding:24px; }}
+.card {{ background:#294a3c; border:1px solid #3d6a55; border-radius:16px;
+         padding:28px; max-width:420px; text-align:center; }}
+.emoji {{ font-size:44px; margin-bottom:8px; }}
+h1 {{ font-size:20px; margin:0 0 8px; }}
+p {{ opacity:.9; line-height:1.5; margin:0 0 16px; }}
+button {{ background:#D4AF37; color:#1F3A2E; border:0; padding:12px 20px;
+          border-radius:999px; font-weight:700; font-size:14px; cursor:pointer; }}
+</style></head><body><div class="card">
+<div class="emoji">{emoji}</div><h1>Google Calendar</h1><p>{msg}</p>
+<button onclick="window.close();history.back();">Wróć do aplikacji</button>
+</div></body></html>
+""")
+
+    if error:
+        return _html("denied", f"Anulowano lub odrzucono: {error}")
+    if not code or not state:
+        return _html("err", "Brak parametrów OAuth. Spróbuj ponownie z aplikacji.")
+
+    row = await db.oauth_states.find_one_and_update(
+        {"state": state, "used": False, "provider": "google_calendar"},
+        {"$set": {"used": True, "used_at": now_utc()}},
+    )
+    if not row:
+        return _html("err", "Nieprawidłowy lub użyty stan OAuth. Rozpocznij ponownie z aplikacji.")
+
+    # Exchange code for tokens
+    try:
+        tokens = await gcal.exchange_code_for_tokens(code)
+    except Exception as e:
+        return _html("err", f"Wymiana kodu nie powiodła się: {e}")
+    refresh_token = tokens.get("refresh_token")
+    access_token = tokens.get("access_token")
+    if not refresh_token:
+        return _html("err", "Google nie zwrócił refresh_token. Wróć i spróbuj ponownie (z 'consent').")
+
+    # Find or create dedicated calendar
+    calendar_id: Optional[str] = None
+    calendar_name: Optional[str] = None
+    if access_token:
+        try:
+            existing = await gcal.find_calendar_by_summary(access_token, gcal.CAL_TITLE)
+            if existing:
+                calendar_id = existing.get("id")
+                calendar_name = existing.get("summary")
+            else:
+                created = await gcal.create_dedicated_calendar(access_token)
+                calendar_id = created.get("id")
+                calendar_name = created.get("summary") or gcal.CAL_TITLE
+        except Exception as e:
+            return _html("err", f"Nie udało się utworzyć dedykowanego kalendarza: {e}")
+
+    if not calendar_id:
+        return _html("err", "Nie udało się przygotować dedykowanego kalendarza w Google.")
+
+    await db.google_calendar_connections.update_one(
+        {"user_id": row["user_id"]},
+        {"$set": {
+            "user_id": row["user_id"],
+            "provider": "google",
+            "refresh_token_encrypted": gcal.encrypt_token(refresh_token),
+            "scope": tokens.get("scope", gcal.SCOPES),
+            "calendar_id": calendar_id,
+            "calendar_name": calendar_name,
+            "connected_at": now_utc().isoformat(),
+            "revoked_at": None,
+        }}, upsert=True,
+    )
+
+    return _html("ok",
+        f"Połączono z kalendarzem <strong>{calendar_name}</strong>.<br>"
+        "Nowe imprezy będą się automatycznie zapisywać w Twoim Google Calendar.<br>"
+        "Możesz zamknąć to okno i wrócić do aplikacji."
+    )
+
+
+@api.post("/google-calendar/disconnect")
+async def gcal_disconnect(user=Depends(current_user)):
+    await db.google_calendar_connections.update_one(
+        {"user_id": user["id"]},
+        {"$set": {"revoked_at": now_utc().isoformat()}},
+    )
+    return {"ok": True}
+
+
+@api.post("/google-calendar/backfill")
+async def gcal_backfill(user=Depends(current_user)):
+    """One-shot push of ALL of the workspace's events into the user's Google Calendar.
+    Useful right after connect to bring the calendar up to date."""
+    conn = await _get_gcal_conn(user["id"])
+    if not conn:
+        raise HTTPException(400, "Najpierw połącz Google Calendar")
+    events = await db.events.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", 1).to_list(5000)
+    ok = 0; err = 0
+    for ev in events:
+        try:
+            await _sync_event_to_google(user["id"], ev["id"], "upsert")
+            ok += 1
+        except Exception:
+            err += 1
+    return {"ok": True, "synced": ok, "failed": err, "total": len(events)}
+
 
 @api.post("/import/ics")
 async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
@@ -1864,6 +2131,10 @@ async def _startup():
     # Alerts indices
     await db.alerts.create_index([("owner_id", 1), ("dismissed", 1), ("created_at", -1)])
     await db.alerts.create_index([("event_id", 1), ("kind", 1)])
+    # Google Calendar OAuth
+    await db.oauth_states.create_index("state", unique=True)
+    await db.oauth_states.create_index("expires_at", expireAfterSeconds=0)
+    await db.google_calendar_connections.create_index("user_id", unique=True)
 
     # Start APScheduler for 2-day stale-status alerts
     global _scheduler

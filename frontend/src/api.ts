@@ -114,4 +114,10 @@ export const api = {
 
   getCalendarFeedUrl: () => request("/calendar/feed-url"),
   rotateCalendarFeedUrl: () => request("/calendar/feed-url/rotate", { method: "POST" }),
+
+  // Google Calendar auto-sync
+  gcalStatus: () => request("/google-calendar/status"),
+  gcalStart: () => request("/google-calendar/oauth/start"),
+  gcalDisconnect: () => request("/google-calendar/disconnect", { method: "POST" }),
+  gcalBackfill: () => request("/google-calendar/backfill", { method: "POST" }),
 };

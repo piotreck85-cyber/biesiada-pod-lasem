@@ -9,6 +9,7 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { theme, formatPLN, MONTHS_PL, initials } from "@/src/theme";
 import { api, tokenStore } from "@/src/api";
 
@@ -60,6 +61,71 @@ export default function Statystyki() {
     } finally { setFeedBusy(false); }
   };
 
+  // Google Calendar auto-sync
+  const [gcalConnected, setGcalConnected] = useState(false);
+  const [gcalConfigured, setGcalConfigured] = useState(true);
+  const [gcalCalName, setGcalCalName] = useState<string | null>(null);
+  const [gcalBusy, setGcalBusy] = useState(false);
+
+  const loadGcalStatus = useCallback(async () => {
+    try {
+      const r: any = await api.gcalStatus();
+      setGcalConfigured(!!r.configured);
+      setGcalConnected(!!r.connected);
+      setGcalCalName((r.connection && r.connection.calendar_name) || null);
+    } catch {}
+  }, []);
+
+  const connectGcal = async () => {
+    setGcalBusy(true);
+    try {
+      const r: any = await api.gcalStart();
+      const url = r.authorization_url;
+      if (Platform.OS === "web") {
+        window.location.assign(url);
+        return;
+      }
+      const result = await WebBrowser.openAuthSessionAsync(url, undefined);
+      // Refresh status regardless of result
+      await loadGcalStatus();
+      if (result.type === "success" || result.type === "dismiss") {
+        // Give server a moment then show status
+        setTimeout(loadGcalStatus, 800);
+      }
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się rozpocząć połączenia");
+    } finally { setGcalBusy(false); }
+  };
+
+  const disconnectGcal = async () => {
+    Alert.alert(
+      "Rozłączyć Google Calendar?",
+      "Aplikacja przestanie zapisywać imprezy w Twoim kalendarzu Google. Istniejące wpisy w Google pozostaną.",
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Rozłącz", style: "destructive",
+          onPress: async () => {
+            setGcalBusy(true);
+            try { await api.gcalDisconnect(); await loadGcalStatus(); }
+            catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+            finally { setGcalBusy(false); }
+          },
+        },
+      ],
+    );
+  };
+
+  const backfillGcal = async () => {
+    setGcalBusy(true);
+    try {
+      const r: any = await api.gcalBackfill();
+      Alert.alert("Synchronizacja zakończona", `Zapisano ${r.synced} z ${r.total} imprez do Google Calendar${r.failed > 0 ? ` (${r.failed} błędów)` : ""}.`);
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się");
+    } finally { setGcalBusy(false); }
+  };
+
   const load = useCallback(async () => {
     try {
       const [stats, w, ystats] = await Promise.all([
@@ -73,7 +139,7 @@ export default function Statystyki() {
     } catch {}
   }, [year, month]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); loadFeedUrl(); }, [load, loadFeedUrl]));
+  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); loadFeedUrl(); loadGcalStatus(); }, [load, loadFeedUrl, loadGcalStatus]));
 
   const prev = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
   const next = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
@@ -346,7 +412,46 @@ export default function Statystyki() {
               </View>
             </View>
 
-            {/* Google Calendar subscription */}
+            {/* Google Calendar OAuth auto-sync (app → Google, real-time) */}
+            <View style={s.gcalCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <Feather name="refresh-cw" size={16} color={theme.color.brand} />
+                <Text style={s.backupTitle}>Google Calendar — natychmiastowy sync (aplikacja → Google)</Text>
+              </View>
+              {!gcalConfigured ? (
+                <Text style={s.backupSub}>
+                  Integracja niedostępna — brakuje konfiguracji po stronie serwera. Skontaktuj się z administratorem.
+                </Text>
+              ) : gcalConnected ? (
+                <>
+                  <Text style={s.backupSub}>
+                    ✅ Połączono z kalendarzem {gcalCalName ? `„${gcalCalName}”` : "Google"}. Każde utworzenie, edycja i usunięcie imprezy w aplikacji automatycznie synchronizuje się z Twoim Google Calendar.
+                  </Text>
+                  <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                    <Pressable testID="gcal-oauth-backfill-btn" onPress={backfillGcal} style={[s.backupBtn, gcalBusy && { opacity: 0.5 }]} disabled={gcalBusy}>
+                      {gcalBusy ? <ActivityIndicator size="small" color={theme.color.brand} /> : <Feather name="upload-cloud" size={16} color={theme.color.brand} />}
+                      <Text style={s.backupBtnText}>Wyślij wszystkie do Google</Text>
+                    </Pressable>
+                    <Pressable testID="gcal-oauth-disconnect-btn" onPress={disconnectGcal} style={[s.backupBtn, gcalBusy && { opacity: 0.5 }]} disabled={gcalBusy}>
+                      <Feather name="link-2" size={16} color={theme.color.brand} />
+                      <Text style={s.backupBtnText}>Rozłącz</Text>
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={s.backupSub}>
+                    Połącz swoje konto Google, żeby każda impreza z aplikacji zapisywała się natychmiast w Twoim Google Calendar w dedykowanym kalendarzu „Biesiada pod Lasem”. Utworzenie, edycja i usunięcie działają w obie strony.
+                  </Text>
+                  <Pressable testID="gcal-oauth-connect-btn" onPress={connectGcal} style={[s.backupBtn, gcalBusy && { opacity: 0.5 }]} disabled={gcalBusy}>
+                    {gcalBusy ? <ActivityIndicator size="small" color={theme.color.brand} /> : <Feather name="log-in" size={16} color={theme.color.brand} />}
+                    <Text style={s.backupBtnText}>Połącz Google Calendar</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+
+            {/* Google Calendar subscription (fallback: ICS URL) */}
             <View style={s.gcalCard}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
                 <Feather name="calendar" size={16} color={theme.color.brand} />

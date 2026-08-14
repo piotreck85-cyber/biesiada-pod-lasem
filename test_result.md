@@ -178,7 +178,63 @@ backend:
           agent: "main"
           comment: "PUT /api/events/{id} now detects prev→new status transitions and (a) auto-dismisses existing alerts when status leaves wstepne/rezerwacja, (b) resets alert_sent flag on re-entry so future scans can re-alert."
 
+  - task: "Google Calendar OAuth2 auto-sync (app → Google)"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py, /app/backend/google_calendar.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Full OAuth 2.0 Web Application flow:
+              GET /api/google-calendar/status → {configured, connected, connection}
+              GET /api/google-calendar/oauth/start (auth) → {authorization_url}
+              GET /api/google-calendar/oauth/callback (public, called by Google) → HTML that self-closes
+              POST /api/google-calendar/disconnect (auth) → marks revoked_at
+              POST /api/google-calendar/backfill (auth) → pushes ALL workspace events to Google
+            Refresh tokens are encrypted with Fernet (GOOGLE_TOKEN_ENCRYPTION_KEY env). On first
+            connect we auto-create a dedicated calendar "Biesiada pod Lasem" (or reuse if it
+            already exists by title). Event create/update/delete endpoints now call
+            _sync_event_for_workspace() best-effort (all workspace users with a connection get
+            their own Google mirror). Uses per-user google_event_ids map on the event doc.
+            On any Google 401 we refresh access_token once; on invalid_grant refresh we mark
+            the connection revoked_at. Delete tolerates 404/410 as idempotent success.
+            Credentials in /app/backend/.env: GOOGLE_CALENDAR_CLIENT_ID/SECRET/REDIRECT_URI/TOKEN_ENCRYPTION_KEY.
+  - task: "Workshop offer email: attach new DOCX + updated school signoff"
+    implemented: true
+    working: "NA"
+    file: "/app/backend/server.py, /app/backend/offer_email.py, /app/backend/assets/oferta_warsztaty_jesienne_2026.docx"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            Workshops offer now attaches BOTH the existing PDF and the new DOCX
+            (Jesienne-Warsztaty-Edukacyjne-2026.docx). Signoff for event_type=warsztaty
+            updated to include: www.Dolinaprzygod.pl / szkoly@biesiadapodlasem.pl / 518 029 217.
+            attachments_txt/html blocks list both files. Verified via /api/offers/send-email.
 frontend:
+  - task: "Google Calendar OAuth Connect card (Statystyki)"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/statystyki.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: |
+            New card above the ICS URL card. States: not-configured, disconnected, connected.
+            Connect flow: POST /oauth/start → open in Web (location.assign) or expo-web-browser
+            openAuthSessionAsync on native. After return, we re-poll /status. Connected view shows
+            calendar name + "Wyślij wszystkie do Google" (backfill) and "Rozłącz" buttons.
+            testIDs: gcal-oauth-connect-btn, gcal-oauth-backfill-btn, gcal-oauth-disconnect-btn.
   - task: "Bell icon + alerts modal in Kalendarz"
     implemented: true
     working: "NA"
@@ -189,7 +245,7 @@ frontend:
     status_history:
         - working: "NA"
           agent: "main"
-          comment: "Header top-right shows a bell (testID: alerts-bell) with a red count badge when alerts.length > 0. Tap opens a modal listing each alert (name, date, status label, client). Tap row → router.push(/event/{id}). Per-row X dismisses; footer 'Oznacz wszystkie jako przeczytane' clears all. Loads on useFocusEffect."
+          comment: "Header top-right shows a bell (testID: alerts-bell) with a red count badge when alerts.length > 0."
   - task: "Status dots on calendar days"
     implemented: true
     working: "NA"
