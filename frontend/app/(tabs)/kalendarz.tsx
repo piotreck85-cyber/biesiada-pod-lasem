@@ -316,6 +316,12 @@ export default function Kalendarz() {
                         </View>
                       ) : null}
                     </View>
+                    {ev.notes ? (
+                      <View style={s.evNotesWrap}>
+                        <Feather name="file-text" size={11} color={theme.color.onSurfaceSecondary} />
+                        <Text style={s.evNotes} numberOfLines={3}>{ev.notes}</Text>
+                      </View>
+                    ) : null}
                   </View>
                   <View style={{ alignItems: "flex-end" }}>
                     <Text style={s.evProfit}>{formatPLN(ev.profit)}</Text>
@@ -502,6 +508,11 @@ const s = StyleSheet.create({
   setBadgeText: { color: theme.color.onBrand, fontSize: 10, fontWeight: "800" },
   evProfit: { color: theme.color.brand, fontSize: 16, fontWeight: "700" },
   evSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
+  evNotesWrap: {
+    flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 6,
+    paddingTop: 6, borderTopWidth: 1, borderTopColor: theme.color.divider,
+  },
+  evNotes: { color: theme.color.onSurfaceSecondary, fontSize: 12, lineHeight: 17, flex: 1 },
   modeToggle: {
     flexDirection: "row", backgroundColor: theme.color.surfaceSecondary, borderRadius: 999,
     padding: 4, marginTop: 12, borderWidth: 1, borderColor: theme.color.border,

@@ -900,6 +900,7 @@ async def delete_template(tpl_id: str, user=Depends(current_user)):
 class ImportIcsIn(BaseModel):
     ics: str
     years_back: int = 5
+    enrich_notes: bool = True  # If True, when a duplicate is found by UID/(date,name), update notes/location if empty
 
 class ImportWhatsAppIn(BaseModel):
     text: str
@@ -1383,16 +1384,32 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
 
     cutoff = (datetime.now(timezone.utc) - timedelta(days=365 * max(1, body.years_back))).date()
     imported = 0
+    enriched = 0
     skipped_old = 0
     skipped_dup_uid = 0
     skipped_dup_name = 0
 
     # Preload existing (date, name-lowercased) pairs for the workspace for O(1) fallback dedup
     existing_docs = await db.events.find(
-        {"owner_id": ws(user)}, {"_id": 0, "date": 1, "name": 1, "imported_uid": 1}
+        {"owner_id": ws(user)}, {"_id": 0, "id": 1, "date": 1, "name": 1, "imported_uid": 1, "notes": 1, "venue": 1}
     ).to_list(20000)
-    existing_uids = {d.get("imported_uid") for d in existing_docs if d.get("imported_uid")}
-    existing_date_name = {(d.get("date", ""), (d.get("name") or "").strip().lower()) for d in existing_docs}
+    # Build lookups
+    uid_to_doc = {d.get("imported_uid"): d for d in existing_docs if d.get("imported_uid")}
+    dn_to_doc = {(d.get("date", ""), (d.get("name") or "").strip().lower()): d for d in existing_docs}
+    existing_uids = set(uid_to_doc.keys())
+    existing_date_name = set(dn_to_doc.keys())
+
+    async def _try_enrich(target_doc: dict, new_notes: str, new_venue: str):
+        """If target's notes are empty and new_notes is non-empty, patch it. Same for venue."""
+        updates = {}
+        if new_notes and not (target_doc.get("notes") or "").strip():
+            updates["notes"] = new_notes
+        if new_venue and not (target_doc.get("venue") or "").strip():
+            updates["venue"] = new_venue
+        if updates:
+            await db.events.update_one({"id": target_doc["id"], "owner_id": ws(user)}, {"$set": updates})
+            return True
+        return False
 
     for ev in events_raw:
         dtstart = ev.get("DTSTART", "")
@@ -1411,17 +1428,27 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
         _, time_end = parse_ics_date(dtend) if dtend else ("", "")
 
         name = (ev.get("SUMMARY") or "Impreza").strip()
+        raw_notes = (ev.get("DESCRIPTION", "") or "").replace("\\n", "\n").replace("\\,", ",")
+        raw_venue = (ev.get("LOCATION", "") or "")
 
         # Dedup 1: UID (if present)
         uid = ev.get("UID")
         if uid and uid in existing_uids:
             skipped_dup_uid += 1
+            if body.enrich_notes:
+                target = uid_to_doc.get(uid)
+                if target and await _try_enrich(target, raw_notes, raw_venue):
+                    enriched += 1
             continue
 
         # Dedup 2: same (date, name) already in DB
         dedup_key = (date_str, name.lower())
         if dedup_key in existing_date_name:
             skipped_dup_name += 1
+            if body.enrich_notes:
+                target = dn_to_doc.get(dedup_key)
+                if target and await _try_enrich(target, raw_notes, raw_venue):
+                    enriched += 1
             continue
 
         doc = {
@@ -1434,8 +1461,8 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
             "time": time_str,
             "time_start": time_str,
             "time_end": time_end or "",
-            "venue": ev.get("LOCATION", ""),
-            "notes": ev.get("DESCRIPTION", "").replace("\\n", "\n").replace("\\,", ","),
+            "venue": raw_venue,
+            "notes": raw_notes,
             "category": "",
             "revenue": 0.0,
             "costs": [],
@@ -1454,6 +1481,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
     return {
         "ok": True,
         "imported": imported,
+        "enriched_notes": enriched,
         "skipped_older_than_cutoff": skipped_old,
         "skipped_duplicate_uid": skipped_dup_uid,
         "skipped_duplicate_name_date": skipped_dup_name,

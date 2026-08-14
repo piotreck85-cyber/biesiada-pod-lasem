@@ -280,6 +280,12 @@ export default function Ostatnie() {
                 {sortKey === "created" && item.created_at ? (
                   <Text style={s.rowAdded}>Dodano {relativeTime(item.created_at)}</Text>
                 ) : null}
+                {item.notes ? (
+                  <View style={s.rowNotesWrap}>
+                    <Feather name="file-text" size={11} color={theme.color.onSurfaceSecondary} />
+                    <Text style={s.rowNotes} numberOfLines={2}>{item.notes}</Text>
+                  </View>
+                ) : null}
               </View>
 
               <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
@@ -382,6 +388,8 @@ const s = StyleSheet.create({
   rowSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, fontWeight: "600" },
   rowSubMuted: { color: theme.color.onSurfaceSecondary, fontSize: 10, fontWeight: "500", opacity: 0.7 },
   rowAdded: { color: theme.color.brand, fontSize: 10, fontWeight: "600", marginTop: 3, letterSpacing: 0.3, fontStyle: "italic" },
+  rowNotesWrap: { flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 4, paddingRight: 6 },
+  rowNotes: { color: theme.color.onSurfaceSecondary, fontSize: 11, lineHeight: 15, flex: 1 },
   rowProfit: { fontSize: 14, fontWeight: "800" },
   rowProfitSub: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase" },
 

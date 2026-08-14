@@ -416,7 +416,7 @@ export default function EventDetail() {
               </Pressable>
             </Field>
             <Field label="Notatki">
-              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="..." placeholderTextColor={theme.color.onSurfaceSecondary} style={[s.input, { height: 80, textAlignVertical: "top" }]} multiline />
+              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={theme.color.onSurfaceSecondary} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
             </Field>
           </Section>
 
