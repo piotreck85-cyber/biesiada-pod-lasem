@@ -10,9 +10,10 @@ import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
 import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, DINNER_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
+import { DINNER_MENU, DINNER_SECTIONS, DINNER_DISCOUNT, discountedPrice, grillProfitForecast } from "@/src/dinnerMenu";
 import { api } from "@/src/api";
 
-type Tab = "urodziny" | "warsztaty" | "grill";
+type Tab = "urodziny" | "warsztaty" | "grill" | "obiad";
 
 export default function Oferta() {
   const insets = useSafeAreaInsets();
@@ -217,6 +218,14 @@ export default function Oferta() {
           <Feather name="disc" size={14} color={tab === "grill" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
           <Text style={[s.tabText, tab === "grill" && s.tabTextActive]}>Grill ({ADULT_SETS.length})</Text>
         </Pressable>
+        <Pressable
+          testID="tab-obiad"
+          onPress={() => setTab("obiad")}
+          style={[s.tabBtn, tab === "obiad" && s.tabBtnActive]}
+        >
+          <Feather name="coffee" size={14} color={tab === "obiad" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+          <Text style={[s.tabText, tab === "obiad" && s.tabTextActive]}>Obiad ({DINNER_MENU.length})</Text>
+        </Pressable>
       </View>
 
       {tab === "warsztaty" && (
@@ -252,12 +261,29 @@ export default function Oferta() {
               <Feather name="info" size={14} color={theme.color.brand} />
               <Text style={s.infoText}>Grill menu · Imprezy dla dorosłych (firmowe / okolicznościowe) · cena od osoby</Text>
             </View>
-            {ADULT_SETS.map(zs => (
+            {ADULT_SETS.map(zs => {
+              const forecast = grillProfitForecast(zs.id, zs.price_per_person, 50);
+              return (
               <View key={zs.id} style={s.card} testID={`grill-card-${zs.id}`}>
                 <View style={s.cardBody}>
                   <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 12 }}>
                     <Text style={s.cardName}>{zs.name}</Text>
                     <Text style={[s.priceValue, { color: theme.color.brand }]}>{zs.price_per_person} zł<Text style={{ fontSize: 13, color: theme.color.onSurfaceSecondary }}> /os.</Text></Text>
+                  </View>
+                  {/* Profit forecast strip */}
+                  <View style={{ flexDirection: "row", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.error + "1A", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
+                      <Feather name="trending-down" size={11} color={theme.color.error} />
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: theme.color.error }}>Koszt {forecast.cost_per_person} zł/os.</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.brand + "1A", paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
+                      <Feather name="trending-up" size={11} color={theme.color.brand} />
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: theme.color.brand }}>Zysk {forecast.profit_per_person} zł/os. ({(forecast.margin * 100).toFixed(0)}%)</Text>
+                    </View>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: theme.color.surfaceTertiary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
+                      <Feather name="users" size={11} color={theme.color.onSurfaceSecondary} />
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: theme.color.onSurfaceSecondary }}>50 os. → {forecast.total_profit.toLocaleString("pl-PL")} zł zysku</Text>
+                    </View>
                   </View>
                   <Text style={s.sectionLabel}>W zestawie</Text>
                   {zs.items.map((it, i) => (
@@ -286,7 +312,37 @@ export default function Oferta() {
                   </Pressable>
                 </View>
               </View>
-            ))}
+              );
+            })}
+          </>
+        ) : tab === "obiad" ? (
+          <>
+            <View style={s.infoBox}>
+              <Feather name="info" size={14} color={theme.color.brand} />
+              <Text style={s.infoText}>Cennik obiadowy · przy większych zamówieniach rabat −{(DINNER_DISCOUNT * 100).toFixed(0)}% od ceny listowej</Text>
+            </View>
+            {DINNER_SECTIONS.map(sec => {
+              const items = DINNER_MENU.filter(m => m.section === sec.id);
+              if (items.length === 0) return null;
+              return (
+                <View key={sec.id} style={[s.card, { padding: 14 }]}>
+                  <Text style={[s.cardName, { marginBottom: 6 }]}>{sec.title}</Text>
+                  {sec.note ? <Text style={{ fontSize: 11, color: theme.color.onSurfaceSecondary, marginBottom: 8, fontStyle: "italic" }}>{sec.note}</Text> : null}
+                  {items.map(it => {
+                    const disc = discountedPrice(it.base_price);
+                    return (
+                      <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.color.divider }}>
+                        <Text style={{ flex: 1, fontSize: 13, color: theme.color.onSurface }}>{it.name}</Text>
+                        <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
+                          <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, textDecorationLine: "line-through" }}>{it.base_price} zł/{it.unit}</Text>
+                          <Text style={{ fontSize: 14, fontWeight: "800", color: theme.color.brand }}>{disc} zł</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
           </>
         ) : tab === "urodziny" ? (
           BIRTHDAY_PACKAGES.map(p => (
