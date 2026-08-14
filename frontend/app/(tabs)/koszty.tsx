@@ -8,6 +8,7 @@ import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, MONTHS_PL } from "@/src/theme";
 import { api } from "@/src/api";
+import { EXPENSE_CATEGORIES, expenseCategoryLabel, expenseCategoryColor } from "@/src/expenseCategories";
 
 function todayIso() {
   const d = new Date();
@@ -28,6 +29,8 @@ export default function Koszty() {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayIso());
   const [notes, setNotes] = useState("");
+  const [category, setCategory] = useState<string>("");
+  const [filterCat, setFilterCat] = useState<string>(""); // "" = all
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -38,15 +41,29 @@ export default function Koszty() {
   const prev = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
   const next = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
 
-  const total = useMemo(() => items.reduce((s, e) => s + (e.amount || 0), 0), [items]);
+  const visible = useMemo(
+    () => filterCat ? items.filter(e => (e.category || "") === filterCat) : items,
+    [items, filterCat]
+  );
+  const total = useMemo(() => visible.reduce((s, e) => s + (e.amount || 0), 0), [visible]);
+  const totalAll = useMemo(() => items.reduce((s, e) => s + (e.amount || 0), 0), [items]);
+  const totalsByCat = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const it of items) map[it.category || ""] = (map[it.category || ""] || 0) + (it.amount || 0);
+    return map;
+  }, [items]);
 
-  const openNew = () => { setEditing(null); setLabel(""); setAmount(""); setDate(todayIso()); setNotes(""); setModalOpen(true); };
-  const openEdit = (it: any) => { setEditing(it); setLabel(it.label); setAmount(String(it.amount)); setDate(it.date); setNotes(it.notes || ""); setModalOpen(true); };
+  const openNew = () => { setEditing(null); setLabel(""); setAmount(""); setDate(todayIso()); setNotes(""); setCategory(""); setModalOpen(true); };
+  const openEdit = (it: any) => { setEditing(it); setLabel(it.label); setAmount(String(it.amount)); setDate(it.date); setNotes(it.notes || ""); setCategory(it.category || ""); setModalOpen(true); };
   const save = async () => {
     if (!label.trim() || !date) return;
     setSaving(true);
     try {
-      const body = { label: label.trim(), amount: parseFloat(amount.replace(",", ".")) || 0, date, notes: notes.trim() };
+      const body = {
+        label: label.trim(),
+        amount: parseFloat(amount.replace(",", ".")) || 0,
+        date, notes: notes.trim(), category,
+      };
       if (editing) await api.updateExpense(editing.id, body);
       else await api.createExpense(body);
       setModalOpen(false);
@@ -75,33 +92,76 @@ export default function Koszty() {
 
       <View style={s.summaryCard}>
         <View>
-          <Text style={s.summaryLabel}>Suma kosztów miesiąca</Text>
+          <Text style={s.summaryLabel}>{filterCat ? `Suma · ${expenseCategoryLabel(filterCat)}` : "Suma kosztów miesiąca"}</Text>
           <Text style={s.summaryValue}>{formatPLN(total)}</Text>
+          {filterCat && total !== totalAll ? (
+            <Text style={s.summarySubValue}>z {formatPLN(totalAll)} łącznie</Text>
+          ) : null}
         </View>
-        <View style={s.summaryBadge}><Text style={s.summaryBadgeText}>{items.length} pozycji</Text></View>
+        <View style={s.summaryBadge}><Text style={s.summaryBadgeText}>{visible.length} pozycji</Text></View>
       </View>
+
+      {/* Category filter chips */}
+      <ScrollView
+        horizontal showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.chipsRow}
+      >
+        <Pressable
+          testID="exp-filter-all"
+          onPress={() => setFilterCat("")}
+          style={[s.chip, !filterCat && s.chipActive]}
+        >
+          <Text style={[s.chipText, !filterCat && s.chipTextActive]}>Wszystkie · {items.length}</Text>
+        </Pressable>
+        {EXPENSE_CATEGORIES.map(c => {
+          const active = filterCat === c.id;
+          const count = items.filter(it => (it.category || "") === c.id).length;
+          if (count === 0 && !active) return null; // hide empty categories to reduce clutter
+          return (
+            <Pressable
+              key={c.id}
+              testID={`exp-filter-${c.id}`}
+              onPress={() => setFilterCat(active ? "" : c.id)}
+              style={[s.chip, active && { backgroundColor: c.color, borderColor: c.color }]}
+            >
+              <View style={[s.chipDot, { backgroundColor: c.color }]} />
+              <Text style={[s.chipText, active && { color: "#FFFFFF" }]}>{c.label} · {count}</Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
 
       {loading ? (
         <ActivityIndicator color={theme.color.brand} style={{ marginTop: 30 }} />
       ) : (
         <FlatList
-          data={items}
+          data={visible}
           keyExtractor={(i) => i.id}
           contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 6, paddingBottom: 140 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={theme.color.brand} />}
           ListEmptyComponent={
             <View style={s.emptyBox}>
               <Feather name="dollar-sign" size={40} color={theme.color.onSurfaceSecondary} />
-              <Text style={s.emptyTitle}>Brak kosztów firmowych w tym miesiącu</Text>
-              <Text style={s.emptySub}>Dodaj tu wydatki niezwiązane z konkretną imprezą (najem, media, marketing itp.). Wliczą się do zysku w Statystykach.</Text>
+              <Text style={s.emptyTitle}>Brak kosztów w tym miesiącu{filterCat ? ` (${expenseCategoryLabel(filterCat)})` : ""}</Text>
+              <Text style={s.emptySub}>Dodaj wydatki (najem, media, marketing, pensje…). Wliczą się do zysku w Statystykach.</Text>
             </View>
           }
           renderItem={({ item }) => (
             <Pressable testID={`exp-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
-              <View style={s.dateChip}><Text style={s.dateChipText}>{item.date.slice(8, 10)}.{item.date.slice(5, 7)}</Text></View>
+              <View style={[s.dateChip, item.category && { backgroundColor: expenseCategoryColor(item.category) + "22", borderColor: expenseCategoryColor(item.category) }]}>
+                <Text style={[s.dateChipText, item.category && { color: expenseCategoryColor(item.category) }]}>{item.date.slice(8, 10)}.{item.date.slice(5, 7)}</Text>
+              </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.rowName}>{item.label}</Text>
-                {!!item.notes && <Text style={s.rowNotes} numberOfLines={1}>{item.notes}</Text>}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  {item.category ? (
+                    <View style={[s.catPill, { backgroundColor: expenseCategoryColor(item.category) + "1F" }]}>
+                      <View style={[s.catPillDot, { backgroundColor: expenseCategoryColor(item.category) }]} />
+                      <Text style={[s.catPillText, { color: expenseCategoryColor(item.category) }]}>{expenseCategoryLabel(item.category)}</Text>
+                    </View>
+                  ) : null}
+                  {!!item.notes && <Text style={s.rowNotes} numberOfLines={1}>{item.notes}</Text>}
+                </View>
               </View>
               <Text style={s.rowAmount}>{formatPLN(item.amount)}</Text>
               <Pressable testID={`exp-del-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 10 }}>
@@ -135,6 +195,30 @@ export default function Koszty() {
                   <TextInput testID="exp-date-input" value={date} onChangeText={setDate} placeholder="2026-08-01" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
                 </View>
               </View>
+              <Text style={s.label}>Kategoria kosztu</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 4 }}>
+                <Pressable
+                  testID="exp-cat-none"
+                  onPress={() => setCategory("")}
+                  style={[s.chip, !category && s.chipActive]}
+                >
+                  <Text style={[s.chipText, !category && s.chipTextActive]}>Bez kategorii</Text>
+                </Pressable>
+                {EXPENSE_CATEGORIES.map(c => {
+                  const active = category === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      testID={`exp-cat-${c.id}`}
+                      onPress={() => setCategory(c.id)}
+                      style={[s.chip, active && { backgroundColor: c.color, borderColor: c.color }]}
+                    >
+                      <View style={[s.chipDot, { backgroundColor: c.color }]} />
+                      <Text style={[s.chipText, active && { color: "#FFFFFF" }]}>{c.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
               <Text style={s.label}>Notatka</Text>
               <TextInput testID="exp-notes-input" value={notes} onChangeText={setNotes} placeholder="np. faktura FV/2026/12" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
               <Pressable testID="exp-save-btn" onPress={save} disabled={saving || !label.trim() || !date} style={[s.saveBtn, (saving || !label.trim() || !date) && { opacity: 0.5 }]}>
@@ -163,7 +247,27 @@ const s = StyleSheet.create({
   },
   summaryLabel: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 1 },
   summaryValue: { color: theme.color.error, fontSize: 22, fontWeight: "800", marginTop: 2 },
+  summarySubValue: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
   summaryBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand },
+  chipsRow: {
+    paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingVertical: 4,
+  },
+  chip: {
+    flexDirection: "row", alignItems: "center", gap: 6,
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  chipActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  chipText: { color: theme.color.onSurface, fontSize: 12, fontWeight: "700" },
+  chipTextActive: { color: theme.color.onBrand },
+  chipDot: { width: 8, height: 8, borderRadius: 999 },
+  catPill: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
+  },
+  catPillDot: { width: 6, height: 6, borderRadius: 999 },
+  catPillText: { fontSize: 10, fontWeight: "700", letterSpacing: 0.3 },
   summaryBadgeText: { color: theme.color.brand, fontSize: 11, fontWeight: "700" },
   row: {
     flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: theme.color.surfaceSecondary,
