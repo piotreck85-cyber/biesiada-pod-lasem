@@ -72,6 +72,7 @@ export default function Pracownicy() {
   const [wsModalOpen, setWsModalOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyFilter, setHistoryFilter] = useState<"all" | "event" | "staff" | "expense" | "delete">("all");
@@ -170,44 +171,62 @@ export default function Pracownicy() {
           <Text style={s.brand}>Pracownicy</Text>
           <Text style={s.title}>Twój zespół</Text>
         </View>
-        <Pressable testID="workspace-btn" onPress={() => setWsModalOpen(true)} hitSlop={10} style={[s.logoutBtn, { marginRight: 8 }]}>
+        <Pressable testID="workspace-btn" onPress={() => setWsModalOpen(true)} hitSlop={10} style={s.headerIcon}>
           <Feather name="users" size={18} color={theme.color.brand} />
         </Pressable>
-        <Pressable testID="history-btn" onPress={openHistory} hitSlop={10} style={[s.logoutBtn, { marginRight: 8 }]}>
+        <Pressable testID="history-btn" onPress={openHistory} hitSlop={10} style={s.headerIcon}>
           <Feather name="clock" size={18} color={theme.color.brand} />
         </Pressable>
-        <Pressable
-          testID="delete-account-btn"
-          onPress={() => {
-            const confirmAndDelete = async () => {
-              try { await deleteAccount(); }
-              catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
-            };
-            if (Platform.OS === "web") {
-              // eslint-disable-next-line no-alert
-              if (window.confirm("Usuń konto i wszystkie dane (imprezy, pracowników, szablony)? Ta operacja jest nieodwracalna.")) {
-                confirmAndDelete();
-              }
-            } else {
-              Alert.alert(
-                "Usuń konto",
-                "Ta operacja trwale usunie konto i wszystkie dane (imprezy, pracowników, szablony). Kontynuować?",
-                [
-                  { text: "Anuluj", style: "cancel" },
-                  { text: "Usuń konto", style: "destructive", onPress: confirmAndDelete },
-                ]
-              );
-            }
-          }}
-          hitSlop={10}
-          style={[s.logoutBtn, { marginRight: 8 }]}
-        >
-          <Feather name="trash-2" size={16} color={theme.color.error} />
-        </Pressable>
-        <Pressable testID="logout-button" onPress={logout} hitSlop={10} style={s.logoutBtn}>
-          <Feather name="log-out" size={18} color={theme.color.onSurfaceSecondary} />
+        <Pressable testID="header-menu-btn" onPress={() => setMenuOpen(true)} hitSlop={10} style={s.headerIcon}>
+          <Feather name="more-vertical" size={18} color={theme.color.onSurface} />
         </Pressable>
       </View>
+
+      {/* Header dropdown menu */}
+      <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+        <Pressable style={s.menuBackdrop} onPress={() => setMenuOpen(false)}>
+          <View style={[s.menuCard, { top: insets.top + 60 }]}>
+            <Pressable
+              testID="menu-logout-btn"
+              onPress={() => { setMenuOpen(false); logout(); }}
+              style={s.menuItem}
+            >
+              <Feather name="log-out" size={16} color={theme.color.onSurface} />
+              <Text style={s.menuItemText}>Wyloguj</Text>
+            </Pressable>
+            <View style={s.menuDivider} />
+            <Pressable
+              testID="menu-delete-account-btn"
+              onPress={() => {
+                setMenuOpen(false);
+                const confirmAndDelete = async () => {
+                  try { await deleteAccount(); }
+                  catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
+                };
+                if (Platform.OS === "web") {
+                  // eslint-disable-next-line no-alert
+                  if (window.confirm("Usuń konto i wszystkie dane (imprezy, pracowników, szablony)? Ta operacja jest nieodwracalna.")) {
+                    confirmAndDelete();
+                  }
+                } else {
+                  Alert.alert(
+                    "Usuń konto",
+                    "Ta operacja trwale usunie konto i wszystkie dane (imprezy, pracowników, szablony). Kontynuować?",
+                    [
+                      { text: "Anuluj", style: "cancel" },
+                      { text: "Usuń konto", style: "destructive", onPress: confirmAndDelete },
+                    ]
+                  );
+                }
+              }}
+              style={s.menuItem}
+            >
+              <Feather name="trash-2" size={16} color={theme.color.error} />
+              <Text style={[s.menuItemText, { color: theme.color.error }]}>Usuń konto</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       {loading ? (
         <ActivityIndicator color={theme.color.brand} style={{ marginTop: 40 }} />
@@ -540,6 +559,28 @@ const s = StyleSheet.create({
   brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
   title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
   logoutBtn: { padding: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 999 },
+  headerIcon: {
+    width: 38, height: 38, borderRadius: 999,
+    backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: theme.color.border,
+    alignItems: "center", justifyContent: "center", marginLeft: 8,
+  },
+  menuBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.2)",
+  },
+  menuCard: {
+    position: "absolute", right: 20, minWidth: 200,
+    backgroundColor: theme.color.surface, borderRadius: 14,
+    borderWidth: 1, borderColor: theme.color.border,
+    padding: 6, shadowColor: "#000", shadowOpacity: 0.25,
+    shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8,
+  },
+  menuItem: {
+    flexDirection: "row", alignItems: "center", gap: 10,
+    paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+  },
+  menuItemText: { color: theme.color.onSurface, fontSize: 14, fontWeight: "600" },
+  menuDivider: { height: 1, backgroundColor: theme.color.divider, marginHorizontal: 6, marginVertical: 2 },
   row: {
     flexDirection: "row", alignItems: "center", padding: 14, backgroundColor: theme.color.surfaceSecondary,
     borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,
