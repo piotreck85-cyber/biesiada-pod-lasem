@@ -474,8 +474,20 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         attachments_txt = ""
         attachments_html = ""
     elif is_workshops:
-        attachments_txt = "\n\n(w załączniku szczegółowa oferta warsztatów jesiennych)\n"
-        attachments_html = ""
+        attachments_txt = (
+            "\n\nW załączniku:\n"
+            "  •  Jesienne Warsztaty Edukacyjne 2026 — oferta (PDF),\n"
+            "  •  Jesienne Warsztaty Edukacyjne 2026 — oferta (DOCX).\n"
+        )
+        attachments_html = """
+        <div style="background:#F8F5EE;border:1px solid #E5D9B5;border-radius:8px;padding:12px 14px;margin-top:14px;">
+          <div style="color:#1F3A2E;font-weight:700;font-size:13px;margin-bottom:6px">W załączniku:</div>
+          <ul style="margin:0;padding-left:18px;color:#4B5563;font-size:13px;line-height:1.6">
+            <li>Jesienne Warsztaty Edukacyjne 2026 — oferta (PDF)</li>
+            <li>Jesienne Warsztaty Edukacyjne 2026 — oferta (DOCX)</li>
+          </ul>
+        </div>
+        """
     elif is_adult:
         parts_txt = []
         parts_html_li = []
@@ -608,6 +620,8 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
             extras_files = [
                 {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
+                {"path": str(assets_dir / "oferta_warsztaty_jesienne_2026.docx"),
+                 "filename": "Jesienne-Warsztaty-Edukacyjne-2026.docx"},
             ]
         elif body.event_type in ("okolicznosciowe", "firmowe"):
             # User picks: grill only / dinner only / both

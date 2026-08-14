@@ -368,7 +368,13 @@ _INTRO_WORKSHOPS = (
 
 # Custom sign-off overrides per event type. If ``None`` the default footer is used.
 EVENT_TYPE_SIGNOFFS = {
-    "warsztaty": "Serdecznie pozdrawiamy\nBiesiada Pod Lasem",
+    "warsztaty": (
+        "Serdecznie pozdrawiamy\n"
+        "Biesiada Pod Lasem\n"
+        "www.Dolinaprzygod.pl\n"
+        "szkoly@biesiadapodlasem.pl\n"
+        "518 029 217"
+    ),
     "urodziny": "Pozdrawiamy serdecznie\nDolina Przygód | Biesiada pod Lasem\ndolinaprzygod.pl",
     "okolicznosciowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
     "firmowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
