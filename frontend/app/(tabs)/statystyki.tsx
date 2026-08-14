@@ -8,9 +8,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import * as Clipboard from "expo-clipboard";
 import { theme, formatPLN, MONTHS_PL, initials } from "@/src/theme";
-import { api } from "@/src/api";
-import { tokenStore } from "@/src/api";
+import { api, tokenStore } from "@/src/api";
 
 export default function Statystyki() {
   const insets = useSafeAreaInsets();
@@ -22,6 +22,43 @@ export default function Statystyki() {
   const [wages, setWages] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Google Calendar public feed URL
+  const [feedUrl, setFeedUrl] = useState<string>("");
+  const [feedBusy, setFeedBusy] = useState(false);
+
+  const buildFullFeedUrl = (path: string) => {
+    const base = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+    return `${base}${path}`;
+  };
+
+  const loadFeedUrl = useCallback(async () => {
+    try {
+      const r: any = await api.getCalendarFeedUrl();
+      setFeedUrl(buildFullFeedUrl(r.path));
+    } catch {}
+  }, []);
+
+  const copyFeedUrl = async () => {
+    if (!feedUrl) return;
+    try {
+      await Clipboard.setStringAsync(feedUrl);
+      Alert.alert("Skopiowano", "Link został skopiowany do schowka. Wklej go w Google Calendar → Inne kalendarze → Z adresu URL.");
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się skopiować");
+    }
+  };
+
+  const rotateFeedUrl = async () => {
+    setFeedBusy(true);
+    try {
+      const r: any = await api.rotateCalendarFeedUrl();
+      setFeedUrl(buildFullFeedUrl(r.path));
+      Alert.alert("Nowy link", "Wygenerowano nowy link. Poprzedni został unieważniony — pamiętaj zaktualizować subskrypcję w Google Calendar.");
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się");
+    } finally { setFeedBusy(false); }
+  };
 
   const load = useCallback(async () => {
     try {
@@ -36,7 +73,7 @@ export default function Statystyki() {
     } catch {}
   }, [year, month]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
+  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); loadFeedUrl(); }, [load, loadFeedUrl]));
 
   const prev = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
   const next = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
@@ -309,6 +346,52 @@ export default function Statystyki() {
               </View>
             </View>
 
+            {/* Google Calendar subscription */}
+            <View style={s.gcalCard}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <Feather name="calendar" size={16} color={theme.color.brand} />
+                <Text style={s.backupTitle}>Google Calendar — auto-sync</Text>
+              </View>
+              <Text style={s.backupSub}>
+                Wklej ten link w Google Calendar → Inne kalendarze → „Z adresu URL”. Google odświeży wydarzenia automatycznie (co ~8-24h). Link jest prywatny — nie udostępniaj nikomu.
+              </Text>
+              <View style={s.gcalUrlBox} testID="gcal-url-box">
+                <Text style={s.gcalUrlText} numberOfLines={2} selectable>
+                  {feedUrl || "Ładowanie…"}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+                <Pressable testID="gcal-copy-btn" onPress={copyFeedUrl} style={s.backupBtn} disabled={!feedUrl}>
+                  <Feather name="copy" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>Kopiuj link</Text>
+                </Pressable>
+                <Pressable
+                  testID="gcal-open-btn"
+                  onPress={() => Linking.openURL("https://calendar.google.com/calendar/u/0/r/settings/addbyurl")}
+                  style={s.backupBtn}
+                >
+                  <Feather name="external-link" size={16} color={theme.color.brand} />
+                  <Text style={s.backupBtnText}>Otwórz Google Calendar</Text>
+                </Pressable>
+                <Pressable
+                  testID="gcal-rotate-btn"
+                  onPress={() => Alert.alert(
+                    "Wygenerować nowy link?",
+                    "Poprzedni link przestanie działać. Będziesz musiał ponownie dodać kalendarz w Google.",
+                    [
+                      { text: "Anuluj", style: "cancel" },
+                      { text: "Wygeneruj", style: "destructive", onPress: rotateFeedUrl },
+                    ]
+                  )}
+                  style={[s.backupBtn, feedBusy && { opacity: 0.5 }]}
+                  disabled={feedBusy}
+                >
+                  {feedBusy ? <ActivityIndicator size="small" color={theme.color.brand} /> : <Feather name="refresh-cw" size={16} color={theme.color.brand} />}
+                  <Text style={s.backupBtnText}>Nowy link</Text>
+                </Pressable>
+              </View>
+            </View>
+
             <Text style={[s.sectionTitle, { marginTop: 24 }]}>Wypłaty pracowników</Text>
             {(wages?.staff || []).length === 0 ? (
               <View style={s.emptyBox}>
@@ -433,6 +516,15 @@ const s = StyleSheet.create({
     backgroundColor: "rgba(212,175,55,0.06)",
   },
   backupBtnText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
+  gcalCard: {
+    marginTop: 12, backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  gcalUrlBox: {
+    backgroundColor: theme.color.surface, borderRadius: 10, padding: 12, marginBottom: 12,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  gcalUrlText: { color: theme.color.onSurface, fontSize: 11, fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: "monospace" }) },
   evRow: {
     flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 14,
     backgroundColor: theme.color.surfaceSecondary, borderRadius: 12, marginBottom: 6,

@@ -45,6 +45,25 @@ function categoryColor(category?: string): string {
   return "#9CA3AF";                                                // szary – bez kategorii
 }
 
+// Return the list of distinct status ring colors for a day.
+// Priority within a single status kept for ordering.
+function dayStatusColors(entries: { status?: string }[]): string[] {
+  const kinds = new Set<string>();
+  entries.forEach(e => {
+    const s = (e.status || "").toLowerCase();
+    if (s === "potwierdzona" || s === "zakonczona") kinds.add("confirmed");
+    else if (s === "wstepne" || s === "rezerwacja") kinds.add("tentative");
+    else if (s === "anulowana") kinds.add("cancelled");
+  });
+  const order = ["confirmed", "tentative", "cancelled"];
+  const colorMap: Record<string, string> = {
+    confirmed: "#34D399", // zielony
+    tentative: "#F59E0B", // żółty
+    cancelled: "#EF4444", // czerwony
+  };
+  return order.filter(k => kinds.has(k)).map(k => colorMap[k]);
+}
+
 export default function Kalendarz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -67,15 +86,22 @@ export default function Kalendarz() {
     } catch {}
   }, [year, month]);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
+  // Alerts (2-day stale bookings)
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const loadAlerts = useCallback(async () => {
+    try { setAlerts((await api.listAlerts()) as any[]); } catch {}
+  }, []);
+
+  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); loadAlerts(); }, [load, loadAlerts]));
   useEffect(() => { load(); }, [load]);
 
   const eventDates = useMemo(() => {
-    const map: Record<string, { count: number; entries: { name: string; color: string }[] }> = {};
+    const map: Record<string, { count: number; entries: { name: string; color: string; status?: string }[] }> = {};
     events.forEach(e => {
       if (!map[e.date]) map[e.date] = { count: 0, entries: [] };
       map[e.date].count += 1;
-      map[e.date].entries.push({ name: e.name, color: categoryColor(e.category) });
+      map[e.date].entries.push({ name: e.name, color: categoryColor(e.category), status: e.status });
     });
     return map;
   }, [events]);
@@ -124,7 +150,22 @@ export default function Kalendarz() {
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="calendar-screen">
       <View style={s.header}>
-        <Text style={s.brand}>Kalendarz</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={s.brand}>Kalendarz</Text>
+          <Pressable
+            testID="alerts-bell"
+            onPress={() => setAlertsOpen(true)}
+            style={s.bellBtn}
+            hitSlop={12}
+          >
+            <Feather name="bell" size={18} color={alerts.length > 0 ? theme.color.brand : theme.color.onSurfaceSecondary} />
+            {alerts.length > 0 && (
+              <View style={s.bellBadge}>
+                <Text style={s.bellBadgeText}>{alerts.length > 9 ? "9+" : alerts.length}</Text>
+              </View>
+            )}
+          </Pressable>
+        </View>
         <View style={s.monthNav}>
           <Pressable testID="cal-prev-month" onPress={prevMonth} style={s.navBtn} hitSlop={12}>
             <Feather name="chevron-left" size={20} color={theme.color.onSurface} />
@@ -172,6 +213,7 @@ export default function Kalendarz() {
               const info = eventDates[dateStr];
               const count = info?.count || 0;
               const entries = info?.entries || [];
+              const ringColors = dayStatusColors(entries);
               return (
                 <Pressable
                   key={i}
@@ -180,6 +222,20 @@ export default function Kalendarz() {
                   testID={`day-${dateStr}`}
                 >
                   <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
+                  {ringColors.length > 0 && (
+                    <View style={s.statusDotRow}>
+                      {ringColors.map((c, idx) => (
+                        <View
+                          key={idx}
+                          style={[
+                            s.statusDot,
+                            { backgroundColor: c, borderColor: isSel ? theme.color.onBrand : "transparent" },
+                          ]}
+                          testID={`status-dot-${dateStr}-${idx}`}
+                        />
+                      ))}
+                    </View>
+                  )}
                   {count > 0 && (
                     <View style={s.cellEventList}>
                       {entries.slice(0, 2).map((en, idx) => (
@@ -305,6 +361,73 @@ export default function Kalendarz() {
           )}
         </View>
       </ScrollView>
+
+      {/* Alerts Modal */}
+      <Modal visible={alertsOpen} animationType="slide" transparent onRequestClose={() => setAlertsOpen(false)}>
+        <View style={s.modalBackdrop}>
+          <View style={s.modalCard}>
+            <View style={s.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="bell" size={18} color={theme.color.brand} />
+                <Text style={s.modalTitle}>Powiadomienia</Text>
+              </View>
+              <Pressable onPress={() => setAlertsOpen(false)} hitSlop={12}>
+                <Feather name="x" size={22} color={theme.color.onSurface} />
+              </Pressable>
+            </View>
+            {alerts.length === 0 ? (
+              <View style={{ alignItems: "center", paddingVertical: 40 }}>
+                <Feather name="check-circle" size={40} color={theme.color.onSurfaceSecondary} />
+                <Text style={{ color: theme.color.onSurfaceSecondary, marginTop: 12, textAlign: "center" }}>
+                  Brak powiadomień{"\n"}Wszystko na bieżąco 👍
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={s.alertsHint}>
+                  Poniższe imprezy mają status „wstępne zapytanie” lub „rezerwacja” od co najmniej 2 dni i wciąż nie są potwierdzone. Rozważ kontakt z klientem lub zmianę statusu.
+                </Text>
+                <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                  {alerts.map(a => (
+                    <Pressable
+                      key={a.id}
+                      onPress={() => { setAlertsOpen(false); router.push(`/event/${a.event_id}`); }}
+                      style={s.alertRow}
+                      testID={`alert-${a.id}`}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.alertName} numberOfLines={1}>{a.event_name || "(bez nazwy)"}</Text>
+                        <Text style={s.alertMeta} numberOfLines={1}>
+                          {a.event_date} · {a.status === "wstepne" ? "Wstępne zapytanie" : a.status === "rezerwacja" ? "Rezerwacja" : a.status}
+                          {a.client_name ? `  ·  ${a.client_name}` : ""}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={async (e) => {
+                          e.stopPropagation?.();
+                          try { await api.dismissAlert(a.id); await loadAlerts(); } catch {}
+                        }}
+                        hitSlop={12}
+                        style={s.alertDismiss}
+                      >
+                        <Feather name="x" size={18} color={theme.color.onSurfaceSecondary} />
+                      </Pressable>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <Pressable
+                  testID="alerts-dismiss-all"
+                  onPress={async () => { try { await api.dismissAllAlerts(); await loadAlerts(); } catch {} }}
+                  style={s.dismissAllBtn}
+                >
+                  <Feather name="check" size={16} color={theme.color.onBrand} />
+                  <Text style={s.dismissAllText}>Oznacz wszystkie jako przeczytane</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -332,6 +455,13 @@ const s = StyleSheet.create({
   },
   cellText: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700" },
   cellTextSelected: { color: theme.color.onBrand, fontWeight: "800" },
+  statusDotRow: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 3, marginTop: 2,
+  },
+  statusDot: {
+    width: 7, height: 7, borderRadius: 4, borderWidth: 1,
+  },
   cellEventList: { width: "100%", marginTop: 3, alignItems: "center" },
   cellEventName: {
     fontSize: 10, lineHeight: 12, color: theme.color.brand, maxWidth: "100%",
@@ -401,4 +531,46 @@ const s = StyleSheet.create({
   dayTotalLabel: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
   dayTotalHours: { color: theme.color.brand, fontSize: 18, fontWeight: "800" },
   dayTotalAmount: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
+  // Bell + Alerts
+  bellBtn: {
+    padding: 8, borderRadius: 999, backgroundColor: theme.color.surfaceSecondary,
+    borderWidth: 1, borderColor: theme.color.border, position: "relative",
+  },
+  bellBadge: {
+    position: "absolute", top: -2, right: -2, backgroundColor: "#EF4444",
+    minWidth: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center",
+    paddingHorizontal: 4, borderWidth: 2, borderColor: theme.color.surface,
+  },
+  bellBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+  modalBackdrop: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end",
+  },
+  modalCard: {
+    backgroundColor: theme.color.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  modalHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.color.divider, marginBottom: 12,
+  },
+  modalTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700" },
+  alertsHint: {
+    color: theme.color.onSurfaceSecondary, fontSize: 12, lineHeight: 17, marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  alertRow: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: theme.color.surfaceSecondary, borderRadius: 12,
+    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  alertName: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
+  alertMeta: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 3 },
+  alertDismiss: { padding: 6 },
+  dismissAllBtn: {
+    marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center",
+    gap: 6, backgroundColor: theme.color.brand, borderRadius: 999, paddingVertical: 12,
+  },
+  dismissAllText: { color: theme.color.onBrand, fontSize: 13, fontWeight: "700" },
 });

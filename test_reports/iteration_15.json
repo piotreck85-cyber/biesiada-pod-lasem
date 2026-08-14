@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 16 features fully verified. Backend: 11/11 pytest tests passed covering weather multi-provider fallback (future within 8 days → available=true with source='7timer'; past date → available=false with Polish 'przeszłości' message; >15 days → 'do 16 dni' message), 2-day alerts scan (stale rezerwacja seeded with created_at=-3d + future date + POST /api/alerts/scan produced exactly 1 alert with expected fields), alerts CRUD (single dismiss + dismiss-all both clear), auto-dismiss on status transition (PUT to 'potwierdzona' removed the alert), and Google Calendar public ICS feed (32-hex token, /api/calendar/feed/{token}.ics returns 200 text/calendar with BEGIN:VCALENDAR + X-WR-CALNAME:Biesiada pod Lasem WITHOUT auth headers, rotate invalidates old token → 404, random invalid token → 404). Frontend: alerts-bell renders in Kalendarz header with badge='1' when a stale alert exists, tapping opens the modal showing 1 alert row (testID alert-<uuid>), 'Oznacz wszystkie jako przeczytane' (alerts-dismiss-all) empties the list and shows 'Brak powiadomień'. Two events on same date produce two status dots (status-dot-2026-08-25-0 and status-dot-2026-08-25-1 both visible, green+red). Statystyki tab shows gcal-url-box containing a URL matching /calendar/feed/[a-f0-9]{32}\\.ics plus gcal-copy-btn/gcal-open-btn/gcal-rotate-btn. All test data cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration16.py",
+    "/app/backend/tests/_seed_ui.py",
+    "/app/test_reports/pytest/iter16_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1885 lines — approaching the 700-line guideline threshold; consider splitting alerts/weather/calendar into separate routers in a future refactor (not blocking).",
+    "Two React Native console warnings observed (non-blocking): 'shadow*' style props deprecated → use boxShadow; 'props.pointerEvents' deprecated → use style.pointerEvents. Coming from existing components, not new code."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration16.py (new)",
+    "/app/backend/tests/_seed_ui.py (new, seed helper)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (all 12 UI assertions passed)"},
+  "seed_data_creation": "Seeded during tests, all TEST-- prefixed events + related alerts deleted after run (verified via cleanup fixture and post-UI cleanup script).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "For alerts UI testing, seed a stale event via API then rewind created_at 3 days back via pymongo (motor from pytest causes 'Event loop is closed' errors — use synchronous pymongo). Also, /app/backend/pytest.ini forces -n 2 --dist loadscope; when running a single file that shares session state, pass '-n 0' to serialize. EXPO_PUBLIC_BACKEND_URL (not EXPO_BACKEND_URL) is the env var used in this repo. Weather source was '7timer' during this run (Open-Meteo rate limited on this IP — expected).",
+  "rca_of_issue": "N/A — no issues found; all new endpoints and UI elements behave as specified."
+}

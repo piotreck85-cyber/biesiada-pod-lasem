@@ -111,4 +111,7 @@ export const api = {
   dismissAlert: (id: string) => request(`/alerts/${id}/dismiss`, { method: "POST" }),
   dismissAllAlerts: () => request("/alerts/dismiss-all", { method: "POST" }),
   scanAlertsNow: () => request("/alerts/scan", { method: "POST" }),
+
+  getCalendarFeedUrl: () => request("/calendar/feed-url"),
+  rotateCalendarFeedUrl: () => request("/calendar/feed-url/rotate", { method: "POST" }),
 };

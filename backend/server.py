@@ -968,35 +968,95 @@ async def import_backup(body: BackupIn, user=Depends(current_user)):
 
 @api.get("/export/calendar.ics")
 async def export_ics(user=Depends(current_user)):
-    events = await db.events.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", 1).to_list(10000)
-    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Biesiada pod lasem//PL//", "CALSCALE:GREGORIAN"]
+    return _build_ics_feed(await db.events.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", 1).to_list(10000))
+
+
+def _build_ics_feed(events: list) -> PlainTextResponse:
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Biesiada pod lasem//PL//", "CALSCALE:GREGORIAN",
+             "X-WR-CALNAME:Biesiada pod Lasem", "X-WR-TIMEZONE:Europe/Warsaw",
+             "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H"]
     for ev in events:
         date = str(ev.get("date", "")).replace("-", "")
-        time_str = str(ev.get("time") or "").replace(":", "")
-        if len(time_str) >= 4 and len(date) == 8:
+        # Prefer new fields time_start/time_end, fall back to legacy `time`
+        t_start = (ev.get("time_start") or ev.get("time") or "").strip()
+        t_end = (ev.get("time_end") or "").strip()
+        ts = t_start.replace(":", "")
+        te = t_end.replace(":", "")
+        if len(ts) >= 4 and len(date) == 8:
             try:
-                hh = int(time_str[:2]); mm = int(time_str[2:4])
+                hh = int(ts[:2]); mm = int(ts[2:4])
                 start_dt = datetime(int(date[:4]), int(date[4:6]), int(date[6:8]), hh, mm)
-                end_dt = start_dt + timedelta(hours=4)
+                if len(te) >= 4:
+                    hhe = int(te[:2]); mme = int(te[2:4])
+                    end_dt = datetime(int(date[:4]), int(date[4:6]), int(date[6:8]), hhe, mme)
+                    if end_dt <= start_dt:
+                        end_dt = start_dt + timedelta(hours=4)
+                else:
+                    end_dt = start_dt + timedelta(hours=4)
                 dtstart = start_dt.strftime("%Y%m%dT%H%M00")
                 dtend = end_dt.strftime("%Y%m%dT%H%M00")
-                dt_line = f"DTSTART:{dtstart}\r\nDTEND:{dtend}"
+                dt_line = f"DTSTART;TZID=Europe/Warsaw:{dtstart}\r\nDTEND;TZID=Europe/Warsaw:{dtend}"
             except Exception:
                 dt_line = f"DTSTART;VALUE=DATE:{date}"
         else:
             dt_line = f"DTSTART;VALUE=DATE:{date}"
         summary = str(ev.get("name", "Impreza")).replace("\n", " ")
+        # Prefix status if set
+        st_lbl = _status_label(ev.get("status") or "")
+        if st_lbl and st_lbl != summary:
+            summary = f"[{st_lbl}] {summary}"
         location = str(ev.get("venue", "")).replace("\n", " ")
-        desc = str(ev.get("notes", "")).replace("\n", "\\n")
+        # Include client info in description if available
+        desc_parts = []
+        if ev.get("notes"): desc_parts.append(str(ev["notes"]))
+        if ev.get("client_name"): desc_parts.append(f"Klient: {ev['client_name']}")
+        if ev.get("client_phone"): desc_parts.append(f"Tel.: {ev['client_phone']}")
+        if ev.get("people"): desc_parts.append(f"Osób: {ev.get('people')}")
+        desc = " | ".join(desc_parts).replace("\n", "\\n").replace(",", "\\,")
         lines.append("BEGIN:VEVENT")
-        lines.append(f"UID:{ev.get('id')}@eventa")
+        lines.append(f"UID:{ev.get('id')}@biesiada-pod-lasem")
         lines.append(dt_line)
         lines.append(f"SUMMARY:{summary}")
         if location: lines.append(f"LOCATION:{location}")
         if desc: lines.append(f"DESCRIPTION:{desc}")
         lines.append("END:VEVENT")
     lines.append("END:VCALENDAR")
-    return PlainTextResponse("\r\n".join(lines), media_type="text/calendar")
+    return PlainTextResponse("\r\n".join(lines), media_type="text/calendar; charset=utf-8")
+
+
+# ---- Public ICS feed URL (for Google Calendar / Apple Calendar subscription) ----
+# Google Calendar polls the URL without auth headers, so we use a per-user secret token.
+
+@api.get("/calendar/feed-url")
+async def get_calendar_feed_url(user=Depends(current_user)):
+    """Return the user's public ICS feed URL. Creates a token on first call."""
+    fresh = await db.users.find_one({"id": user["id"]}, {"_id": 0, "calendar_token": 1})
+    token = (fresh or {}).get("calendar_token")
+    if not token:
+        token = uuid.uuid4().hex
+        await db.users.update_one({"id": user["id"]}, {"$set": {"calendar_token": token}})
+    return {"token": token, "path": f"/api/calendar/feed/{token}.ics"}
+
+
+@api.post("/calendar/feed-url/rotate")
+async def rotate_calendar_feed_url(user=Depends(current_user)):
+    """Regenerate the token (invalidates any calendar subscriptions using the old URL)."""
+    token = uuid.uuid4().hex
+    await db.users.update_one({"id": user["id"]}, {"$set": {"calendar_token": token}})
+    return {"token": token, "path": f"/api/calendar/feed/{token}.ics"}
+
+
+@api.get("/calendar/feed/{token}.ics")
+async def public_calendar_feed(token: str):
+    """Public ICS feed, identified by per-user token in the URL. No auth headers."""
+    if not token or len(token) < 16:
+        raise HTTPException(404, "Not found")
+    user = await db.users.find_one({"calendar_token": token}, {"_id": 0, "id": 1, "workspace_id": 1})
+    if not user:
+        raise HTTPException(404, "Not found")
+    wsid = user.get("workspace_id") or user["id"]
+    events = await db.events.find({"owner_id": wsid}, {"_id": 0}).sort("date", 1).to_list(10000)
+    return _build_ics_feed(events)
 
 @api.post("/import/ics")
 async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
