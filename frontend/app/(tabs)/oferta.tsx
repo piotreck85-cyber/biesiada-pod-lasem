@@ -23,7 +23,7 @@ export default function Oferta() {
   // ------ Send offer email state ------
   const [emailOpen, setEmailOpen] = useState(false);
   const [emailMode, setEmailMode] = useState<"general" | "personalized">("general");
-  const [emailType, setEmailType] = useState<"okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty">("okolicznosciowe");
+  const [emailType, setEmailType] = useState<"okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty" | "wycieczki_szkolne" | "wycieczki_rodzice">("okolicznosciowe");
   const [emailAtt, setEmailAtt] = useState<"grill" | "dinner" | "both">("both");
   const [emailTo, setEmailTo] = useState("");
   const [emailClient, setEmailClient] = useState("");
@@ -401,6 +401,8 @@ export default function Oferta() {
                   { k: "firmowe", label: "Firmowa", icon: "briefcase" },
                   { k: "urodziny", label: "Urodziny", icon: "star" },
                   { k: "warsztaty", label: "Warsztaty", icon: "feather" },
+                  { k: "wycieczki_szkolne", label: "Wycieczki szkolne", icon: "map" },
+                  { k: "wycieczki_rodzice", label: "Wycieczki z rodzicami", icon: "map-pin" },
                 ] as const).map(t => {
                   const active = emailType === t.k;
                   return (

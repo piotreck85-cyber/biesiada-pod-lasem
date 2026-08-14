@@ -239,6 +239,8 @@ EVENT_TYPE_LABELS = {
     "firmowe": "impreza firmowa",
     "urodziny": "urodziny dziecka",
     "warsztaty": "warsztaty edukacyjne",
+    "wycieczki_szkolne": "wycieczka szkolna",
+    "wycieczki_rodzice": "wycieczka z rodzicami",
 }
 
 # The exact wording provided by the owner for occasional and corporate events.
@@ -375,6 +377,20 @@ EVENT_TYPE_SIGNOFFS = {
         "szkoly@biesiadapodlasem.pl\n"
         "518 029 217"
     ),
+    "wycieczki_szkolne": (
+        "Serdecznie pozdrawiamy\n"
+        "Biesiada Pod Lasem\n"
+        "www.Dolinaprzygod.pl\n"
+        "szkoly@biesiadapodlasem.pl\n"
+        "518 029 217"
+    ),
+    "wycieczki_rodzice": (
+        "Serdecznie pozdrawiamy\n"
+        "Biesiada Pod Lasem\n"
+        "www.Dolinaprzygod.pl\n"
+        "szkoly@biesiadapodlasem.pl\n"
+        "518 029 217"
+    ),
     "urodziny": "Pozdrawiamy serdecznie\nDolina Przygód | Biesiada pod Lasem\ndolinaprzygod.pl",
     "okolicznosciowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
     "firmowe": "Pozdrawiamy serdecznie\nBiesiada pod Lasem",
@@ -383,6 +399,8 @@ EVENT_TYPE_SIGNOFFS = {
 # Custom subject overrides per event type. Falls back to the default subject builder.
 EVENT_TYPE_SUBJECTS = {
     "urodziny": "Oferta urodzinek",
+    "wycieczki_szkolne": "Oferta wycieczki szkolnej",
+    "wycieczki_rodzice": "Oferta wycieczki z rodzicami",
 }
 
 EVENT_TYPE_INTROS = {
@@ -390,6 +408,8 @@ EVENT_TYPE_INTROS = {
     "firmowe": _INTRO_ADULT,
     "urodziny": _INTRO_BIRTHDAY,
     "warsztaty": _INTRO_WORKSHOPS,
+    "wycieczki_szkolne": _INTRO_WORKSHOPS,
+    "wycieczki_rodzice": _INTRO_WORKSHOPS,
 }
 
 

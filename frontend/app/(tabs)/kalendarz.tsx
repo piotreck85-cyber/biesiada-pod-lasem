@@ -116,11 +116,21 @@ export default function Kalendarz() {
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
 
-  // Monthly summary: revenue (gross), costs (event.costs + separate expenses), profit (net)
+  // Monthly summary: revenue (gross), forecast (upcoming non-cancelled), costs, profit (net)
   const monthlySummary = useMemo(() => {
     const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthEvents = events.filter(e => (e.date || "").startsWith(monthPrefix));
+    const todayIso = new Date().toISOString().slice(0, 10);
     const gross = monthEvents.reduce((s, e) => s + (Number(e.revenue) || 0), 0);
+    // Forecast: upcoming events this month that are NOT cancelled — sum of their expected revenue
+    const forecast = monthEvents.reduce((s, e) => {
+      const st = (e.status || "").toLowerCase();
+      if (st === "anulowana") return s;
+      if ((e.date || "") < todayIso) return s;   // past → not "forecast"
+      if (st === "zakonczona") return s;         // already realized
+      const rev = Number(e.revenue) || Number(e.price_total) || 0;
+      return s + rev;
+    }, 0);
     const eventCosts = monthEvents.reduce((s, e) => {
       const cs = Array.isArray(e.costs) ? e.costs : [];
       return s + cs.reduce((a: number, c: any) => a + (Number(c.amount) || 0), 0);
@@ -128,7 +138,7 @@ export default function Kalendarz() {
     const separateCosts = expenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
     const totalCosts = eventCosts + separateCosts;
     const net = gross - totalCosts;
-    return { gross, totalCosts, net, eventCount: monthEvents.length, expenseCount: expenses.length };
+    return { gross, forecast, totalCosts, net, eventCount: monthEvents.length, expenseCount: expenses.length };
   }, [events, expenses, year, month]);
 
   const staffMap = useMemo(() => {
@@ -228,6 +238,15 @@ export default function Kalendarz() {
 
       {/* Monthly summary card — combines event revenue + event costs + separate expenses */}
       <View style={s.summaryCard} testID="monthly-summary">
+        <Pressable style={s.summaryCol} testID="summary-forecast" onPress={() => router.push("/(tabs)/imprezy")}>
+          <View style={[s.summaryDot, { backgroundColor: theme.color.warning }]} />
+          <Text style={s.summaryLabel}>Prognoza</Text>
+          <Text style={[s.summaryValue, { color: theme.color.warning }]}>
+            {monthlySummary.forecast.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+          </Text>
+          <Text style={s.summaryUnit}>zł</Text>
+        </Pressable>
+        <View style={s.summaryDivider} />
         <Pressable style={s.summaryCol} testID="summary-gross" onPress={() => router.push("/(tabs)/statystyki")}>
           <View style={[s.summaryDot, { backgroundColor: theme.color.success }]} />
           <Text style={s.summaryLabel}>Przychód</Text>
@@ -587,20 +606,20 @@ const s = StyleSheet.create({
   modeTextActive: { color: theme.color.onBrand },
   // Monthly summary card
   summaryCard: {
-    marginHorizontal: 16, marginTop: 12, marginBottom: 4,
+    marginHorizontal: 12, marginTop: 12, marginBottom: 4,
     flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
     borderRadius: 20, borderWidth: 1, borderColor: theme.color.border,
-    paddingVertical: 14, paddingHorizontal: 6,
+    paddingVertical: 12, paddingHorizontal: 2,
     ...({ shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 } as any),
   },
   summaryCol: {
-    flex: 1, alignItems: "center", paddingHorizontal: 4,
+    flex: 1, alignItems: "center", paddingHorizontal: 2,
   },
-  summaryDot: { width: 8, height: 8, borderRadius: 999, marginBottom: 4 },
-  summaryLabel: { color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 2 },
-  summaryValue: { fontSize: 20, fontWeight: "800", letterSpacing: -0.5 },
-  summaryUnit: { color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 1 },
-  summaryDivider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 4 },
+  summaryDot: { width: 6, height: 6, borderRadius: 999, marginBottom: 3 },
+  summaryLabel: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.3, textTransform: "uppercase", marginBottom: 2, textAlign: "center" },
+  summaryValue: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
+  summaryUnit: { color: theme.color.onSurfaceSecondary, fontSize: 9, marginTop: 1 },
+  summaryDivider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 6 },
   shiftCard: {
     flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
     padding: 14, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,

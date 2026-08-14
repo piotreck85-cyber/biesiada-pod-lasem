@@ -563,7 +563,7 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
 
     # Attachment strategy per event type
-    is_workshops = body.event_type == "warsztaty"
+    is_workshops = body.event_type in ("warsztaty", "wycieczki_szkolne", "wycieczki_rodzice")
     is_adult = body.event_type in ("okolicznosciowe", "firmowe")
     is_birthday = body.event_type == "urodziny"
     att_mode = (body.attachments_mode or "both").lower()
@@ -686,7 +686,7 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         # - warsztaty: only the hand-crafted workshops PDF, no menu DOCX, no auto PDF
         # - urodziny: NOTHING — pure text email
         # - default: auto PDF (catalog + calc) + 2 DOCX menus
-        skip_auto_pdf = body.event_type in ("okolicznosciowe", "firmowe", "warsztaty", "urodziny")
+        skip_auto_pdf = body.event_type in ("okolicznosciowe", "firmowe", "warsztaty", "wycieczki_szkolne", "wycieczki_rodzice", "urodziny")
 
         pdf_bytes = None
         if not skip_auto_pdf:
@@ -705,6 +705,8 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
             "firmowe": "firmowa",
             "urodziny": "urodziny",
             "warsztaty": "warsztaty",
+            "wycieczki_szkolne": "wycieczki-szkolne",
+            "wycieczki_rodzice": "wycieczki-z-rodzicami",
         }
         fname_type = fname_type_map.get(body.event_type or "", "plenerowa")
 
@@ -716,7 +718,7 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
 
         if body.event_type == "urodziny":
             extras_files = []
-        elif body.event_type == "warsztaty":
+        elif body.event_type in ("warsztaty", "wycieczki_szkolne", "wycieczki_rodzice"):
             extras_files = [
                 {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
