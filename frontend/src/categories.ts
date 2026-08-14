@@ -15,6 +15,7 @@ export const CATEGORIES: Category[] = [
   { id: "dzieci/urodzinki/konie",       label: "Urodzinki · Konie",              path: ["Dzieci", "Urodzinki", "Konie"] },
   { id: "dzieci/urodzinki/gady",        label: "Urodzinki · Gady",               path: ["Dzieci", "Urodzinki", "Gady"] },
   { id: "dzieci/wycieczki",             label: "Dzieci · Wycieczki szkolne",     path: ["Dzieci", "Wycieczki szkolne"] },
+  { id: "dzieci/wycieczki_rodzice",     label: "Dzieci · Wycieczki z rodzicami", path: ["Dzieci", "Wycieczki z rodzicami"] },
   { id: "warsztaty/przyrodnicze",       label: "Warsztaty · Przyrodnicze",       path: ["Warsztaty", "Przyrodnicze"] },
   { id: "warsztaty/sezonowe",           label: "Warsztaty · Sezonowe (jesień)",  path: ["Warsztaty", "Sezonowe"] },
   { id: "warsztaty",                    label: "Warsztaty · Inne",               path: ["Warsztaty", "Inne"] },
@@ -39,6 +40,7 @@ export const CATEGORY_GROUPS = [
       { id: "dzieci/urodzinki/konie",      label: "Urodzinki · Konie" },
       { id: "dzieci/urodzinki/gady",       label: "Urodzinki · Gady" },
       { id: "dzieci/wycieczki",            label: "Wycieczki szkolne" },
+      { id: "dzieci/wycieczki_rodzice",    label: "Wycieczki z rodzicami" },
     ],
   },
   {

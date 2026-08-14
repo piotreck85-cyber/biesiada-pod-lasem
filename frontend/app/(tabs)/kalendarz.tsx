@@ -40,6 +40,7 @@ function categoryColor(category?: string): string {
   if (c.startsWith("dorosli/okolicznosciowe")) return "#D4AF37";   // złoto – okolicznościowe
   if (c.startsWith("dorosli")) return "#D4AF37";                   // fallback dla dorosłych
   if (c.startsWith("dzieci/urodzinki")) return "#F472B6";          // róż – urodziny
+  if (c === "dzieci/wycieczki_rodzice") return "#F97316";          // pomarańcz – wycieczki z rodzicami
   if (c.startsWith("warsztaty")) return "#34D399";                 // zielony – warsztaty (nowe)
   if (c.startsWith("dzieci/wycieczki")) return "#34D399";          // zielony – wycieczki szkolne (traktujemy jako warsztaty)
   return "#9CA3AF";                                                // szary – bez kategorii

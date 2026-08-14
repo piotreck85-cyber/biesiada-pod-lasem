@@ -90,6 +90,25 @@ export function computePricing(category: string, dateIso: string, people: number
     };
   }
 
+  // Wycieczki z rodzicami — per-person, weekday-dependent
+  if (category === "dzieci/wycieczki_rodzice") {
+    const weekend = isWeekend(dateIso);
+    const perPerson = weekend ? 50 : 40;
+    const total = perPerson * people;
+    const dayLabel = weekend ? "Pt–Nd" : "Pon–Czw";
+    return {
+      match: "birthday",
+      offer_name: "Wycieczki z rodzicami",
+      base_price: 0,
+      extras: people,
+      extras_amount: total,
+      total,
+      breakdown: `Wycieczka z rodzicami (${dayLabel}) · ${people} × ${perPerson} zł/os.`,
+      people_included: 0,
+      per_person: perPerson,
+    };
+  }
+
   return null;
 }
 

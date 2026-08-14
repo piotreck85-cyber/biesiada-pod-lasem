@@ -13,7 +13,7 @@ import { theme, formatPLN, initials } from "@/src/theme";
 import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
-import { ADULT_SETS, ADULT_EXTRAS, findAdultSet } from "@/src/offers";
+import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -131,13 +131,16 @@ export default function EventDetail() {
 
   const peopleNum = parseInt(people, 10) || 0;
   const isAdult = category.startsWith("dorosli");
+  const isBirthday = category.startsWith("dzieci/urodzinki");
+  const isParentTrip = category === "dzieci/wycieczki_rodzice";
+  const activeExtras = extrasFor(category);
   const extrasTotal = useMemo(() => {
-    return ADULT_EXTRAS.reduce((sum, e) => {
+    return activeExtras.reduce((sum, e) => {
       const q = extras[e.id] || 0;
       if (e.unit === "kwota") return sum + q;
       return sum + q * e.price;
     }, 0);
-  }, [extras]);
+  }, [extras, activeExtras]);
   const pricing = useMemo(
     () => computePricing(category, date, peopleNum, packageSet),
     [category, date, peopleNum, packageSet]
@@ -148,6 +151,8 @@ export default function EventDetail() {
   useEffect(() => {
     if (autoPrice && (pricing || extrasTotal > 0)) {
       setRevenue(String(combinedTotal));
+      // Also propose it as the "Całkowita cena imprezy" if empty
+      setPriceTotal(prev => (!prev || prev === "0" || prev === String(revenueNum)) ? String(combinedTotal) : prev);
     }
   }, [combinedTotal, autoPrice]);
 
@@ -285,7 +290,7 @@ export default function EventDetail() {
     try {
       // package_set_id must be set1/set2/set3 (adult sets)
       const isSetId = packageSet === "set1" || packageSet === "set2" || packageSet === "set3";
-      const extrasPayload = ADULT_EXTRAS
+      const extrasPayload = activeExtras
         .map(e => {
           const q = extras[e.id] || 0;
           if (q <= 0) return null;
@@ -334,7 +339,7 @@ export default function EventDetail() {
         </Pressable>
         <Text style={s.headerTitle}>{isNew ? "Nowa impreza" : "Edytuj imprezę"}</Text>
         <View style={{ flexDirection: "row", gap: 4 }}>
-          {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki")) ? (
+          {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
               <Feather name="mail" size={18} color={theme.color.brand} />
             </Pressable>
@@ -720,9 +725,16 @@ export default function EventDetail() {
             )}
 
             <View style={{ marginTop: 12, marginBottom: 4 }}>
-              <Text style={s.label}>{isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)" : "Koszty (materiały, wynajem itp.)"}</Text>
+              <Text style={s.label}>{
+                activeExtras.length > 0
+                  ? (isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)"
+                    : isParentTrip ? "Dodatki (catering, konie, animacje)"
+                    : isBirthday ? "Dodatki (catering)"
+                    : "Dodatki")
+                  : "Koszty (materiały, wynajem itp.)"
+              }</Text>
             </View>
-            {isAdult && ADULT_EXTRAS.map(ex => {
+            {activeExtras.map(ex => {
               const q = extras[ex.id] || 0;
               const line = ex.unit === "kwota" ? q : q * ex.price;
               return (
@@ -749,7 +761,7 @@ export default function EventDetail() {
               );
             })}
 
-            {isAdult && (
+            {activeExtras.length > 0 && (
               <View style={{ marginTop: 12, marginBottom: 4 }}>
                 <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
               </View>

@@ -327,6 +327,30 @@ export const ADULT_EXTRAS: AdultExtra[] = [
   { id: "ciasto", name: "Ciasto (własne)", unit: "kwota", price: 0, hint: "Wpisz kwotę ręcznie" },
 ];
 
+// Extras for birthday events (dzieci/urodzinki/*)
+export const BIRTHDAY_EXTRAS: AdultExtra[] = [
+  { id: "catering", name: "Catering (poczęstunek)", unit: "osoba", price: 15, hint: "15 zł od osoby" },
+];
+
+// Extras for parent-accompanied field trips (dzieci/wycieczki_rodzice)
+export const PARENT_TRIP_EXTRAS: AdultExtra[] = [
+  { id: "catering", name: "Catering (poczęstunek)", unit: "osoba", price: 15, hint: "15 zł od osoby" },
+  { id: "konie", name: "Atrakcja: Konie", unit: "sztuka", price: 700, hint: "700 zł ryczałt (1 sztuka = wszyscy)" },
+  { id: "animacje", name: "Animacje", unit: "sztuka", price: 500, hint: "500 zł ryczałt" },
+];
+
+/**
+ * Returns the extras catalog appropriate for a given event category.
+ * Used by the event form to render the right add-on picker.
+ */
+export function extrasFor(category: string): AdultExtra[] {
+  const c = (category || "").toLowerCase();
+  if (c.startsWith("dorosli")) return ADULT_EXTRAS;
+  if (c === "dzieci/wycieczki_rodzice") return PARENT_TRIP_EXTRAS;
+  if (c.startsWith("dzieci/urodzinki")) return BIRTHDAY_EXTRAS;
+  return [];
+}
+
 // ---- Menu obiadowe (dinner offer 2026) ----
 // Positions from the hand-crafted "Oferta obiadowa 2026" DOCX. Prices per portion.
 export type DinnerItem = {
