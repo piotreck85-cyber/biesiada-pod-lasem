@@ -1,52 +1,87 @@
 {
   "app_name": "Biesiada pod Lasem",
-  "personality": "7 Dark-First Utility with 6 Glass/Luxe cinematic surfaces (Dark Forest Edition)",
-  "personality_one_liner": "A high-density, premium productivity tool blending the precision of Linear with a dark, cinematic forest aesthetic.",
+  "personality": "1 iOS-Native Clean with Glass/Luxe elements",
+  "personality_one_liner": "A vibrant, light, and modern event operations hub combining iOS-native clarity with frosted glassmorphism and semantic color coding.",
   "color": {
-    "surface": "#0A120E",
-    "onSurface": "#F3F4F6",
-    "surfaceSecondary": "#111D16",
-    "onSurfaceSecondary": "#9CA3AF",
-    "surfaceTertiary": "#18281F",
-    "onSurfaceTertiary": "#D1D5DB",
-    "surfaceInverse": "#E8F0EB",
-    "onSurfaceInverse": "#0A120E",
-    "brand": "#D4AF37",
-    "brandPrimary": "#D4AF37",
-    "onBrandPrimary": "#1C1400",
-    "brandSecondary": "#FBBF24",
-    "onBrandSecondary": "#2C1D00",
-    "brandTertiary": "#30260D",
-    "onBrandTertiary": "#FDE68A",
-    "success": "#10B981",
-    "onSuccess": "#022C22",
-    "warning": "#F59E0B",
-    "onWarning": "#451A03",
-    "error": "#EF4444",
-    "onError": "#450A0A",
-    "info": "#3B82F6",
-    "onInfo": "#0F172A",
-    "border": "#1A2B21",
-    "borderStrong": "#263D2F",
-    "divider": "#152219"
+    "surface": "#F2F2F7",
+    "onSurface": "#1C1C1E",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#1C1C1E",
+    "surfaceTertiary": "#E5E5EA",
+    "onSurfaceTertiary": "#3A3A3C",
+    "surfaceInverse": "#1C1C1E",
+    "onSurfaceInverse": "#FFFFFF",
+    "brand": "#10B981",
+    "brandPrimary": "#10B981",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#D1FAE5",
+    "onBrandSecondary": "#065F46",
+    "brandTertiary": "#A7F3D0",
+    "onBrandTertiary": "#047857",
+    "success": "#34C759",
+    "onSuccess": "#FFFFFF",
+    "warning": "#FFCC00",
+    "onWarning": "#4D3D00",
+    "error": "#FF3B30",
+    "onError": "#FFFFFF",
+    "info": "#32ADE6",
+    "onInfo": "#FFFFFF",
+    "border": "#D1D1D6",
+    "borderStrong": "#8E8E93",
+    "divider": "#C6C6C8",
+    "category_firmowe": "#007AFF",
+    "category_okolicznosciowe": "#FFB800",
+    "category_urodzinki": "#FF2D55",
+    "category_warsztaty": "#34C759",
+    "status_potwierdzona": "#34C759",
+    "status_wstepne": "#FFCC00",
+    "status_anulowana": "#FF3B30",
+    "overlay_dim": "rgba(0,0,0,0.4)"
   },
   "typography": {
-    "displayFontFamily": "Satoshi",
-    "textFontFamily": "Geist",
-    "scale": { "sm": 12, "base": 14, "lg": 16, "xl": 20, "2xl": 24 }
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "monoFontFamily": "Space Grotesk",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32
+    }
   },
-  "spacing": { 
-    "rule": "Generous margins (16pt/24pt) around screen edges, tight grouping (4pt/8pt) for related metadata. No orphans on the right.", 
-    "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "2xl": 32, "3xl": 48 
+  "spacing": {
+    "rule": "Generous iOS-native rhythm. Ensure intentional whitespace around cards and inside heavy forms.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
   },
-  "radius_tokens": { "sm": 6, "md": 12, "lg": 20, "pill": 999 },
-  "shadow_tier": "0",
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
   "navigation": "bottom_tabs",
-  "icon_set": "Phosphor",
+  "icon_set": "Ionicons",
   "glassmorphism": {
     "enabled": "true",
-    "do's": ["Bottom tab bar (frosted over scrolling content)", "Pinned dates on calendar agenda view", "Floating action buttons with brand tint"],
-    "dont's": ["Every list item", "Text inputs", "Data dense statistic cards"]
+    "do's": [
+      "Use expo-blur for the bottom tab bar",
+      "Use expo-blur for sticky headers over scrolling lists",
+      "Use frosted glass over the hero image on the login screen",
+      "Add a glass container behind the sticky CTA inside the event detail form"
+    ],
+    "dont's": [
+      "Do not blur standard event cards in lists (use surfaceSecondary)",
+      "Do not use blur inside text inputs"
+    ]
   },
   "platform_libraries": {
     "glass": {
@@ -61,84 +96,105 @@
     "gesture": "react-native-gesture-handler"
   },
   "screens": [
-    { 
-      "name": "Login", 
-      "purpose": "Secure gateway with a cinematic forest backdrop emphasizing the brand's premium outdoor identity.", 
-      "states": { "loading": "Subtle gold spinner over darkened forest image.", "empty": "N/A", "error": "Glassy toast with red accent." },
-      "layout": "Hero image background covering the screen. Gradient scrim (top-to-bottom transparent to surface) covering the bottom 60%. Login form (email/pass + Google CTA) inside a frosted glass card or directly on the darkened scrim at the bottom. Typography display uses negative tracking."
+    {
+      "name": "Login",
+      "purpose": "Authentication screen greeting the user with a premium brand feel.",
+      "states": {
+        "loading": "Spinner in CTA button",
+        "empty": "N/A",
+        "error": "Standard alert or inline red text"
+      },
+      "layout": "Hero background image covering the full screen. Add a top-to-bottom transparent to surfaceInverse gradient scrim (bottom 50% must be ≥70% opacity). Place the login form inside a glassmorphic card (expo-blur) pinned to the bottom third of the screen. Keep it clean and elegant."
     },
     {
       "name": "Kalendarz",
-      "purpose": "A high-density monthly and agenda view to instantly grasp event load and upcoming duties.",
-      "states": { "loading": "Skeleton grid matching the calendar structure.", "empty": "Illustration of a quiet forest + 'Brak wydarzeń w tym miesiącu'.", "error": "Retry state with small warning icon." },
-      "layout": "Top section: seamless calendar strip or grid without borders (Linear style). Current day indicated by brandPrimary solid circle. Bottom section: Agenda list of events. Each list item uses surfaceSecondary with 0.5pt subtle borders, displaying time, event title, and color-coded status pills. Sticky month headers with frosted glass."
+      "purpose": "Primary view for checking daily events via a month grid.",
+      "states": {
+        "loading": "Skeleton grid",
+        "empty": "Empty state illustration below the calendar grid",
+        "error": "Error message with retry button"
+      },
+      "layout": "White background. Keep the bell icon top-right. Render a clean iOS-style month grid. Status dots (colored by status) remain under day numbers. Selected day uses a brandPrimary solid pill. Below the calendar, display a FlashList of events for the selected day using surfaceSecondary cards."
     },
     {
-      "name": "Ostatnie",
-      "purpose": "Chronological feed of recently added/edited events acting as a quick-access workspace history.",
-      "states": { "loading": "List item skeletons.", "empty": "Icon of an empty tray + 'Brak ostatnich aktywności'.", "error": "Fetch error toast." },
-      "layout": "Header with title and a horizontally scrolling row of pill-shaped chips (Sort/Filter). Below: dense list rows. Each row: Event type icon in a brandTertiary rounded square, Title (event name), Subtitle (date/time), trailing metadata (price/status). No shadows, only subtle 1px divider between rows."
+      "name": "Imprezy (Ostatnie)",
+      "purpose": "List of recent/upcoming events with quick filtering.",
+      "states": {
+        "loading": "Skeleton list",
+        "empty": "Empty state illustration + 'Brak imprez' text",
+        "error": "Toast or inline error message"
+      },
+      "layout": "Use a horizontally scrolling row of filter chips at the top (pill radius, surfaceTertiary, active state uses Category color). Below, a FlashList of event cards. Each card must have lg radius, lg padding, Tier 1 shadow. Display Category color as a subtle tag or left-border strip, and Status color as a pulsing dot. Use Space Grotesk for dates/times."
     },
     {
       "name": "Oferta",
-      "purpose": "A premium catalog of adult, kids, and workshop packages to easily build and send offers.",
-      "states": { "loading": "Card skeletons.", "empty": "No packages found.", "error": "Could not load packages." },
-      "layout": "Multi-column grid or large single-column cards. Top: Segmented control (Dorośli, Dzieci, Warsztaty). Cards use imagery (wooden table, alpacas) with a 70% dark scrim at the bottom, overlaid with white text (Title, Price). A primary 'Wyślij ofertę' CTA floats as a glass FAB at the bottom right."
+      "purpose": "Generate offer emails and PDFs.",
+      "states": {
+        "loading": "Generating PDF overlay",
+        "empty": "N/A",
+        "error": "Error toast"
+      },
+      "layout": "Single column form inside a large surfaceSecondary card. Use iOS-style segmented controls (with surfaceTertiary bg) to toggle between PDF/DOCX. Inputs have surfaceTertiary backgrounds. Sticky 'Wyślij' (Send) primary CTA button pinned at the bottom over a glassmorphic bar."
     },
     {
       "name": "Koszty",
-      "purpose": "Ledger for tracking workspace expenses with a clear top-line total.",
-      "states": { "loading": "Skeleton rows.", "empty": "Illustration of an empty wallet + 'Brak kosztów w tym miesiącu'.", "error": "Failed to load expenses." },
-      "layout": "Top: KPI Card in surfaceSecondary showing 'Całkowite koszty' in large display typography. Below: List of expenses. Each row shows category icon, description, and negative amount in red/white. FAB at bottom right to 'Dodaj koszt'."
+      "purpose": "Manage company expenses.",
+      "states": {
+        "loading": "Skeleton rows",
+        "empty": "Empty desk illustration + 'Brak kosztów'",
+        "error": "Error toast"
+      },
+      "layout": "At the top, a large summary card showing total expenses in Space Grotesk (e.g., 32pt). Below it, a clean list of expense rows. Use an expo-blur Floating Action Button (FAB) positioned bottom-right to add new expenses."
     },
     {
       "name": "Pracownicy",
-      "purpose": "Staff directory and shift management with clear role distinction.",
-      "states": { "loading": "Avatar row skeletons.", "empty": "No staff added yet.", "error": "Failed to load team." },
-      "layout": "List view. Each row features a real photo or initials avatar in surfaceTertiary. Next to it: Name, and a role badge (e.g., Szef, Obsługa, Animator) using semantic tint chips (e.g., brandTertiary for Szef). Tapping opens a bottom sheet with their shift history."
+      "purpose": "Staff roster and rate management.",
+      "states": {
+        "loading": "Skeleton grid",
+        "empty": "Illustration + 'Brak pracowników'",
+        "error": "Error toast"
+      },
+      "layout": "2-column grid of staff cards. Each card contains an initials avatar inside a brandTertiary circle, the staff name, and their hourly rate clearly displayed in Space Grotesk."
     },
     {
       "name": "Statystyki",
-      "purpose": "Financial and operational command center with real-time charts.",
-      "states": { "loading": "Chart and KPI skeleton blocks.", "empty": "Not enough data to display stats.", "error": "Analytics failed to load." },
-      "layout": "2-column grid for KPI cards (Przychód, Zysk, Liczba imprez) utilizing surfaceSecondary and subtle borders. Below: A smooth line chart (using react-native-chart-kit or similar) with the line in brandPrimary (Gold). Filter chips at the top (Miesiąc/Rok). Bottom section has export action rows."
+      "purpose": "Revenue charts and calendar sync.",
+      "states": {
+        "loading": "Skeleton charts",
+        "empty": "N/A",
+        "error": "Error toast"
+      },
+      "layout": "Scrollable dashboard. Top sections contain colorful modern bar/line charts. Bottom section contains distinct integration cards (e.g., 'Google Calendar Sync', 'Eksport ICS') with relevant icons and subtle background gradients."
     },
     {
-      "name": "Event detail",
-      "purpose": "Comprehensive form and dashboard for a single event.",
-      "states": { "loading": "Form skeletons.", "empty": "N/A", "error": "Event not found." },
-      "layout": "Hero image top (event type photo) with a gradient scrim. Title overlays on the image. Below: Clean, single-column form fields with labels above inputs. Inputs use surfaceTertiary background with no borders until focused (then borderStrong). Expandable sections for 'Pakiet', 'Pracownicy', 'Notatki'. Sticky primary CTA at the bottom 'Zapisz zmiany' in brandPrimary."
+      "name": "Event Detail [id]",
+      "purpose": "Massive form for editing a specific event.",
+      "states": {
+        "loading": "Skeleton form",
+        "empty": "N/A",
+        "error": "Error toast"
+      },
+      "layout": "Wrap the 30+ fields in visually distinct collapsible sections or grouped surfaceSecondary cards (e.g., 'Dane klienta', 'Płatność', 'Personel'). Use labels above inputs. Sticky 'Zapisz' (Save) CTA at the absolute bottom wrapped in a glassmorphic container to ensure it's always accessible without scrolling to the end."
     }
   ],
   "images": {
-    "login_hero_bg": { 
-      "url": "https://images.unsplash.com/photo-1464457312035-3d7d0e0c058e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1ODh8MHwxfHNlYXJjaHwxfHxkYXJrJTIwcGluZSUyMGZvcmVzdCUyMGZvZ3xlbnwwfHx8fDE3ODY1MDg2MDd8MA&ixlib=rb-4.1.0&q=85", 
-      "alt": "Dark pine forest covered in thick fog" 
+    "login_hero": {
+      "url": "https://images.unsplash.com/photo-1758660186196-fdd8164c39da?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwb3V0ZG9vciUyMGRpbmluZyUyMGZvcmVzdCUyMHRhYmxlJTIwZGlubmVyJTIwcGFydHl8ZW58MHx8fHwxNzg2NjgzODUx&ixlib=rb-4.1.0&q=85",
+      "alt": "Table with vase of flowers in autumn forest"
     },
-    "package_kids_alpaca": { 
-      "url": "https://images.unsplash.com/photo-1589182337358-2cb63099350c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzF8MHwxfHNlYXJjaHwxfHxhbHBhY2ElMjBwaG90b3xlbnwwfHx8fDE3ODY1MDg2MDd8MA&ixlib=rb-4.1.0&q=85", 
-      "alt": "White alpaca in a field" 
-    },
-    "package_adults_feast": { 
-      "url": "https://images.unsplash.com/photo-1520869309377-88c9274a27c2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODF8MHwxfHNlYXJjaHwxfHx3b29kZW4lMjBvdXRkb29yJTIwZmVhc3QlMjB0YWJsZXxlbnwwfHx8fDE3ODY1MDg2MDd8MA&ixlib=rb-4.1.0&q=85", 
-      "alt": "Outdoor wooden feast table" 
+    "empty_calendar": {
+      "url": "https://images.unsplash.com/photo-1493934558415-9d19f0b2b4d2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwbW9kZXJuJTIwZW1wdHklMjBjYWxlbmRhciUyMGFnZW5kYSUyMGRlc2t8ZW58MHx8fHwxNzg2NjgzODQzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimalist modern empty desk with calendar"
     }
   },
-  "haptics": {
-    "tab_press": "light",
-    "primary_button_press": "medium",
-    "chip_toggle": "light",
-    "event_save_success": "success",
-    "error_state": "error"
-  },
   "instructions_to_main_agent": [
-    "STRICT RULE: The background must be dark forest green (#0A120E). Do not use black or navy. Text must be white (#F3F4F6) with muted secondary variants.",
-    "Implement a Linear-style 'no shadow' elevation system. Distinguish cards and lists using surfaceSecondary (#111D16) and a very subtle 0.5pt border (#1A2B21).",
-    "Use Phosphor Icons. Ensure sizes map to an 8pt grid (16, 24, 32).",
-    "Typography must feel premium: Use Satoshi for display headings with tight/negative letter spacing (-0.5px to -1px) to give a sharp, authoritative feel. Use Geist for readable body text.",
-    "On image cards (Oferta / Event Detail), strictly apply the gradient scrim layer pattern from top-transparent to 70%+ surface background at the bottom. Text overlays must be in this scrim area.",
-    "Forms (Event detail) should use labels above inputs. Inputs should not have a floating label. Keep it clean and single column.",
-    "The primary action (e.g. Save, Send Offer) on scrolling screens must be sticky at the bottom, either floating or pinned with a frosted glass background.",
-    "Include haptics explicitly as detailed in the haptics block."
+    "Implement the 'iOS-Native Clean' personality utilizing a vibrant, lighter palette to replace the old dark forest green theme.",
+    "CRITICAL: Keep the Polish language for all labels and copy.",
+    "CRITICAL: Keep the 6 bottom tabs structure. Ensure the tab bar uses expo-blur for a modern transparent feel.",
+    "CRITICAL: Ensure category colors (firmowe=blue, okolicznosciowe=gold, urodzinki=pink, warsztaty=green) and status colors (potwierdzona=green, wstepne/rezerwacja=yellow, anulowana=red) are strictly mapped as specified in the color tokens.",
+    "CRITICAL: Retain the FlashList implementation for the Imprezy (Ostatnie) screen to guarantee performance with 500+ items.",
+    "Utilize 'Plus Jakarta Sans' for all general UI text and 'Space Grotesk' exclusively for dates, times, hourly rates, and metric numbers to inject a modern technical vibe.",
+    "Refactor the dense Event Detail screen (~30 fields) by grouping inputs into surfaceSecondary cards to prevent cognitive overload. Implement a sticky save button at the bottom over an expo-blur background.",
+    "Swap Feather icons for Ionicons. Use outlined variants for inactive states and filled variants for active states (especially in the tab bar)."
   ]
 }

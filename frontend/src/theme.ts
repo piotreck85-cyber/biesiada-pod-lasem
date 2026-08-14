@@ -1,34 +1,46 @@
 export const theme = {
   color: {
-    // Deep forest surfaces (Linear-style layered elevation, no shadows)
-    surface: "#0A120E",
-    surfaceSecondary: "#111D16",
-    surfaceTertiary: "#18281F",
-    surfaceQuaternary: "#1F3428",
-    onSurface: "#F3F4F6",
-    onSurfaceSecondary: "#9CA3AF",
-    onSurfaceTertiary: "#D1D5DB",
-    // Brand: warm gold accent
-    brand: "#D4AF37",
-    brandSecondary: "#FBBF24",
-    brandTertiary: "#30260D",
-    onBrand: "#1C1400",
-    onBrandTertiary: "#FDE68A",
+    // Light iOS-inspired surfaces (Apple HIG layered elevation)
+    surface: "#F2F2F7",           // system background
+    surfaceSecondary: "#FFFFFF",  // elevated cards
+    surfaceTertiary: "#E5E5EA",   // subtle chips / inactive
+    surfaceQuaternary: "#F9F9FB", // inner container
+    onSurface: "#1C1C1E",         // primary text
+    onSurfaceSecondary: "#6B6B70",// secondary text (light gray)
+    onSurfaceTertiary: "#3A3A3C", // tertiary text
+    // Brand: vibrant spring emerald (fresh, modern)
+    brand: "#10B981",
+    brandSecondary: "#059669",
+    brandTertiary: "#D1FAE5",     // tint surface
+    onBrand: "#FFFFFF",
+    onBrandTertiary: "#065F46",
     // Semantic
-    success: "#10B981",
+    success: "#34C759",
     onSuccess: "#022C22",
-    warning: "#F59E0B",
-    onWarning: "#451A03",
-    error: "#EF4444",
-    onError: "#450A0A",
-    info: "#3B82F6",
+    warning: "#FFCC00",
+    onWarning: "#4D3D00",
+    error: "#FF3B30",
+    onError: "#FFFFFF",
+    info: "#32ADE6",
     // Structural
-    border: "#1A2B21",
-    borderStrong: "#263D2F",
-    divider: "#152219",
+    border: "#D1D1D6",
+    borderStrong: "#8E8E93",
+    divider: "#E5E5EA",
+    // Category (semantic - preserved)
+    categoryFirmowe: "#007AFF",
+    categoryOkolicznosciowe: "#FFB800",
+    categoryUrodzinki: "#FF2D55",
+    categoryWarsztaty: "#34C759",
+    // Status (semantic - preserved)
+    statusConfirmed: "#34C759",
+    statusTentative: "#FFCC00",
+    statusCancelled: "#FF3B30",
+    // Overlays
+    overlayDim: "rgba(0,0,0,0.4)",
+    glassTint: "rgba(255,255,255,0.7)",
   },
   spacing: { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 },
-  radius: { sm: 6, md: 12, lg: 20, xl: 24, pill: 999 },
+  radius: { sm: 8, md: 14, lg: 20, xl: 28, pill: 999 },
   font: {
     display: "Barlow Condensed",
     body: "Geist",

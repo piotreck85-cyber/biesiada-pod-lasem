@@ -16,21 +16,20 @@ export default function TabLayout() {
         tabBarActiveTintColor: theme.color.brand,
         tabBarInactiveTintColor: theme.color.onSurfaceSecondary,
         tabBarStyle: {
-          backgroundColor: "rgba(10,18,14,0.94)",
+          backgroundColor: "rgba(255,255,255,0.92)",
           borderTopColor: theme.color.border,
           borderTopWidth: 0.5,
           height: tabHeight,
           paddingTop: 8,
           paddingBottom: bottomPad,
-          // Subtle inner top glow, more premium than a hard border
           ...Platform.select({
             ios: {
               shadowColor: "#000",
               shadowOffset: { width: 0, height: -1 },
-              shadowOpacity: 0.4,
+              shadowOpacity: 0.06,
               shadowRadius: 12,
             },
-            android: { elevation: 8 },
+            android: { elevation: 6 },
             default: {},
           }),
         },

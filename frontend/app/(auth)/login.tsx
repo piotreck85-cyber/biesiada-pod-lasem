@@ -176,7 +176,7 @@ const s = StyleSheet.create({
   title: { fontSize: 32, color: theme.color.onSurface, fontWeight: "700", lineHeight: 38, marginBottom: 8 },
   subtitle: { fontSize: 15, color: theme.color.onSurfaceSecondary, lineHeight: 22 },
   card: {
-    backgroundColor: "rgba(21,21,24,0.92)", borderRadius: 20, padding: 20, borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.85)", borderRadius: 20, padding: 20, borderWidth: 1,
     borderColor: theme.color.border,
   },
   label: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 1, marginBottom: 6, marginTop: 10 },
