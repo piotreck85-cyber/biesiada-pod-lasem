@@ -563,7 +563,8 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
     greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
 
     # Attachment strategy per event type
-    is_workshops = body.event_type in ("warsztaty", "wycieczki_szkolne", "wycieczki_rodzice")
+    is_workshops = body.event_type == "warsztaty"
+    is_trips = body.event_type in ("wycieczki_szkolne", "wycieczki_rodzice")
     is_adult = body.event_type in ("okolicznosciowe", "firmowe")
     is_birthday = body.event_type == "urodziny"
     att_mode = (body.attachments_mode or "both").lower()
@@ -571,6 +572,10 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
         att_mode = "both"
 
     if is_birthday:
+        attachments_txt = ""
+        attachments_html = ""
+    elif is_trips:
+        # Text-only email; the whole offer is in the intro body
         attachments_txt = ""
         attachments_html = ""
     elif is_workshops:
@@ -718,13 +723,16 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
 
         if body.event_type == "urodziny":
             extras_files = []
-        elif body.event_type in ("warsztaty", "wycieczki_szkolne", "wycieczki_rodzice"):
+        elif body.event_type == "warsztaty":
             extras_files = [
                 {"path": str(assets_dir / "Jesienne-Warsztaty-Edukacyjne-2026.pdf"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.pdf"},
                 {"path": str(assets_dir / "oferta_warsztaty_jesienne_2026.docx"),
                  "filename": "Jesienne-Warsztaty-Edukacyjne-2026.docx"},
             ]
+        elif body.event_type in ("wycieczki_szkolne", "wycieczki_rodzice"):
+            # Text-only email — full pricing/details in the intro body
+            extras_files = []
         elif body.event_type in ("okolicznosciowe", "firmowe"):
             # User picks: grill only / dinner only / both
             extras_files = []

@@ -368,6 +368,35 @@ _INTRO_WORKSHOPS = (
     "Będzie nam bardzo miło gościć Państwa w Biesiadzie pod lasem!"
 )
 
+_INTRO_TRIPS = (
+    "serdecznie zapraszamy na wycieczkę do Biesiady pod Lasem — miejsca stworzonego "
+    "z myślą o wspólnym, aktywnym spędzaniu czasu przez dzieci i rodziców.\n\n"
+    "Wycieczka trwa 4 godziny i odbywa się na naszym obiekcie na wyłączność.\n\n"
+    "💰 Cennik:\n"
+    "  •  Poniedziałek–Czwartek: 40 zł od osoby\n"
+    "  •  Piątek–Niedziela: 50 zł od osoby\n"
+    "  •  Catering: 15 zł od osoby\n"
+    "  •  Konie (przejażdżki / karmienie): 700 zł ryczałt\n"
+    "  •  Animacje: 500 zł ryczałt\n\n"
+    "🎪 Do dyspozycji na miejscu:\n"
+    "  •  Obiekt na wyłączność\n"
+    "  •  Karmienie i spacer z alpakami\n"
+    "  •  Dmuchaniec\n"
+    "  •  Ognisko z kiełbaskami\n"
+    "  •  Naczynia zwykłe oraz naczynia jednorazowe\n\n"
+    "🍽 W skład cateringu wchodzą:\n"
+    "  •  Kiełbaska z ogniska\n"
+    "  •  Ziemniaczek firmowy\n"
+    "  •  Napój (woda z owocami)\n"
+    "  •  Kawa i herbata\n\n"
+    "W razie pytań lub chęci rezerwacji terminu prosimy o kontakt:\n\n"
+    "📞 518 029 217 lub 510 558 592\n"
+    "📧 szkoly@biesiadapodlasem.pl\n"
+    "🌐 www.Dolinaprzygod.pl\n"
+    "📍 ul. Zastawie 4, Kielce\n\n"
+    "Będzie nam bardzo miło gościć Państwa w Biesiadzie pod Lasem!"
+)
+
 # Custom sign-off overrides per event type. If ``None`` the default footer is used.
 EVENT_TYPE_SIGNOFFS = {
     "warsztaty": (
@@ -408,8 +437,8 @@ EVENT_TYPE_INTROS = {
     "firmowe": _INTRO_ADULT,
     "urodziny": _INTRO_BIRTHDAY,
     "warsztaty": _INTRO_WORKSHOPS,
-    "wycieczki_szkolne": _INTRO_WORKSHOPS,
-    "wycieczki_rodzice": _INTRO_WORKSHOPS,
+    "wycieczki_szkolne": _INTRO_TRIPS,
+    "wycieczki_rodzice": _INTRO_TRIPS,
 }
 
 
