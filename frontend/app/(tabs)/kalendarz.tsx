@@ -117,44 +117,41 @@ export default function Kalendarz() {
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
 
   // Monthly summary — clear semantics:
-  //  - Rzeczywisty przychód: revenue realized for past/completed events
+  //  - Rzeczywisty przychód: revenue from booked/done events (status != wstepne/anulowana)
   //  - Rzeczywisty koszt: event costs + separate expenses (recorded)
-  //  - Planowany przychód: revenue/price_total from future non-cancelled events
-  //  - Planowany koszt: estimated cost for future events (from historical ratios)
+  //  - Planowany przychód: revenue/price_total ONLY from tentative offers (status='wstepne')
+  //  - Planowany koszt: estimated cost for tentative offers (from historical ratios)
   const monthlySummary = useMemo(() => {
     const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthEvents = events.filter(e => (e.date || "").startsWith(monthPrefix));
-    const todayIso = new Date().toISOString().slice(0, 10);
 
     let actualRevenue = 0;
     let plannedRevenue = 0;
     let plannedCost = 0;
-    let eventActualCosts = 0;  // event.costs + labor for events with recorded costs
+    let eventActualCosts = 0;
 
     monthEvents.forEach(e => {
       const st = (e.status || "").toLowerCase();
       const isCancelled = st === "anulowana";
-      const isPast = (e.date || "") < todayIso;
-      const isDone = st === "zakonczona" || isPast;
+      const isTentative = st === "wstepne";
       const rev = Number(e.revenue) || 0;
       const priceTotal = Number(e.price_total) || 0;
-      const recordedCost = Number(e.total_cost) || 0;   // material + labor (from backend)
+      const recordedCost = Number(e.total_cost) || 0;
 
       if (isCancelled) return;
 
-      if (isDone) {
-        // Realized event → add to actual
-        actualRevenue += rev;
-        eventActualCosts += recordedCost;
-      } else {
-        // Future event → add to planned
+      if (isTentative) {
+        // Tentative offer → planned only
         plannedRevenue += rev || priceTotal;
-        // Estimated cost: prefer real if entered, else backend estimate (revenue × cost_ratio)
         if (recordedCost > 0) {
           plannedCost += recordedCost;
         } else if (e.estimated_cost !== undefined) {
           plannedCost += Number(e.estimated_cost) || 0;
         }
+      } else {
+        // Booked / confirmed / done → actual
+        actualRevenue += rev;
+        eventActualCosts += recordedCost;
       }
     });
 

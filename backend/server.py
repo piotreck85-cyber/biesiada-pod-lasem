@@ -1664,7 +1664,8 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
     total_revenue = 0.0
     total_material = 0.0
     total_labor = 0.0
-    # Planned (future / not-yet-realized) — for forecasts
+    # Planned (tentative offers "wstepne") — for forecasts.
+    # Excludes confirmed bookings (rezerwacja/potwierdzona/zakonczona) & anulowana.
     planned_revenue = 0.0
     planned_cost = 0.0
     cost_ratios = await _cost_ratios_by_category(ws(user))
@@ -1674,26 +1675,27 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
         ev = await compute_event_summary(ev, staff_map, cost_ratios)
         st = (ev.get("status") or "").lower()
         is_cancelled = st == "anulowana"
+        is_tentative = st == "wstepne"  # ← preliminary quotes / offers only
         is_past = (ev.get("date") or "") < today_iso
-        is_done = st == "zakonczona" or is_past
+        # Consider "realized" if event happened OR status marked as done/confirmed and past
+        is_done = st == "zakonczona" or (is_past and not is_tentative)
         rev = float(ev.get("revenue") or 0)
         recorded_cost = float(ev.get("total_cost") or 0)
         if is_cancelled:
             pass
-        elif is_done:
+        elif is_tentative:
+            # only tentative offers → count in planned/forecast
+            planned_revenue += rev or float(ev.get("price_total") or 0)
+            planned_cost += recorded_cost if recorded_cost > 0 else float(ev.get("estimated_cost") or 0)
+        else:
+            # confirmed/booked/done → realized side of the ledger
             total_revenue += rev
             total_material += float(ev.get("material_cost") or 0)
             total_labor += float(ev.get("labor_cost") or 0)
-        else:
-            # future event → planned
-            planned_revenue += rev or float(ev.get("price_total") or 0)
-            if recorded_cost > 0:
-                planned_cost += recorded_cost
-            else:
-                planned_cost += float(ev.get("estimated_cost") or 0)
         per_event.append({
             "id": ev["id"], "name": ev["name"], "date": ev["date"],
             "revenue": ev["revenue"], "total_cost": ev["total_cost"], "profit": ev["profit"],
+            "status": ev.get("status", ""),
         })
     total_cost = total_material + total_labor
     return {
