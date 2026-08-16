@@ -1664,12 +1664,33 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
     total_revenue = 0.0
     total_material = 0.0
     total_labor = 0.0
+    # Planned (future / not-yet-realized) — for forecasts
+    planned_revenue = 0.0
+    planned_cost = 0.0
+    cost_ratios = await _cost_ratios_by_category(ws(user))
+    today_iso = datetime.now(timezone.utc).date().isoformat()
     per_event = []
     for ev in events:
-        ev = await compute_event_summary(ev, staff_map)
-        total_revenue += ev.get("revenue", 0)
-        total_material += ev.get("material_cost", 0)
-        total_labor += ev.get("labor_cost", 0)
+        ev = await compute_event_summary(ev, staff_map, cost_ratios)
+        st = (ev.get("status") or "").lower()
+        is_cancelled = st == "anulowana"
+        is_past = (ev.get("date") or "") < today_iso
+        is_done = st == "zakonczona" or is_past
+        rev = float(ev.get("revenue") or 0)
+        recorded_cost = float(ev.get("total_cost") or 0)
+        if is_cancelled:
+            pass
+        elif is_done:
+            total_revenue += rev
+            total_material += float(ev.get("material_cost") or 0)
+            total_labor += float(ev.get("labor_cost") or 0)
+        else:
+            # future event → planned
+            planned_revenue += rev or float(ev.get("price_total") or 0)
+            if recorded_cost > 0:
+                planned_cost += recorded_cost
+            else:
+                planned_cost += float(ev.get("estimated_cost") or 0)
         per_event.append({
             "id": ev["id"], "name": ev["name"], "date": ev["date"],
             "revenue": ev["revenue"], "total_cost": ev["total_cost"], "profit": ev["profit"],
@@ -1683,6 +1704,13 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
         "total_cost": round(total_cost, 2),
         "company_expenses": company_expenses,
         "profit": round(total_revenue - total_cost - company_expenses, 2),
+        # ---- Forecast fields ----
+        "planned_revenue": round(planned_revenue, 2),
+        "planned_cost": round(planned_cost, 2),
+        "planned_profit": round(planned_revenue - planned_cost, 2),
+        "projected_total_revenue": round(total_revenue + planned_revenue, 2),
+        "projected_total_cost": round(total_cost + company_expenses + planned_cost, 2),
+        "projected_total_profit": round((total_revenue + planned_revenue) - (total_cost + company_expenses + planned_cost), 2),
         "events": per_event,
     }
 

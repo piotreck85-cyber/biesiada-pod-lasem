@@ -377,11 +377,22 @@ export default function Statystyki() {
   const profit = revenue - totalCost;
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
 
+  // Forecast (planned future) values from backend
+  const plannedRevenue = data?.planned_revenue || 0;
+  const plannedCost = data?.planned_cost || 0;
+  const plannedProfit = data?.planned_profit || 0;
+  const projectedRevenue = revenue + plannedRevenue;
+  const projectedCost = totalCost + plannedCost;
+  const projectedProfit = projectedRevenue - projectedCost;
+
   const yearRevenue = yearData?.revenue || 0;
   const yearEventCost = yearData?.total_cost || 0;
   const yearCompanyExp = yearData?.company_expenses || 0;
   const yearTotalCost = yearEventCost + yearCompanyExp;
   const yearProfit = yearRevenue - yearTotalCost;
+  const yearPlannedRev = yearData?.planned_revenue || 0;
+  const yearPlannedCost = yearData?.planned_cost || 0;
+  const yearProjectedProfit = (yearRevenue + yearPlannedRev) - (yearTotalCost + yearPlannedCost);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="stats-screen">
@@ -458,6 +469,36 @@ export default function Statystyki() {
               <BreakdownRow label="Firmowe (Koszty tab)" value={companyExpenses} />
               <View style={s.sep} />
               <BreakdownRow label="Razem" value={totalCost} bold />
+            </View>
+
+            {/* Forecast card — planned + projected total */}
+            <View style={[s.breakdownCard, { borderColor: theme.color.brand + "44", backgroundColor: theme.color.brand + "0A" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Feather name="target" size={14} color={theme.color.brand} />
+                <Text style={s.sectionTitle}>Prognozy — {MONTHS_PL[month]} {year}</Text>
+              </View>
+              <BreakdownRow label="Planowany przychód (nieodbyte imprezy)" value={plannedRevenue} />
+              <BreakdownRow label="Planowany koszt (estymowany)" value={plannedCost} />
+              <BreakdownRow label="Planowany zysk" value={plannedProfit} bold />
+              <View style={s.sep} />
+              <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
+                <Text style={{ flex: 1, color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>Prognoza łącznie (rzecz. + plan.)</Text>
+              </View>
+              <BreakdownRow label="Przychód razem" value={projectedRevenue} />
+              <BreakdownRow label="Koszt razem" value={projectedCost} />
+              <BreakdownRow label="Zysk razem" value={projectedProfit} bold />
+            </View>
+
+            {/* Forecast for full year */}
+            <View style={[s.breakdownCard, { borderColor: theme.color.warning + "55", backgroundColor: theme.color.warning + "0A" }]}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Feather name="trending-up" size={14} color={theme.color.warning} />
+                <Text style={s.sectionTitle}>Prognoza — cały rok {year}</Text>
+              </View>
+              <BreakdownRow label="Planowany przychód" value={yearPlannedRev} />
+              <BreakdownRow label="Planowany koszt" value={yearPlannedCost} />
+              <View style={s.sep} />
+              <BreakdownRow label="Zysk prognozowany (rzecz. + plan.)" value={yearProjectedProfit} bold />
             </View>
 
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>
