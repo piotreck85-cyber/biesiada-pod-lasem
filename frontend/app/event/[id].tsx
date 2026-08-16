@@ -179,6 +179,24 @@ export default function EventDetail() {
 
   const combinedTotal = (pricing?.total || 0) + extrasTotal + dinnerRevenue;
 
+  // ---- Auto forecast of event costs (Przewidywane rozliczenie) ----
+  // Catering cost = dinnerAutoCostVal (sum of cost_price × qty)
+  // Grill cost = per-person cost (25/30/35) × people, from GRILL_SET_COSTS
+  // Beverages cost = 8 zł × people (if "napoje" extra selected with qty > 0)
+  // Other planned costs = sum of costs[].amount from the event form
+  const grillCostPerPerson = (packageSet === "set1" ? 25 : packageSet === "set2" ? 30 : packageSet === "set3" ? 35 : 0);
+  const grillCost = grillCostPerPerson * (peopleNum || 0);
+  const beveragesQty = extras["napoje"] || 0;
+  const beveragesCost = beveragesQty > 0 ? 8 * (peopleNum || 0) : 0;
+  const otherPlannedCosts = costs.reduce((s, c) => s + (parseAmt(c.amount) || 0), 0);
+  const cateringCost = dinnerCostNum;
+  const totalPlannedCost = grillCost + beveragesCost + cateringCost + otherPlannedCosts;
+  const eventValue = parseAmt(priceTotal) || combinedTotal || 0;
+  const discountedValue = parseAmt(discountPct) > 0
+    ? eventValue * (1 - parseAmt(discountPct) / 100)
+    : eventValue;
+  const plannedProfit = discountedValue - totalPlannedCost;
+
   // Auto-price when computable and user hasn't manually overridden
   useEffect(() => {
     if (autoPrice && (pricing || extrasTotal > 0)) {
@@ -556,6 +574,82 @@ export default function EventDetail() {
 
           {/* Payment */}
           <Section title="Płatność">
+            {/* Auto forecast — Przewidywane rozliczenie */}
+            <View style={{
+              marginBottom: 14, padding: 14, borderRadius: 14,
+              borderWidth: 1, borderColor: theme.color.brand + "55",
+              backgroundColor: theme.color.brand + "0A",
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Feather name="target" size={13} color={theme.color.brand} />
+                <Text style={{ color: theme.color.brand, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
+                  PRZEWIDYWANE ROZLICZENIE
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Wartość / rezerwacja</Text>
+                <Text style={{ color: theme.color.success, fontSize: 12, fontWeight: "700" }}>
+                  +{discountedValue.toFixed(0)} zł
+                </Text>
+              </View>
+              {cateringCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Koszt cateringu (auto)</Text>
+                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{cateringCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {grillCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>
+                    Koszt grilla ({grillCostPerPerson} zł × {peopleNum || 0})
+                  </Text>
+                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{grillCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {beveragesCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>
+                    Napoje (8 zł × {peopleNum || 0})
+                  </Text>
+                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{beveragesCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {otherPlannedCosts > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Pozostałe koszty</Text>
+                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{otherPlannedCosts.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              <View style={{ height: 1, backgroundColor: theme.color.brand + "44", marginVertical: 6 }} />
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
+                <Text style={{ color: theme.color.error, fontSize: 13, fontWeight: "800" }}>
+                  −{totalPlannedCost.toFixed(0)} zł
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: theme.color.onSurface, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
+                <Text style={{
+                  color: plannedProfit >= 0 ? theme.color.brand : theme.color.error,
+                  fontSize: 18, fontWeight: "800",
+                }}>
+                  {plannedProfit >= 0 ? "+" : ""}{plannedProfit.toFixed(0)} zł
+                </Text>
+              </View>
+              {discountedValue > 0 && (
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 4 }}>
+                  Marża: {((plannedProfit / discountedValue) * 100).toFixed(1)}%
+                </Text>
+              )}
+            </View>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 2 }}>
                 <Field label="Całkowita cena imprezy">
