@@ -169,6 +169,82 @@ export default function Statystyki() {
 
   const [busyBackup, setBusyBackup] = useState(false);
 
+  const doExportXlsx = async (mode: "month" | "all") => {
+    const token = await tokenStore.get();
+    const url = mode === "month" ? api.exportXlsxUrl(year, month + 1) : api.exportXlsxUrl();
+    const fname = mode === "month"
+      ? `eventa-stats-${year}-${String(month + 1).padStart(2, "0")}.xlsx`
+      : `eventa-stats.xlsx`;
+    try {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (Platform.OS === "web") {
+        const blob = await res.blob();
+        const dl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = dl; a.download = fname; a.click(); URL.revokeObjectURL(dl);
+      } else {
+        const buf = await res.arrayBuffer();
+        // Convert to base64 for file write (native)
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        // @ts-ignore btoa is available in RN
+        const b64 = typeof btoa === "function" ? btoa(bin) : "";
+        const path = `${FileSystem.cacheDirectory}${fname}`;
+        await FileSystem.writeAsStringAsync(path, b64, { encoding: FileSystem.EncodingType.Base64 });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(path, {
+            mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            dialogTitle: fname,
+          });
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Błąd eksportu Excel", e.message || "Nie udało się");
+    }
+  };
+
+  const doImportWhatsAppProfits = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({ type: ["text/plain", "*/*"], copyToCacheDirectory: true });
+      if (res.canceled || !res.assets?.[0]) return;
+      const asset = res.assets[0];
+      let text: string;
+      if (Platform.OS === "web" && asset.file) text = await asset.file.text();
+      else text = await FileSystem.readAsStringAsync(asset.uri);
+
+      // Dry run first — preview
+      const preview: any = await api.importWhatsAppProfits(text, true, 7);
+      const matched = preview.matched?.length || 0;
+      const unmatched = preview.unmatched?.length || 0;
+      const skipped = preview.skipped?.length || 0;
+      const total = preview.totals?.matched_amount || 0;
+
+      Alert.alert(
+        "Podgląd importu zysków WhatsApp",
+        `Rozpoznano: ${preview.parsed || 0}\nDopasowanych do imprez: ${matched} (${total.toFixed(2)} zł)\nNiedopasowanych: ${unmatched}\nJuż zaimportowanych wcześniej (pominięte): ${skipped}\n\nZastosować dopasowania?`,
+        [
+          { text: "Anuluj", style: "cancel" },
+          {
+            text: "Zastosuj",
+            onPress: async () => {
+              try {
+                const result: any = await api.importWhatsAppProfits(text, false, 7);
+                Alert.alert("Import zakończony", `Przypisano zyski do ${result.matched?.length || 0} imprez.`);
+                await load();
+              } catch (e: any) {
+                Alert.alert("Błąd", e.message || "Nie udało się");
+              }
+            }
+          }
+        ]
+      );
+    } catch (e: any) {
+      Alert.alert("Błąd", e.message || "Nie udało się");
+    }
+  };
+
   const doBackup = async () => {
     setBusyBackup(true);
     try {
@@ -379,6 +455,21 @@ export default function Statystyki() {
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>
               <Feather name="download" size={18} color={theme.color.brand} />
               <Text style={s.exportText}>Eksportuj miesiąc do CSV</Text>
+            </Pressable>
+
+            <Pressable testID="export-xlsx-month-btn" onPress={() => doExportXlsx("month")} style={s.exportBtn}>
+              <Feather name="grid" size={18} color={theme.color.brand} />
+              <Text style={s.exportText}>Eksport Excel — {MONTHS_PL[month]} {year}</Text>
+            </Pressable>
+
+            <Pressable testID="export-xlsx-all-btn" onPress={() => doExportXlsx("all")} style={s.exportBtn}>
+              <Feather name="grid" size={18} color={theme.color.brand} />
+              <Text style={s.exportText}>Eksport Excel — wszystkie statystyki</Text>
+            </Pressable>
+
+            <Pressable testID="wa-profits-import-btn" onPress={doImportWhatsAppProfits} style={s.exportBtn}>
+              <Feather name="message-circle" size={18} color={theme.color.brand} />
+              <Text style={s.exportText}>Importuj zyski z WhatsApp</Text>
             </Pressable>
 
             <View style={s.backupCard}>

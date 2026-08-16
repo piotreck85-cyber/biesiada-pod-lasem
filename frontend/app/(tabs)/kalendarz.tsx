@@ -138,7 +138,16 @@ export default function Kalendarz() {
     const separateCosts = expenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
     const totalCosts = eventCosts + separateCosts;
     const net = gross - totalCosts;
-    return { gross, forecast, totalCosts, net, eventCount: monthEvents.length, expenseCount: expenses.length };
+    // Forecasted (net) costs — use backend-computed `forecasted_profit` where available
+    // otherwise fall back to `profit`. Sum only for events with revenue > 0.
+    const forecastedProfit = monthEvents.reduce((s, e) => {
+      const rev = Number(e.revenue) || 0;
+      if (rev <= 0) return s;
+      // Use backend forecast if provided (includes cost estimate)
+      const fp = (e.forecasted_profit !== undefined) ? Number(e.forecasted_profit) : Number(e.profit) || 0;
+      return s + fp;
+    }, 0) - separateCosts;   // subtract non-event expenses too
+    return { gross, forecast, totalCosts, net, forecastedProfit, eventCount: monthEvents.length, expenseCount: expenses.length };
   }, [events, expenses, year, month]);
 
   const staffMap = useMemo(() => {
@@ -266,12 +275,12 @@ export default function Kalendarz() {
         </Pressable>
         <View style={s.summaryDivider} />
         <Pressable style={s.summaryCol} testID="summary-net" onPress={() => router.push("/(tabs)/statystyki")}>
-          <View style={[s.summaryDot, { backgroundColor: monthlySummary.net >= 0 ? theme.color.brand : theme.color.error }]} />
+          <View style={[s.summaryDot, { backgroundColor: monthlySummary.forecastedProfit >= 0 ? theme.color.brand : theme.color.error }]} />
           <Text style={s.summaryLabel}>Zysk netto</Text>
-          <Text style={[s.summaryValue, { color: monthlySummary.net >= 0 ? theme.color.brand : theme.color.error }]}>
-            {monthlySummary.net.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+          <Text style={[s.summaryValue, { color: monthlySummary.forecastedProfit >= 0 ? theme.color.brand : theme.color.error }]}>
+            {monthlySummary.forecastedProfit.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
           </Text>
-          <Text style={s.summaryUnit}>zł</Text>
+          <Text style={s.summaryUnit}>zł (progn.)</Text>
         </Pressable>
       </View>
 

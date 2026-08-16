@@ -88,6 +88,11 @@ export const api = {
   wages: (year: number, month: number) => request(`/staff/wages?year=${year}&month=${month}`),
   schedule: (year: number, month: number) => request(`/schedule?year=${year}&month=${month}`),
   exportUrl: (year: number, month: number) => `${BASE}/api/export/events?year=${year}&month=${month}`,
+  exportXlsxUrl: (year?: number, month?: number) =>
+    (year && month) ? `${BASE}/api/export/xlsx?year=${year}&month=${month}` : `${BASE}/api/export/xlsx`,
+  costRatios: () => request("/stats/cost-ratios"),
+  importWhatsAppProfits: (content: string, dry_run: boolean = false, window_days: number = 7) =>
+    request("/import/whatsapp-profits", { method: "POST", body: JSON.stringify({ content, dry_run, window_days }) }),
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
   importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),

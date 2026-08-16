@@ -1,6 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -302,11 +302,11 @@ def verify_pw(pw: str, hashed: str) -> bool:
     except Exception:
         return False
 
-async def compute_event_summary(ev: dict, staff_map: Optional[dict] = None) -> dict:
-    """Enrich event with labor_cost & profit.
+async def compute_event_summary(ev: dict, staff_map: Optional[dict] = None, cost_ratios: Optional[Dict[str, float]] = None) -> dict:
+    """Enrich event with labor_cost, profit, estimated_cost & forecasted_profit.
 
-    If a preloaded ``staff_map`` (id -> staff doc) is supplied, no DB call is made.
-    Otherwise, this function fetches only the staff referenced by the event's shifts.
+    If ``cost_ratios`` (category → ratio) is provided, uses them to estimate cost
+    for events that have no saved costs — otherwise the estimate falls back to 0.
     """
     labor_cost = 0.0
     if staff_map is None:
@@ -327,6 +327,19 @@ async def compute_event_summary(ev: dict, staff_map: Optional[dict] = None) -> d
     ev["material_cost"] = round(material_cost, 2)
     ev["total_cost"] = round(total_cost, 2)
     ev["profit"] = round(revenue - total_cost, 2)
+    # ---- Forecasted (net) cost & profit ----
+    if total_cost > 0:
+        ev["estimated_cost"] = ev["total_cost"]
+        ev["forecasted_profit"] = ev["profit"]
+        ev["cost_is_estimate"] = False
+    elif cost_ratios is not None:
+        ev["estimated_cost"] = _estimate_costs_for(ev, cost_ratios)
+        ev["forecasted_profit"] = round(revenue - ev["estimated_cost"], 2)
+        ev["cost_is_estimate"] = ev["estimated_cost"] > 0
+    else:
+        ev["estimated_cost"] = 0.0
+        ev["forecasted_profit"] = ev["profit"]
+        ev["cost_is_estimate"] = False
     return ev
 
 async def load_owner_staff_map(owner_id: str) -> dict:
@@ -824,9 +837,10 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
         q["date"] = {"$regex": f"^{prefix}"}
     items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
     staff_map = await load_owner_staff_map(user["id"])
+    cost_ratios = await _cost_ratios_by_category(ws(user))
     enriched = []
     for ev in items:
-        enriched.append(await compute_event_summary(ev, staff_map))
+        enriched.append(await compute_event_summary(ev, staff_map, cost_ratios))
     return enriched
 
 @api.post("/events")
@@ -1688,6 +1702,227 @@ async def export_events(user=Depends(current_user), year: Optional[int] = None, 
         ev = await compute_event_summary(ev, staff_map)
         w.writerow([ev["date"], ev["name"], ev.get("venue", ""), ev["revenue"], ev["material_cost"], ev["labor_cost"], ev["profit"]])
     return PlainTextResponse(out.getvalue(), media_type="text/csv")
+
+
+# ---------- Historical cost estimation (for forecasted net profit) ----------
+async def _cost_ratios_by_category(owner_id: str) -> Dict[str, float]:
+    """Return {category: avg_cost_ratio} based on past events with recorded costs.
+    ratio = (material_cost + labor_cost) / revenue, for events with revenue > 0 and cost > 0.
+    Fallback global ratio (mean of all sampled) is stored under key "__default__".
+    """
+    staff_map: Dict[str, dict] = {}
+    async for s in db.staff.find({"owner_id": owner_id}, {"_id": 0}):
+        staff_map[s["id"]] = s
+
+    buckets: Dict[str, List[float]] = {}
+    all_ratios: List[float] = []
+    async for ev in db.events.find({"owner_id": owner_id}, {"_id": 0}):
+        revenue = float(ev.get("revenue") or 0)
+        if revenue <= 0:
+            continue
+        material = sum(float(c.get("amount", 0)) for c in (ev.get("costs") or []))
+        labor = 0.0
+        for sh in (ev.get("shifts") or []):
+            s = staff_map.get(sh.get("staff_id"))
+            if s:
+                labor += float(sh.get("hours", 0)) * float(s.get("hourly_rate", 0))
+        cost = material + labor
+        if cost <= 0:
+            continue
+        ratio = min(cost / revenue, 1.0)
+        cat = ev.get("category") or "__other__"
+        buckets.setdefault(cat, []).append(ratio)
+        all_ratios.append(ratio)
+
+    out: Dict[str, float] = {}
+    for cat, arr in buckets.items():
+        arr_s = sorted(arr)
+        if len(arr_s) >= 10:
+            k = max(1, len(arr_s) // 10)
+            arr_s = arr_s[k:-k]
+        out[cat] = sum(arr_s) / len(arr_s) if arr_s else 0.35
+    out["__default__"] = (sum(all_ratios) / len(all_ratios)) if all_ratios else 0.35
+    return out
+
+
+def _estimate_costs_for(ev: dict, ratios: Dict[str, float]) -> float:
+    revenue = float(ev.get("revenue") or 0) or float(ev.get("price_total") or 0)
+    if revenue <= 0:
+        return 0.0
+    cat = ev.get("category") or "__other__"
+    r = ratios.get(cat, ratios.get("__default__", 0.35))
+    return round(revenue * r, 2)
+
+
+@api.get("/stats/cost-ratios")
+async def get_cost_ratios(user=Depends(current_user)):
+    """Return historical cost ratios per category (for UI transparency)."""
+    ratios = await _cost_ratios_by_category(ws(user))
+    return {k: round(v * 100, 1) for k, v in ratios.items()}
+
+
+# ---------- XLSX export (full statistics) ----------
+@api.get("/export/xlsx")
+async def export_xlsx(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+    """Full Excel export: monthly summary, events (with forecasted net), expenses, staff shifts."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    except Exception as e:
+        raise HTTPException(500, f"openpyxl niedostępny: {e}")
+
+    owner = ws(user)
+    q_ev: dict = {"owner_id": owner}
+    q_ex: dict = {"owner_id": owner}
+    if year and month:
+        prefix = f"{year:04d}-{month:02d}"
+        q_ev["date"] = {"$regex": f"^{prefix}"}
+        q_ex["date"] = {"$regex": f"^{prefix}"}
+
+    events = await db.events.find(q_ev, {"_id": 0}).sort("date", 1).to_list(10000)
+    expenses = await db.expenses.find(q_ex, {"_id": 0}).sort("date", 1).to_list(10000)
+    staff_map = await load_owner_staff_map(user["id"])
+    ratios = await _cost_ratios_by_category(owner)
+
+    wb = Workbook()
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_fill = PatternFill("solid", fgColor="10B981")
+    thin = Side(border_style="thin", color="D1D5DB")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    money_fmt = '#,##0.00" zł"'
+
+    def _style_header(ws_, ncols: int):
+        for col in range(1, ncols + 1):
+            cell = ws_.cell(row=1, column=col)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+            cell.border = border
+
+    def _autosize(ws_):
+        for col in ws_.columns:
+            max_len = 0
+            letter = col[0].column_letter
+            for c in col:
+                if c.value is None: continue
+                l = len(str(c.value))
+                if l > max_len: max_len = l
+            ws_.column_dimensions[letter].width = min(max_len + 2, 50)
+
+    # ---- Sheet 1: Podsumowanie miesięczne ----
+    sm = wb.active
+    sm.title = "Podsumowanie"
+    sm.append(["Miesiąc", "Imprez", "Przychód (PLN)", "Koszty rzeczyw. (PLN)", "Zysk rzeczyw. (PLN)",
+               "Koszty prognoz. (PLN)", "Zysk netto prognoz. (PLN)"])
+    _style_header(sm, 7)
+    from collections import defaultdict
+    monthly = defaultdict(lambda: {"cnt": 0, "rev": 0.0, "cost_real": 0.0, "cost_est": 0.0})
+    for ev in events:
+        d = (ev.get("date") or "")[:7]
+        if not d: continue
+        rev = float(ev.get("revenue") or 0)
+        material = sum(float(c.get("amount", 0)) for c in (ev.get("costs") or []))
+        labor = 0.0
+        for sh in (ev.get("shifts") or []):
+            s = staff_map.get(sh.get("staff_id"))
+            if s: labor += float(sh.get("hours", 0)) * float(s.get("hourly_rate", 0))
+        real_cost = material + labor
+        est_cost = real_cost if real_cost > 0 else _estimate_costs_for(ev, ratios)
+        monthly[d]["cnt"] += 1
+        monthly[d]["rev"] += rev
+        monthly[d]["cost_real"] += real_cost
+        monthly[d]["cost_est"] += est_cost
+    for ex in expenses:
+        d = (ex.get("date") or "")[:7]
+        if not d: continue
+        monthly[d]["cost_real"] += float(ex.get("amount") or 0)
+        monthly[d]["cost_est"] += float(ex.get("amount") or 0)
+    for mkey in sorted(monthly.keys()):
+        b = monthly[mkey]
+        sm.append([mkey, b["cnt"], b["rev"], b["cost_real"], b["rev"] - b["cost_real"], b["cost_est"], b["rev"] - b["cost_est"]])
+    for col in (3, 4, 5, 6, 7):
+        for r in range(2, sm.max_row + 1):
+            sm.cell(row=r, column=col).number_format = money_fmt
+    _autosize(sm)
+
+    # ---- Sheet 2: Imprezy ----
+    se = wb.create_sheet("Imprezy")
+    se.append([
+        "Data", "Nazwa", "Kategoria", "Pakiet", "Osób", "Status",
+        "Klient", "Telefon", "Email",
+        "Cena całkowita", "Rabat %", "Cena po rabacie", "Zaliczka",
+        "Przychód", "Koszty materiał.", "Koszty pracy", "Zysk rzeczyw.",
+        "Koszty prognoz.", "Zysk netto prognoz.", "Notatki",
+    ])
+    _style_header(se, 20)
+    for ev in events:
+        ev = await compute_event_summary(ev, staff_map)
+        rev = float(ev.get("revenue") or 0)
+        real_cost = float(ev.get("total_cost") or 0)
+        est_cost = real_cost if real_cost > 0 else _estimate_costs_for(ev, ratios)
+        se.append([
+            ev.get("date", ""), ev.get("name", ""), ev.get("category", ""),
+            ev.get("package_set", ""), ev.get("people", 0), ev.get("status", ""),
+            ev.get("client_name", ""), ev.get("client_phone", ""), ev.get("client_email", ""),
+            float(ev.get("price_total") or 0), float(ev.get("discount_pct") or 0),
+            float(ev.get("price_after_discount") or ev.get("price_total") or 0),
+            float(ev.get("deposit_amount") or 0),
+            rev, float(ev.get("material_cost") or 0), float(ev.get("labor_cost") or 0),
+            ev.get("profit", 0), est_cost, rev - est_cost,
+            (ev.get("notes") or "")[:500],
+        ])
+    for col in (10, 12, 13, 14, 15, 16, 17, 18, 19):
+        for r in range(2, se.max_row + 1):
+            se.cell(row=r, column=col).number_format = money_fmt
+    _autosize(se)
+
+    # ---- Sheet 3: Wydatki ----
+    sw = wb.create_sheet("Wydatki")
+    sw.append(["Data", "Kategoria", "Nazwa", "Kwota (PLN)", "Notatki"])
+    _style_header(sw, 5)
+    for ex in expenses:
+        sw.append([ex.get("date", ""), ex.get("category", ""), ex.get("label", ""),
+                   float(ex.get("amount") or 0), ex.get("notes", "")])
+    for r in range(2, sw.max_row + 1):
+        sw.cell(row=r, column=4).number_format = money_fmt
+    _autosize(sw)
+
+    # ---- Sheet 4: Grafik pracowników ----
+    sh_ws = wb.create_sheet("Grafik")
+    sh_ws.append(["Data", "Impreza", "Pracownik", "Godziny", "Stawka/h", "Koszt (PLN)"])
+    _style_header(sh_ws, 6)
+    for ev in events:
+        for sh in (ev.get("shifts") or []):
+            s = staff_map.get(sh.get("staff_id"))
+            rate = float((s or {}).get("hourly_rate", 0))
+            hours = float(sh.get("hours", 0))
+            sh_ws.append([ev.get("date", ""), ev.get("name", ""),
+                          (s or {}).get("name", "?"), hours, rate, round(hours * rate, 2)])
+    for col in (5, 6):
+        for r in range(2, sh_ws.max_row + 1):
+            sh_ws.cell(row=r, column=col).number_format = money_fmt
+    _autosize(sh_ws)
+
+    # ---- Sheet 5: Estymacja (referencyjna) ----
+    sr = wb.create_sheet("Estymacja")
+    sr.append(["Kategoria", "Średni % kosztów", "Uwagi"])
+    _style_header(sr, 3)
+    for cat, r in sorted(ratios.items()):
+        if cat == "__default__":
+            sr.append(["(średnia ogólna)", round(r * 100, 1), "Fallback dla imprez bez kategorii"])
+        else:
+            sr.append([cat, round(r * 100, 1), "Z historii imprez z zapisanymi kosztami"])
+    _autosize(sr)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    filename = f"eventa-stats-{year}-{month:02d}.xlsx" if year and month else "eventa-stats.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
 
 @api.get("/")
 async def root():
