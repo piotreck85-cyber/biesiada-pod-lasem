@@ -60,6 +60,42 @@ export default function Koszty() {
     return map;
   }, [items]);
 
+  // Sum by employee (from "pensje" category labels). Normalizes Zuza/Zuzia → Zuzia.
+  const NAME_ALIAS: Record<string, string> = {
+    "zuza": "Zuzia", "zuzia": "Zuzia",
+    "michał": "Michał", "michal": "Michał",
+    "kaska": "Kaśka", "kaśka": "Kaśka",
+    "lorna": "Lorena", "lorena": "Lorena",
+    "piotrek": "Piotrek", "piotr": "Piotrek",
+  };
+  const KNOWN_STAFF = new Set([
+    "zuzia","zuza","kinga","klaudia","marta","ewka","kamil","kaska","kaśka",
+    "michal","michał","weronika","antek","karolina","patrycja","roman","leszek",
+    "andrzej","zosia","hania","lorna","lorena","dada","heniek","jula","julka","agata","komorowski","wacha",
+  ]);
+  const perEmployee = useMemo(() => {
+    const pensjeItems = items.filter(e => (e.category || "") === "pensje");
+    const map: Record<string, { name: string; amount: number; count: number }> = {};
+    for (const it of pensjeItems) {
+      const label = String(it.label || "").trim();
+      // Find first token that matches a known staff name (case-insensitive)
+      const tokens = label.split(/[\s—:,–\/\\+()]+/).filter(Boolean);
+      let match = tokens.find(t => KNOWN_STAFF.has(t.toLowerCase().replace(/[.,;:]$/, "")));
+      if (!match) {
+        // fallback: first token that starts with uppercase (likely a proper noun)
+        match = tokens.find(t => /^[A-ZŻŹĆĄŚĘŁÓŃ]/.test(t) && t.length > 2 && !/^\d/.test(t));
+      }
+      if (!match) continue;
+      const cleaned = match.replace(/[.,;:]$/, "");
+      const low = cleaned.toLowerCase();
+      const key = NAME_ALIAS[low] || (cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase());
+      if (!map[key]) map[key] = { name: key, amount: 0, count: 0 };
+      map[key].amount += Number(it.amount) || 0;
+      map[key].count += 1;
+    }
+    return Object.values(map).sort((a, b) => b.amount - a.amount);
+  }, [items]);
+
   const openNew = () => { setEditing(null); setLabel(""); setAmount(""); setDate(todayIso()); setNotes(""); setCategory(""); setModalOpen(true); };
   const openEdit = (it: any) => { setEditing(it); setLabel(it.label); setAmount(String(it.amount)); setDate(it.date); setNotes(it.notes || ""); setCategory(it.category || ""); setModalOpen(true); };
   const save = async () => {
@@ -146,6 +182,27 @@ export default function Koszty() {
               <Text style={s.breakdownAmt}>{formatPLN(totalsByCat[""])}</Text>
             </View>
           )}
+        </View>
+      ) : null}
+
+      {/* Per-employee breakdown — when filter=pensje */}
+      {filterCat === "pensje" && perEmployee.length > 0 ? (
+        <View style={s.breakdown}>
+          <View style={[s.breakdownRow, { borderBottomWidth: 1, borderBottomColor: theme.color.divider }]}>
+            <Feather name="users" size={13} color={theme.color.brand} />
+            <Text style={[s.breakdownLabel, { fontWeight: "800", color: theme.color.brand }]}>
+              Podział wg pracowników {scope === "all" ? "(od początku)" : `(${MONTHS_PL[month]})`}
+            </Text>
+            <Text style={[s.breakdownAmt, { color: theme.color.brand }]}>{perEmployee.length} osób</Text>
+          </View>
+          {perEmployee.map(pe => (
+            <View key={pe.name} style={s.breakdownRow} testID={`emp-${pe.name}`}>
+              <View style={[s.breakdownDot, { backgroundColor: "#F59E0B" }]} />
+              <Text style={s.breakdownLabel} numberOfLines={1}>{pe.name}</Text>
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginRight: 8 }}>{pe.count}×</Text>
+              <Text style={s.breakdownAmt}>{formatPLN(pe.amount)}</Text>
+            </View>
+          ))}
         </View>
       ) : null}
 
