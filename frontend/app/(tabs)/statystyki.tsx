@@ -371,9 +371,17 @@ export default function Statystyki() {
   };
 
   const revenue = data?.revenue || 0;
-  const totalCost = data?.total_cost || 0;
-  const profit = data?.profit || 0;
+  const eventCost = data?.total_cost || 0;            // material + labor from shifts
+  const companyExpenses = data?.company_expenses || 0; // separate expenses (Koszty tab)
+  const totalCost = eventCost + companyExpenses;      // real "total costs"
+  const profit = revenue - totalCost;
   const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+
+  const yearRevenue = yearData?.revenue || 0;
+  const yearEventCost = yearData?.total_cost || 0;
+  const yearCompanyExp = yearData?.company_expenses || 0;
+  const yearTotalCost = yearEventCost + yearCompanyExp;
+  const yearProfit = yearRevenue - yearTotalCost;
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="stats-screen">
@@ -413,15 +421,15 @@ export default function Statystyki() {
               <View style={s.yearGrid}>
                 <View style={s.yearCol}>
                   <Text style={s.yearColLabel}>Przychody</Text>
-                  <Text style={[s.yearColValue, { color: theme.color.success }]}>{formatPLN(yearData?.revenue || 0)}</Text>
+                  <Text style={[s.yearColValue, { color: theme.color.success }]}>{formatPLN(yearRevenue)}</Text>
                 </View>
                 <View style={s.yearCol}>
                   <Text style={s.yearColLabel}>Koszty</Text>
-                  <Text style={[s.yearColValue, { color: theme.color.error }]}>{formatPLN(yearData?.total_cost || 0)}</Text>
+                  <Text style={[s.yearColValue, { color: theme.color.error }]}>{formatPLN(yearTotalCost)}</Text>
                 </View>
                 <View style={s.yearCol}>
                   <Text style={s.yearColLabel}>Zysk</Text>
-                  <Text style={[s.yearColValue, { color: (yearData?.profit || 0) >= 0 ? theme.color.brand : theme.color.error }]}>{formatPLN(yearData?.profit || 0)}</Text>
+                  <Text style={[s.yearColValue, { color: yearProfit >= 0 ? theme.color.brand : theme.color.error }]}>{formatPLN(yearProfit)}</Text>
                 </View>
               </View>
             </View>
@@ -445,11 +453,11 @@ export default function Statystyki() {
 
             <View style={s.breakdownCard}>
               <Text style={s.sectionTitle}>Podział kosztów</Text>
-              <BreakdownRow label="Materiałowe" value={data?.material_cost || 0} />
-              <BreakdownRow label="Praca (pracownicy)" value={data?.labor_cost || 0} />
-              <BreakdownRow label="Firmowe (najem, media itp.)" value={data?.company_expenses || 0} />
+              <BreakdownRow label="Materiałowe (imprezy)" value={data?.material_cost || 0} />
+              <BreakdownRow label="Praca (zmiany z grafiku)" value={data?.labor_cost || 0} />
+              <BreakdownRow label="Firmowe (Koszty tab)" value={companyExpenses} />
               <View style={s.sep} />
-              <BreakdownRow label="Razem" value={(data?.total_cost || 0) + (data?.company_expenses || 0)} bold />
+              <BreakdownRow label="Razem" value={totalCost} bold />
             </View>
 
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>
