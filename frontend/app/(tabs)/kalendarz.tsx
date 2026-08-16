@@ -116,38 +116,63 @@ export default function Kalendarz() {
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
 
-  // Monthly summary: revenue (gross), forecast (upcoming non-cancelled), costs, profit (net)
+  // Monthly summary — clear semantics:
+  //  - Rzeczywisty przychód: revenue realized for past/completed events
+  //  - Rzeczywisty koszt: event costs + separate expenses (recorded)
+  //  - Planowany przychód: revenue/price_total from future non-cancelled events
+  //  - Planowany koszt: estimated cost for future events (from historical ratios)
   const monthlySummary = useMemo(() => {
     const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthEvents = events.filter(e => (e.date || "").startsWith(monthPrefix));
     const todayIso = new Date().toISOString().slice(0, 10);
-    const gross = monthEvents.reduce((s, e) => s + (Number(e.revenue) || 0), 0);
-    // Forecast: upcoming events this month that are NOT cancelled — sum of their expected revenue
-    const forecast = monthEvents.reduce((s, e) => {
+
+    let actualRevenue = 0;
+    let plannedRevenue = 0;
+    let plannedCost = 0;
+    let eventActualCosts = 0;  // event.costs + labor for events with recorded costs
+
+    monthEvents.forEach(e => {
       const st = (e.status || "").toLowerCase();
-      if (st === "anulowana") return s;
-      if ((e.date || "") < todayIso) return s;   // past → not "forecast"
-      if (st === "zakonczona") return s;         // already realized
-      const rev = Number(e.revenue) || Number(e.price_total) || 0;
-      return s + rev;
-    }, 0);
-    const eventCosts = monthEvents.reduce((s, e) => {
-      const cs = Array.isArray(e.costs) ? e.costs : [];
-      return s + cs.reduce((a: number, c: any) => a + (Number(c.amount) || 0), 0);
-    }, 0);
-    const separateCosts = expenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
-    const totalCosts = eventCosts + separateCosts;
-    const net = gross - totalCosts;
-    // Forecasted (net) costs — use backend-computed `forecasted_profit` where available
-    // otherwise fall back to `profit`. Sum only for events with revenue > 0.
-    const forecastedProfit = monthEvents.reduce((s, e) => {
+      const isCancelled = st === "anulowana";
+      const isPast = (e.date || "") < todayIso;
+      const isDone = st === "zakonczona" || isPast;
       const rev = Number(e.revenue) || 0;
-      if (rev <= 0) return s;
-      // Use backend forecast if provided (includes cost estimate)
-      const fp = (e.forecasted_profit !== undefined) ? Number(e.forecasted_profit) : Number(e.profit) || 0;
-      return s + fp;
-    }, 0) - separateCosts;   // subtract non-event expenses too
-    return { gross, forecast, totalCosts, net, forecastedProfit, eventCount: monthEvents.length, expenseCount: expenses.length };
+      const priceTotal = Number(e.price_total) || 0;
+      const recordedCost = Number(e.total_cost) || 0;   // material + labor (from backend)
+
+      if (isCancelled) return;
+
+      if (isDone) {
+        // Realized event → add to actual
+        actualRevenue += rev;
+        eventActualCosts += recordedCost;
+      } else {
+        // Future event → add to planned
+        plannedRevenue += rev || priceTotal;
+        // Estimated cost: prefer real if entered, else backend estimate (revenue × cost_ratio)
+        if (recordedCost > 0) {
+          plannedCost += recordedCost;
+        } else if (e.estimated_cost !== undefined) {
+          plannedCost += Number(e.estimated_cost) || 0;
+        }
+      }
+    });
+
+    const expensesTotal = expenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+    const actualCost = eventActualCosts + expensesTotal;
+    const profitActual = actualRevenue - actualCost;
+    const profitProjected = (actualRevenue + plannedRevenue) - (actualCost + plannedCost);
+
+    return {
+      actualRevenue,
+      actualCost,
+      plannedRevenue,
+      plannedCost,
+      profitActual,
+      profitProjected,
+      eventCount: monthEvents.length,
+      expenseCount: expenses.length,
+    };
   }, [events, expenses, year, month]);
 
   const staffMap = useMemo(() => {
@@ -245,43 +270,60 @@ export default function Kalendarz() {
         </View>
       </View>
 
-      {/* Monthly summary card — combines event revenue + event costs + separate expenses */}
+      {/* Monthly summary card — 4 clear values + separate profit line */}
       <View style={s.summaryCard} testID="monthly-summary">
-        <Pressable style={s.summaryCol} testID="summary-forecast" onPress={() => router.push("/(tabs)/imprezy")}>
-          <View style={[s.summaryDot, { backgroundColor: theme.color.warning }]} />
-          <Text style={s.summaryLabel}>Prognoza</Text>
-          <Text style={[s.summaryValue, { color: theme.color.warning }]}>
-            {monthlySummary.forecast.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={s.summaryUnit}>zł</Text>
-        </Pressable>
-        <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-gross" onPress={() => router.push("/(tabs)/statystyki")}>
+        <Pressable style={s.summaryCol} testID="summary-actual-rev" onPress={() => router.push("/(tabs)/statystyki")}>
           <View style={[s.summaryDot, { backgroundColor: theme.color.success }]} />
           <Text style={s.summaryLabel}>Przychód</Text>
           <Text style={[s.summaryValue, { color: theme.color.success }]}>
-            {monthlySummary.gross.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+            {monthlySummary.actualRevenue.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
           </Text>
           <Text style={s.summaryUnit}>zł</Text>
         </Pressable>
         <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-costs" onPress={() => router.push("/(tabs)/koszty")}>
+        <Pressable style={s.summaryCol} testID="summary-actual-cost" onPress={() => router.push("/(tabs)/koszty")}>
           <View style={[s.summaryDot, { backgroundColor: theme.color.error }]} />
-          <Text style={s.summaryLabel}>Koszty</Text>
+          <Text style={s.summaryLabel}>Koszt</Text>
           <Text style={[s.summaryValue, { color: theme.color.error }]}>
-            {monthlySummary.totalCosts.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+            {monthlySummary.actualCost.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
           </Text>
           <Text style={s.summaryUnit}>zł</Text>
         </Pressable>
         <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-net" onPress={() => router.push("/(tabs)/statystyki")}>
-          <View style={[s.summaryDot, { backgroundColor: monthlySummary.forecastedProfit >= 0 ? theme.color.brand : theme.color.error }]} />
-          <Text style={s.summaryLabel}>Zysk netto</Text>
-          <Text style={[s.summaryValue, { color: monthlySummary.forecastedProfit >= 0 ? theme.color.brand : theme.color.error }]}>
-            {monthlySummary.forecastedProfit.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+        <Pressable style={s.summaryCol} testID="summary-planned-rev" onPress={() => router.push("/(tabs)/imprezy")}>
+          <View style={[s.summaryDot, { backgroundColor: theme.color.warning }]} />
+          <Text style={s.summaryLabel}>Planowany</Text>
+          <Text style={[s.summaryValue, { color: theme.color.warning }]}>
+            {monthlySummary.plannedRevenue.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
           </Text>
-          <Text style={s.summaryUnit}>zł (progn.)</Text>
+          <Text style={s.summaryUnit}>zł</Text>
         </Pressable>
+        <View style={s.summaryDivider} />
+        <Pressable style={s.summaryCol} testID="summary-planned-cost" onPress={() => router.push("/(tabs)/imprezy")}>
+          <View style={[s.summaryDot, { backgroundColor: "#8B5CF6" }]} />
+          <Text style={s.summaryLabel}>Plan. koszt</Text>
+          <Text style={[s.summaryValue, { color: "#8B5CF6" }]}>
+            {monthlySummary.plannedCost.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
+          </Text>
+          <Text style={s.summaryUnit}>zł</Text>
+        </Pressable>
+      </View>
+
+      {/* Profit strip — actual + projected */}
+      <View style={s.profitStrip} testID="profit-strip">
+        <View style={s.profitCol}>
+          <Text style={s.profitLabel}>ZYSK (rzeczywisty)</Text>
+          <Text style={[s.profitValue, { color: monthlySummary.profitActual >= 0 ? theme.color.brand : theme.color.error }]}>
+            {monthlySummary.profitActual.toLocaleString("pl-PL", { maximumFractionDigits: 0 })} zł
+          </Text>
+        </View>
+        <View style={s.profitDivider} />
+        <View style={s.profitCol}>
+          <Text style={s.profitLabel}>ZYSK (prognozowany)</Text>
+          <Text style={[s.profitValue, { color: monthlySummary.profitProjected >= 0 ? theme.color.brand : theme.color.error }]}>
+            {monthlySummary.profitProjected.toLocaleString("pl-PL", { maximumFractionDigits: 0 })} zł
+          </Text>
+        </View>
       </View>
 
       <ScrollView
@@ -629,6 +671,18 @@ const s = StyleSheet.create({
   summaryValue: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
   summaryUnit: { color: theme.color.onSurfaceSecondary, fontSize: 9, marginTop: 1 },
   summaryDivider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 6 },
+  // Profit strip below summary card
+  profitStrip: {
+    flexDirection: "row",
+    marginHorizontal: 12, marginBottom: 6,
+    backgroundColor: theme.color.brand + "0A",
+    borderRadius: 14, borderWidth: 1, borderColor: theme.color.brand + "44",
+    paddingVertical: 10,
+  },
+  profitCol: { flex: 1, alignItems: "center" },
+  profitDivider: { width: 1, backgroundColor: theme.color.brand + "33", marginVertical: 4 },
+  profitLabel: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.8, marginBottom: 2 },
+  profitValue: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
   shiftCard: {
     flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
     padding: 14, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,

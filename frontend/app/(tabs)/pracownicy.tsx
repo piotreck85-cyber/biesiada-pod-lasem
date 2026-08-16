@@ -83,6 +83,35 @@ export default function Pracownicy() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("all");
 
+  // ---- Wages view ----
+  const [mode, setMode] = useState<"list" | "wages">("list");
+  const now = new Date();
+  const [wagesYear, setWagesYear] = useState(now.getFullYear());
+  const [wagesMonth, setWagesMonth] = useState(now.getMonth());  // 0-indexed
+  const [wagesData, setWagesData] = useState<any | null>(null);
+  const [wagesLoading, setWagesLoading] = useState(false);
+
+  const loadWages = useCallback(async () => {
+    setWagesLoading(true);
+    try {
+      const res: any = await api.wages(wagesYear, wagesMonth + 1);
+      setWagesData(res);
+    } catch {} finally { setWagesLoading(false); }
+  }, [wagesYear, wagesMonth]);
+
+  const wagesPrev = () => {
+    if (wagesMonth === 0) { setWagesMonth(11); setWagesYear(wagesYear - 1); }
+    else setWagesMonth(wagesMonth - 1);
+  };
+  const wagesNext = () => {
+    if (wagesMonth === 11) { setWagesMonth(0); setWagesYear(wagesYear + 1); }
+    else setWagesMonth(wagesMonth + 1);
+  };
+  // Reload wages when the view is active or its filters change
+  useFocusEffect(useCallback(() => {
+    if (mode === "wages") { loadWages(); }
+  }, [mode, loadWages]));
+
   const uniqueRoles = useMemo(() => {
     const set = new Set<string>();
     for (const it of items) {
@@ -143,6 +172,9 @@ export default function Pracownicy() {
     }
   }, []);
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
+
+  // Reload wages when year/month changes while in wages mode
+  useMemo(() => { if (mode === "wages") { loadWages(); } }, [wagesYear, wagesMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openNew = () => { setEditing(null); setName(""); setRole(""); setRate(""); setModalOpen(true); };
   const openEdit = (it: any) => { setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || "")); setModalOpen(true); };
@@ -232,6 +264,92 @@ export default function Pracownicy() {
         <ActivityIndicator color={theme.color.brand} style={{ marginTop: 40 }} />
       ) : (
         <>
+          {/* Mode toggle: Lista | Wypłaty */}
+          <View style={s.modeRow}>
+            <Pressable
+              testID="staff-mode-list"
+              onPress={() => setMode("list")}
+              style={[s.modeBtn, mode === "list" && s.modeBtnActive]}
+            >
+              <Feather name="users" size={14} color={mode === "list" ? "#FFFFFF" : theme.color.onSurface} />
+              <Text style={[s.modeBtnText, mode === "list" && { color: "#FFFFFF" }]}>Lista</Text>
+            </Pressable>
+            <Pressable
+              testID="staff-mode-wages"
+              onPress={() => setMode("wages")}
+              style={[s.modeBtn, mode === "wages" && s.modeBtnActive]}
+            >
+              <Feather name="dollar-sign" size={14} color={mode === "wages" ? "#FFFFFF" : theme.color.onSurface} />
+              <Text style={[s.modeBtnText, mode === "wages" && { color: "#FFFFFF" }]}>Wypłaty</Text>
+            </Pressable>
+          </View>
+
+          {mode === "wages" ? (
+            <View style={{ flex: 1, paddingHorizontal: 20 }}>
+              <View style={s.wagesHeader}>
+                <Pressable testID="wages-prev" onPress={wagesPrev} hitSlop={10} style={s.navBtnSm}>
+                  <Feather name="chevron-left" size={18} color={theme.color.onSurface} />
+                </Pressable>
+                <Text style={s.wagesMonthTitle}>Miesiąc: {String(wagesMonth + 1).padStart(2, "0")}.{wagesYear}</Text>
+                <Pressable testID="wages-next" onPress={wagesNext} hitSlop={10} style={s.navBtnSm}>
+                  <Feather name="chevron-right" size={18} color={theme.color.onSurface} />
+                </Pressable>
+              </View>
+
+              {wagesLoading ? (
+                <ActivityIndicator color={theme.color.brand} style={{ marginTop: 30 }} />
+              ) : (
+                <>
+                  <View style={s.wagesSumCard}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.wagesSumLabel}>Suma miesiąca — godziny × stawka</Text>
+                      <Text style={s.wagesSumValue}>{formatPLN(wagesData?.total_amount || 0)}</Text>
+                      <Text style={s.wagesSumSub}>{Number(wagesData?.total_hours || 0).toFixed(1)} godz. łącznie · {wagesData?.staff?.length || 0} osób</Text>
+                    </View>
+                    <Feather name="dollar-sign" size={22} color={theme.color.brand} />
+                  </View>
+                  <FlatList
+                    data={wagesData?.staff || []}
+                    keyExtractor={(w) => w.staff_id}
+                    contentContainerStyle={{ paddingTop: 4, paddingBottom: 140 }}
+                    ListEmptyComponent={
+                      <View style={s.emptyBox}>
+                        <Feather name="clock" size={40} color={theme.color.onSurfaceSecondary} />
+                        <Text style={s.emptyTitle}>Brak zmian w tym miesiącu</Text>
+                        <Text style={s.emptySub}>Przydziel pracowników do imprez, żeby zobaczyć ich godziny i zarobki.</Text>
+                      </View>
+                    }
+                    renderItem={({ item }) => {
+                      const col = roleColor(item.role || "");
+                      return (
+                        <View style={s.wageRow} testID={`wage-row-${item.staff_id}`}>
+                          <View style={[s.avatar, { backgroundColor: col.bg }]}>
+                            <Text style={[s.avatarText, { color: col.fg }]}>{initials(item.name)}</Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.rowName}>{item.name}</Text>
+                            <View style={{ flexDirection: "row", gap: 6, alignItems: "center", marginTop: 3 }}>
+                              {item.role ? (
+                                <View style={[s.roleBadge, { backgroundColor: col.bg }]}>
+                                  <Text style={[s.roleBadgeText, { color: col.fg }]}>{item.role}</Text>
+                                </View>
+                              ) : null}
+                              <Text style={s.wageMeta}>{item.shifts} zmian · {formatPLN(item.hourly_rate)}/h</Text>
+                            </View>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={s.wageAmt}>{formatPLN(item.amount)}</Text>
+                            <Text style={s.wageHours}>{Number(item.hours).toFixed(1)} godz.</Text>
+                          </View>
+                        </View>
+                      );
+                    }}
+                  />
+                </>
+              )}
+            </View>
+          ) : (
+          <>
           {/* Search + Sort + Filter toolbar */}
           <View style={s.toolbar}>
             <View style={s.searchBox}>
@@ -359,6 +477,8 @@ export default function Pracownicy() {
               );
             }}
           />
+          </>
+          )}
         </>
       )}
 
@@ -558,6 +678,50 @@ const s = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingBottom: 8, paddingTop: 8, flexDirection: "row", alignItems: "flex-end" },
   brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
   title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
+  // ---- Mode toggle ----
+  modeRow: {
+    flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 8,
+  },
+  modeBtn: {
+    flex: 1, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center",
+    paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary,
+  },
+  modeBtnActive: {
+    backgroundColor: theme.color.brand, borderColor: theme.color.brand,
+  },
+  modeBtnText: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  // ---- Wages view ----
+  wagesHeader: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  navBtnSm: {
+    width: 34, height: 34, borderRadius: 999,
+    backgroundColor: theme.color.surfaceSecondary,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  wagesMonthTitle: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
+  wagesSumCard: {
+    flexDirection: "row", alignItems: "center",
+    backgroundColor: theme.color.brand + "10",
+    borderWidth: 1, borderColor: theme.color.brand + "44",
+    borderRadius: 14, padding: 14, marginBottom: 10,
+  },
+  wagesSumLabel: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
+  wagesSumValue: { color: theme.color.brand, fontSize: 26, fontWeight: "800", marginTop: 2 },
+  wagesSumSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  wageRow: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    backgroundColor: theme.color.surfaceSecondary,
+    borderRadius: 12, padding: 12, marginBottom: 8,
+    borderWidth: 1, borderColor: theme.color.border,
+  },
+  wageAmt: { color: theme.color.onSurface, fontSize: 16, fontWeight: "800" },
+  wageHours: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  wageMeta: { color: theme.color.onSurfaceSecondary, fontSize: 11 },
+  //
   logoutBtn: { padding: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 999 },
   headerIcon: {
     width: 38, height: 38, borderRadius: 999,

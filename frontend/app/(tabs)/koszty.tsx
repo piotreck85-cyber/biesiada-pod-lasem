@@ -101,6 +101,31 @@ export default function Koszty() {
         <View style={s.summaryBadge}><Text style={s.summaryBadgeText}>{visible.length} pozycji</Text></View>
       </View>
 
+      {/* Category totals breakdown — only when no filter active */}
+      {!filterCat && Object.keys(totalsByCat).length > 0 && totalAll > 0 ? (
+        <View style={s.breakdown}>
+          {EXPENSE_CATEGORIES.filter(c => (totalsByCat[c.id] || 0) > 0).map(c => (
+            <Pressable
+              key={c.id}
+              testID={`exp-breakdown-${c.id}`}
+              onPress={() => setFilterCat(c.id)}
+              style={s.breakdownRow}
+            >
+              <View style={[s.breakdownDot, { backgroundColor: c.color }]} />
+              <Text style={s.breakdownLabel} numberOfLines={1}>{c.label}</Text>
+              <Text style={s.breakdownAmt}>{formatPLN(totalsByCat[c.id] || 0)}</Text>
+            </Pressable>
+          ))}
+          {(totalsByCat[""] || 0) > 0 && (
+            <View style={s.breakdownRow}>
+              <View style={[s.breakdownDot, { backgroundColor: "#8E8E93" }]} />
+              <Text style={s.breakdownLabel}>Bez kategorii</Text>
+              <Text style={s.breakdownAmt}>{formatPLN(totalsByCat[""])}</Text>
+            </View>
+          )}
+        </View>
+      ) : null}
+
       {/* Category filter chips */}
       <ScrollView
         horizontal showsHorizontalScrollIndicator={false}
@@ -249,6 +274,15 @@ const s = StyleSheet.create({
   summaryValue: { color: theme.color.error, fontSize: 22, fontWeight: "800", marginTop: 2 },
   summarySubValue: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
   summaryBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand },
+  breakdown: {
+    marginHorizontal: 20, marginBottom: 8, borderRadius: 12,
+    backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.divider,
+    paddingVertical: 4,
+  },
+  breakdownRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, gap: 10 },
+  breakdownDot: { width: 8, height: 8, borderRadius: 4 },
+  breakdownLabel: { flex: 1, color: theme.color.onSurface, fontSize: 13 },
+  breakdownAmt: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
   chipsRow: {
     paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingVertical: 4,
   },
