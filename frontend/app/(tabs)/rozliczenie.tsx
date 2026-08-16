@@ -12,6 +12,7 @@ import { theme, formatPLN } from "@/src/theme";
 import { api } from "@/src/api";
 
 type CashState = {
+  opening_balance: number;
   cash_current: number;
   cash_from_last_settlement: number;
   revenue_since_last: number;
@@ -166,6 +167,24 @@ export default function Rozliczenie() {
     } finally { setSaving(false); }
   };
 
+  // ---------- Opening balance editor ----------
+  const [openBalOpen, setOpenBalOpen] = useState(false);
+  const [openBalValue, setOpenBalValue] = useState("");
+  const openBalOpener = () => {
+    setOpenBalValue(String(cash?.opening_balance ?? 0));
+    setOpenBalOpen(true);
+  };
+  const saveOpeningBalance = async () => {
+    const val = parseFloat(String(openBalValue).replace(",", ".")) || 0;
+    try {
+      await api.setOpeningBalance(val);
+      setOpenBalOpen(false);
+      await load();
+    } catch (e: any) {
+      Alert.alert("Błąd", e.message || "Nie udało się zapisać");
+    }
+  };
+
   if (loading) {
     return (
       <View style={s.rootLoading}>
@@ -198,6 +217,12 @@ export default function Rozliczenie() {
               ? `Od ostatniego rozliczenia (${fmtDate(last.date)})`
               : "Bilans od początku"}
           </Text>
+          <Pressable testID="edit-opening-balance" onPress={openBalOpener} style={s.heroEditBtn}>
+            <Feather name="edit-2" size={11} color={theme.color.brand} />
+            <Text style={s.heroEditText}>
+              Saldo początkowe: {formatPLN(cash?.opening_balance || 0)}
+            </Text>
+          </Pressable>
         </View>
 
         {/* From last settlement — grid */}
@@ -517,6 +542,38 @@ export default function Rozliczenie() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* ---- Opening balance modal ---- */}
+      <Modal visible={openBalOpen} transparent animationType="fade" onRequestClose={() => setOpenBalOpen(false)}>
+        <Pressable style={s.backdrop} onPress={() => setOpenBalOpen(false)} />
+        <View style={s.openBalCard}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+            <Feather name="edit-2" size={14} color={theme.color.brand} />
+            <Text style={s.sheetTitle}>Saldo początkowe</Text>
+          </View>
+          <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 }}>
+            Kwota gotówki na start (przed pierwszą imprezą). Dodawana do salda przed odjęciem kosztów.
+          </Text>
+          <TextInput
+            testID="opening-balance-input"
+            value={openBalValue}
+            onChangeText={setOpenBalValue}
+            keyboardType="decimal-pad"
+            style={s.input}
+            placeholder="0"
+            placeholderTextColor={theme.color.onSurfaceSecondary}
+          />
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+            <Pressable onPress={() => setOpenBalOpen(false)} style={[s.saveBtn, { backgroundColor: theme.color.surfaceSecondary, flex: 1, alignItems: "center" }]}>
+              <Text style={[s.saveBtnText, { color: theme.color.onSurface }]}>Anuluj</Text>
+            </Pressable>
+            <Pressable testID="opening-balance-save" onPress={saveOpeningBalance} style={[s.saveBtn, { flex: 1, alignItems: "center" }]}>
+              <Text style={s.saveBtnText}>Zapisz</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -534,6 +591,18 @@ const s = StyleSheet.create({
   heroLabel: { color: theme.color.onSurfaceSecondary, letterSpacing: 2, fontSize: 10, fontWeight: "700" },
   heroValue: { fontSize: 34, fontWeight: "800", letterSpacing: -0.5, marginTop: 4 },
   heroSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 4 },
+  heroEditBtn: {
+    marginTop: 10, flexDirection: "row", gap: 4, alignItems: "center",
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999,
+    borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "10",
+  },
+  heroEditText: { color: theme.color.brand, fontSize: 11, fontWeight: "700" },
+  openBalCard: {
+    position: "absolute", top: "35%", left: 20, right: 20,
+    backgroundColor: theme.color.surface, borderRadius: 16, padding: 16,
+    borderWidth: 1, borderColor: theme.color.border,
+    shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 20, shadowOffset: { width: 0, height: 10 },
+  },
   grid: { flexDirection: "row", gap: 10, marginTop: 12 },
   miniCard: {
     flex: 1, borderRadius: 14, padding: 12,

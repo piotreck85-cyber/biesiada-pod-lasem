@@ -100,6 +100,8 @@ export const api = {
     dinner_custom_items?: Array<{ id: string; section: string; name: string; unit: string; base_price: number; cost_price: number }>;
     grill_price_overrides?: Record<string, number>;
   }) => request("/menu-settings", { method: "PUT", body: JSON.stringify(data) }),
+  setOpeningBalance: (opening_balance: number, note?: string) =>
+    request("/finance/opening-balance", { method: "PUT", body: JSON.stringify({ opening_balance, note }) }),
   cashState: () => request("/finance/cash-state"),
   periodSummary: (from?: string, to?: string) => {
     const params = new URLSearchParams();

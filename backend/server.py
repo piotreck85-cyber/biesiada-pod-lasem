@@ -2797,13 +2797,23 @@ async def _last_settlement(owner_id: str) -> Optional[dict]:
     )
 
 
-async def _sum_revenue(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None) -> float:
-    """Sum event revenues in a date window (inclusive on date field YYYY-MM-DD)."""
+async def _sum_revenue(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None,
+                       only_realized: bool = True) -> float:
+    """Sum event revenues in a date window (inclusive on date field YYYY-MM-DD).
+    If only_realized=True (default), events with date > today are EXCLUDED — cash counts only what has happened.
+    Cancelled events are always excluded.
+    """
     q: dict = {"owner_id": owner_id}
-    if date_from or date_to:
+    today_iso = datetime.now(timezone.utc).date().isoformat()
+    if date_from or date_to or only_realized:
         q["date"] = {}
         if date_from: q["date"]["$gte"] = date_from
         if date_to:   q["date"]["$lte"] = date_to
+        if only_realized:
+            # cap at today
+            cap = date_to if date_to else today_iso
+            if not date_to or date_to > today_iso:
+                q["date"]["$lte"] = today_iso
     total = 0.0
     async for e in db.events.find(q, {"revenue": 1, "status": 1}):
         if (e.get("status") or "").lower() == "anulowana":
@@ -2841,34 +2851,61 @@ async def _sum_settlements(owner_id: str, date_from: Optional[str] = None, date_
     return total
 
 
-async def _compute_cash_state(owner_id: str) -> dict:
-    """
-    Cash state formula:
-    Aktualny stan = ΣRevenue(all) − ΣExpenses(all incl. wyplaty_szefow) − ΣSettlements(all)
+async def _sum_event_costs(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None) -> float:
+    """Sum event material + labor costs (from event.costs array and event.shifts × hourly_rate)."""
+    q: dict = {"owner_id": owner_id}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    # preload staff for labor
+    staff_map: Dict[str, dict] = {}
+    async for s in db.staff.find({"owner_id": owner_id}, {"_id": 0}):
+        staff_map[s["id"]] = s
+    total = 0.0
+    async for ev in db.events.find(q, {"costs": 1, "shifts": 1, "status": 1}):
+        if (ev.get("status") or "").lower() == "anulowana":
+            continue
+        for c in (ev.get("costs") or []):
+            total += float(c.get("amount") or 0)
+        for sh in (ev.get("shifts") or []):
+            s = staff_map.get(sh.get("staff_id"))
+            if s:
+                total += float(sh.get("hours", 0)) * float(s.get("hourly_rate", 0))
+    return total
 
-    'Od ostatniego rozliczenia' fields are computed only from the last settlement date.
+
+async def _get_opening_balance(owner_id: str) -> float:
+    doc = await db.workspace_settings.find_one({"owner_id": owner_id}, {"opening_balance": 1}) or {}
+    return float(doc.get("opening_balance") or 0)
+
+
+async def _compute_cash_state(owner_id: str) -> dict:
+    """Cash state formula:
+    Aktualny stan = OpeningBalance + ΣRevenue − ΣEventCosts − ΣExpenses(incl. wyplaty_szefow) − ΣSettlements
     """
+    opening = await _get_opening_balance(owner_id)
     all_revenue = await _sum_revenue(owner_id)
-    all_expenses = await _sum_expenses(owner_id)  # everything (incl. wyplaty_szefow legacy)
+    all_event_costs = await _sum_event_costs(owner_id)
+    all_expenses = await _sum_expenses(owner_id)
     all_settlements = await _sum_settlements(owner_id)
-    cash_current = round(all_revenue - all_expenses - all_settlements, 2)
+    cash_current = round(opening + all_revenue - all_event_costs - all_expenses - all_settlements, 2)
 
     last = await _last_settlement(owner_id)
     if last:
-        # Use the settlement's ISO date (YYYY-MM-DD-...) — everything strictly after that date
-        # We use the date-only prefix so any event/expense with date > last_settlement.date counts.
         last_date_iso = (last.get("date") or "")[:10]
-        rev_since = await _sum_revenue(owner_id, date_from=_next_day_iso(last_date_iso)) if last_date_iso else all_revenue
+        after_date = _next_day_iso(last_date_iso) if last_date_iso else None
+        rev_since = await _sum_revenue(owner_id, date_from=after_date) if after_date else all_revenue
         # 'Koszty od rozliczenia' — WYKLUCZAMY wyplaty_szefow (te są rozliczeniami, nie kosztami)
-        cost_since = await _sum_expenses(owner_id, date_from=_next_day_iso(last_date_iso),
-                                         exclude_category="wyplaty_szefow") if last_date_iso else 0
-        payouts_since_from_expenses = await _sum_expenses(owner_id, date_from=_next_day_iso(last_date_iso),
-                                                          category="wyplaty_szefow") if last_date_iso else 0
-        # Any settlements after last one (should be 0 normally, since _last_settlement returns the most recent)
-        payouts_since_from_settlements = await _sum_settlements(owner_id, date_from=_next_day_iso(last_date_iso)) if last_date_iso else 0
+        cost_since_exp = await _sum_expenses(owner_id, date_from=after_date, exclude_category="wyplaty_szefow") if after_date else 0
+        cost_since_event = await _sum_event_costs(owner_id, date_from=after_date) if after_date else 0
+        cost_since = cost_since_exp + cost_since_event
+        payouts_since_from_expenses = await _sum_expenses(owner_id, date_from=after_date, category="wyplaty_szefow") if after_date else 0
+        payouts_since_from_settlements = await _sum_settlements(owner_id, date_from=after_date) if after_date else 0
         payouts_since = payouts_since_from_expenses + payouts_since_from_settlements
         cash_from_last = round(float(last.get("cash_after", 0)) + rev_since - cost_since - payouts_since, 2)
         return {
+            "opening_balance": opening,
             "cash_current": cash_current,
             "cash_from_last_settlement": cash_from_last,
             "revenue_since_last": round(rev_since, 2),
@@ -2878,10 +2915,11 @@ async def _compute_cash_state(owner_id: str) -> dict:
         }
     # No settlement yet — everything counts
     return {
+        "opening_balance": opening,
         "cash_current": cash_current,
         "cash_from_last_settlement": cash_current,
         "revenue_since_last": round(all_revenue, 2),
-        "cost_since_last": round(all_expenses - await _sum_expenses(owner_id, category="wyplaty_szefow"), 2),
+        "cost_since_last": round(all_expenses - await _sum_expenses(owner_id, category="wyplaty_szefow") + all_event_costs, 2),
         "payouts_since_last": round(await _sum_expenses(owner_id, category="wyplaty_szefow") + all_settlements, 2),
         "last_settlement": None,
     }
@@ -2904,13 +2942,39 @@ async def get_cash_state(user=Depends(current_user)):
     return await _compute_cash_state(ws(user))
 
 
+class OpeningBalanceIn(BaseModel):
+    opening_balance: float
+    note: Optional[str] = ""
+
+
+@api.put("/finance/opening-balance")
+async def set_opening_balance(body: OpeningBalanceIn, user=Depends(current_user)):
+    """Set the workspace opening cash balance (used as offset in cash-state formula)."""
+    owner = ws(user)
+    await db.workspace_settings.update_one(
+        {"owner_id": owner},
+        {"$set": {
+            "opening_balance": float(body.opening_balance),
+            "opening_balance_note": (body.note or "").strip(),
+            "opening_balance_updated_at": now_utc().isoformat(),
+            "opening_balance_updated_by": user.get("email") or user["id"],
+        }},
+        upsert=True,
+    )
+    try:
+        await log_change(user, "update", "opening_balance", "", f"Ustawiono saldo początkowe: {body.opening_balance:.2f} zł")
+    except Exception:
+        pass
+    return {"ok": True, "opening_balance": float(body.opening_balance)}
+
+
 @api.get("/finance/period-summary")
 async def get_period_summary(user=Depends(current_user), date_from: str = "", date_to: str = ""):
     """Return revenue / regular costs / partner payouts / result for an arbitrary date range."""
     owner = ws(user)
     df = date_from or None
     dt = date_to or None
-    revenue = await _sum_revenue(owner, df, dt)
+    revenue = await _sum_revenue(owner, df, dt, only_realized=False)
     regular_costs = await _sum_expenses(owner, df, dt, exclude_category="wyplaty_szefow")
     partner_payouts_expenses = await _sum_expenses(owner, df, dt, category="wyplaty_szefow")
     settlements_total = await _sum_settlements(owner, df, dt)
