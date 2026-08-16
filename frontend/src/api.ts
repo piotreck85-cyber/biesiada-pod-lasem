@@ -102,6 +102,16 @@ export const api = {
   }) => request("/menu-settings", { method: "PUT", body: JSON.stringify(data) }),
   setOpeningBalance: (opening_balance: number, note?: string) =>
     request("/finance/opening-balance", { method: "PUT", body: JSON.stringify({ opening_balance, note }) }),
+  shoppingGenerate: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set("date_from", from);
+    if (to) p.set("date_to", to);
+    return request(`/shopping/generate${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  shoppingList: () => request("/shopping/items"),
+  shoppingAdd: (item: any) => request("/shopping/items", { method: "POST", body: JSON.stringify(item) }),
+  shoppingUpdate: (id: string, patch: any) => request(`/shopping/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  shoppingDelete: (id: string) => request(`/shopping/items/${id}`, { method: "DELETE" }),
   cashState: () => request("/finance/cash-state"),
   periodSummary: (from?: string, to?: string) => {
     const params = new URLSearchParams();

@@ -3059,6 +3059,169 @@ async def delete_settlement(settlement_id: str, user=Depends(current_user)):
     raise HTTPException(status_code=403, detail="Nie można usuwać rozliczeń z historii.")
 
 
+# ================================================================
+# Shopping list (Automatyczna lista zakupów)
+# ================================================================
+class ShoppingItemIn(BaseModel):
+    model_config = {"extra": "allow"}
+    name: str
+    category: str = "inne"           # catering | grill | napoje | kawa | jednorazowki | dekoracje | srodki | dodatkowe | inne
+    qty: float = 1
+    unit: str = "szt"
+    stock_qty: float = 0             # na magazynie
+    unit_price: float = 0            # estimated unit price
+    actual_price: Optional[float] = None
+    status: str = "todo"             # todo | bought | ready
+    event_ids: List[str] = []        # linked events
+    event_names: List[str] = []
+    notes: Optional[str] = ""
+
+@api.post("/shopping/items")
+async def add_shopping_item(body: ShoppingItemIn, user=Depends(current_user)):
+    doc = body.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = ws(user)
+    doc["created_at"] = now_utc().isoformat()
+    await db.shopping_items.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api.get("/shopping/items")
+async def list_shopping_items(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    q: dict = {"owner_id": ws(user)}
+    rows = await db.shopping_items.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return rows
+
+class ShoppingItemPatch(BaseModel):
+    model_config = {"extra": "allow"}
+    qty: Optional[float] = None
+    stock_qty: Optional[float] = None
+    unit_price: Optional[float] = None
+    actual_price: Optional[float] = None
+    status: Optional[str] = None
+    notes: Optional[str] = None
+    name: Optional[str] = None
+    category: Optional[str] = None
+
+@api.patch("/shopping/items/{item_id}")
+async def update_shopping_item(item_id: str, body: ShoppingItemPatch, user=Depends(current_user)):
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    prev = await db.shopping_items.find_one({"id": item_id, "owner_id": ws(user)}, {"_id": 0})
+    if not prev:
+        raise HTTPException(404, "not found")
+    await db.shopping_items.update_one({"id": item_id, "owner_id": ws(user)}, {"$set": updates})
+    # If status just became "bought" AND we have event_ids → add expense to those events
+    if updates.get("status") == "bought" and prev.get("status") != "bought" and updates.get("actual_price") is not None:
+        actual = float(updates["actual_price"])
+        event_ids = prev.get("event_ids") or []
+        # Split proportionally across linked events (or 1 event → full amount)
+        per_event = actual / max(1, len(event_ids))
+        for ev_id in event_ids:
+            await db.events.update_one(
+                {"id": ev_id, "owner_id": ws(user)},
+                {"$push": {"costs": {"label": f"Zakup: {prev.get('name','')}", "amount": round(per_event, 2)}}}
+            )
+    return {"ok": True}
+
+@api.delete("/shopping/items/{item_id}")
+async def delete_shopping_item(item_id: str, user=Depends(current_user)):
+    await db.shopping_items.delete_one({"id": item_id, "owner_id": ws(user)})
+    return {"ok": True}
+
+@api.get("/shopping/generate")
+async def generate_shopping_list(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    """Analyze events in [date_from, date_to] and produce aggregated purchase suggestions.
+    Response is READ-ONLY suggestion — user can accept items to store them (POST /shopping/items).
+    Aggregation groups: catering (per dinner item), grill, napoje, and extras from events.
+    """
+    owner = ws(user)
+    q: dict = {"owner_id": owner}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(500)
+    events = [e for e in events if (e.get("status") or "").lower() != "anulowana"]
+
+    # menu settings (for cost_price / prices)
+    ms = await db.menu_settings.find_one({"owner_id": owner}, {"_id": 0}) or {}
+    price_ov = ms.get("dinner_price_overrides") or {}
+    cost_ov = ms.get("dinner_cost_overrides") or {}
+    custom = ms.get("dinner_custom_items") or []
+    # Merge full menu (default + custom)
+    from collections import defaultdict
+    DEFAULT_DINNER = [
+        ("z1","Rosół / makaron","os",20,14.4),("z2","Zalewajka","os",22,17.6),
+        ("z3","Krem pomidorowo","os",22,17.6),("z4","Krem z białych warzyw","os",22,17.6),
+        ("d1","Polędwiczka","os",29,22.4),("d2","Roladka dr","os",27,20.0),
+        ("d3","Kotlet schabowy","os",22,14.4),("d4","Filet z kurczaka","os",22,14.4),
+        ("d5","Filet zapiekany","os",27,19.2),("d6","Cordon Blue","os",27,19.2),
+        ("d7","Karczek pieczony","os",27,20.8),("d8","Kotlet szydłowiecki","os",26,19.2),
+        ("dd1","Ziemniaki z wody","os",8,6.4),("dd2","Ziemniaki opiekane","os",9,7.2),
+        ("dd3","Kluski śląskie","os",12,8.0),("dd4","Kopytka","os",10,8.0),
+        ("dd5","Ryż z warzywami","os",12,8.0),("dd6","Zestaw surówek","os",9,6.4),
+        ("dd7","Wiosenna","os",9,6.4),("dd8","Kapusta zasmażana","os",10,6.4),
+    ]
+    menu_map = {}
+    for (mid, mname, munit, mp, mc) in DEFAULT_DINNER:
+        menu_map[mid] = {"name": mname, "unit": munit, "price": price_ov.get(mid, mp), "cost": cost_ov.get(mid, mc)}
+    for it in custom:
+        menu_map[it["id"]] = {"name": it["name"], "unit": it.get("unit","os"), "price": price_ov.get(it["id"], it.get("base_price",0)), "cost": cost_ov.get(it["id"], it.get("cost_price",0))}
+
+    # aggregators: key = (category, name, unit) → {qty, unit_price, event_ids, event_names}
+    agg: dict = {}
+    def _add(cat, name, unit, qty, unit_price, ev):
+        k = (cat, name.lower(), unit)
+        if k not in agg:
+            agg[k] = {"category": cat, "name": name, "unit": unit, "qty": 0.0, "unit_price": unit_price, "event_ids": [], "event_names": []}
+        agg[k]["qty"] += float(qty)
+        if unit_price > 0 and agg[k]["unit_price"] == 0:
+            agg[k]["unit_price"] = unit_price
+        if ev["id"] not in agg[k]["event_ids"]:
+            agg[k]["event_ids"].append(ev["id"])
+            agg[k]["event_names"].append(f"{ev.get('date','')} · {ev.get('name','')}")
+
+    GRILL_COST = {"set1": 25, "set2": 30, "set3": 35}
+    for ev in events:
+        people = int(ev.get("people") or 0)
+        pkg = ev.get("package_set") or ""
+        # catering — dinner_items
+        for dish_id, qty in (ev.get("dinner_items") or {}).items():
+            m = menu_map.get(dish_id)
+            if not m or not qty: continue
+            _add("catering", m["name"], m["unit"], qty, m["cost"], ev)
+        # grill package as aggregate per-person cost
+        if pkg in GRILL_COST and people > 0:
+            _add("grill", f"Pakiet grill {pkg.upper()} — składniki (per os.)", "os", people, GRILL_COST[pkg], ev)
+        # napoje (from extras_qty)
+        extras = ev.get("extras_qty") or {}
+        if extras.get("napoje") and people > 0:
+            _add("napoje", "Napoje (mix)", "os", people, 8, ev)
+        # other extras from event
+        for ex_id, ex_qty in extras.items():
+            if ex_id == "napoje" or not ex_qty: continue
+            _add("dodatkowe", ex_id, "szt", ex_qty, 0, ev)
+
+    suggestions = []
+    for row in agg.values():
+        row["qty"] = round(row["qty"], 2)
+        row["estimated_cost"] = round(row["qty"] * row["unit_price"], 2)
+        suggestions.append(row)
+    # sort: category then name
+    order = ["catering","grill","napoje","kawa","jednorazowki","dekoracje","srodki","dodatkowe","inne"]
+    suggestions.sort(key=lambda x: (order.index(x["category"]) if x["category"] in order else 99, x["name"]))
+    total_est = sum(s["estimated_cost"] for s in suggestions)
+    return {
+        "date_from": date_from, "date_to": date_to,
+        "event_count": len(events),
+        "total_people": sum(int(e.get("people") or 0) for e in events),
+        "estimated_total": round(total_est, 2),
+        "suggestions": suggestions,
+    }
+
+
 app.include_router(api)
 
 

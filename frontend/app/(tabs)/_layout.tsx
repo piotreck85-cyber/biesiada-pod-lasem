@@ -88,6 +88,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="zakupy"
+        options={{
+          title: "Zakupy",
+          tabBarIcon: ({ color }) => <Feather name="shopping-cart" color={color} size={20} />,
+        }}
+      />
+      <Tabs.Screen
         name="statystyki"
         options={{
           title: "Statystyki",
