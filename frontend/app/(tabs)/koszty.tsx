@@ -32,10 +32,17 @@ export default function Koszty() {
   const [category, setCategory] = useState<string>("");
   const [filterCat, setFilterCat] = useState<string>(""); // "" = all
   const [saving, setSaving] = useState(false);
+  const [scope, setScope] = useState<"month" | "all">("month");
 
   const load = useCallback(async () => {
-    try { setItems(await api.listExpenses(year, month + 1)); } catch {}
-  }, [year, month]);
+    try {
+      if (scope === "all") {
+        setItems(await api.listExpenses());  // no year/month → all-time
+      } else {
+        setItems(await api.listExpenses(year, month + 1));
+      }
+    } catch {}
+  }, [year, month, scope]);
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
 
   const prev = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
@@ -80,19 +87,35 @@ export default function Koszty() {
       <View style={s.header}>
         <Text style={s.brand}>Koszty firmowe</Text>
         <View style={s.monthNav}>
-          <Pressable testID="exp-prev-month" onPress={prev} style={s.navBtn} hitSlop={10}>
-            <Feather name="chevron-left" size={20} color={theme.color.onSurface} />
+          <Pressable testID="exp-prev-month" onPress={prev} style={s.navBtn} hitSlop={10} disabled={scope === "all"}>
+            <Feather name="chevron-left" size={20} color={scope === "all" ? theme.color.onSurfaceSecondary : theme.color.onSurface} />
           </Pressable>
-          <Text style={s.monthTitle}>{MONTHS_PL[month]} {year}</Text>
-          <Pressable testID="exp-next-month" onPress={next} style={s.navBtn} hitSlop={10}>
-            <Feather name="chevron-right" size={20} color={theme.color.onSurface} />
+          <Text style={s.monthTitle}>{scope === "all" ? "Od początku" : `${MONTHS_PL[month]} ${year}`}</Text>
+          <Pressable testID="exp-next-month" onPress={next} style={s.navBtn} hitSlop={10} disabled={scope === "all"}>
+            <Feather name="chevron-right" size={20} color={scope === "all" ? theme.color.onSurfaceSecondary : theme.color.onSurface} />
           </Pressable>
         </View>
       </View>
 
+      {/* Scope toggle: Miesiąc | Wszystkie */}
+      <View style={s.scopeRow}>
+        <Pressable testID="exp-scope-month" onPress={() => setScope("month")} style={[s.scopeBtn, scope === "month" && s.scopeBtnActive]}>
+          <Feather name="calendar" size={13} color={scope === "month" ? "#FFFFFF" : theme.color.onSurface} />
+          <Text style={[s.scopeBtnText, scope === "month" && { color: "#FFFFFF" }]}>Miesiąc</Text>
+        </Pressable>
+        <Pressable testID="exp-scope-all" onPress={() => setScope("all")} style={[s.scopeBtn, scope === "all" && s.scopeBtnActive]}>
+          <Feather name="layers" size={13} color={scope === "all" ? "#FFFFFF" : theme.color.onSurface} />
+          <Text style={[s.scopeBtnText, scope === "all" && { color: "#FFFFFF" }]}>Wszystkie</Text>
+        </Pressable>
+      </View>
+
       <View style={s.summaryCard}>
         <View>
-          <Text style={s.summaryLabel}>{filterCat ? `Suma · ${expenseCategoryLabel(filterCat)}` : "Suma kosztów miesiąca"}</Text>
+          <Text style={s.summaryLabel}>
+            {filterCat
+              ? `Suma · ${expenseCategoryLabel(filterCat)}${scope === "all" ? " (od początku)" : ""}`
+              : (scope === "all" ? "Suma od początku" : "Suma kosztów miesiąca")}
+          </Text>
           <Text style={s.summaryValue}>{formatPLN(total)}</Text>
           {filterCat && total !== totalAll ? (
             <Text style={s.summarySubValue}>z {formatPLN(totalAll)} łącznie</Text>
@@ -283,6 +306,16 @@ const s = StyleSheet.create({
   breakdownDot: { width: 8, height: 8, borderRadius: 4 },
   breakdownLabel: { flex: 1, color: theme.color.onSurface, fontSize: 13 },
   breakdownAmt: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
+  scopeRow: {
+    flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingBottom: 4,
+  },
+  scopeBtn: {
+    flex: 1, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center",
+    paddingVertical: 8, borderRadius: 10, borderWidth: 1,
+    borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary,
+  },
+  scopeBtnActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
+  scopeBtnText: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
   chipsRow: {
     paddingHorizontal: 20, gap: 8, marginBottom: 10, paddingVertical: 4,
   },

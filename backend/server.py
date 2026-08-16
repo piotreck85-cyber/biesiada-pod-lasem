@@ -2419,7 +2419,49 @@ async def _create_activity_alert(kind: str, owner_id: str, event: dict, actor: d
         logging.getLogger("alerts").warning(f"activity alert failed: {e}")
 
 
-# ---------- WhatsApp profit import ----------
+# ---------- Menu customization (editable prices + custom items) ----------
+class MenuSettingsIn(BaseModel):
+    model_config = {"extra": "allow"}
+    dinner_price_overrides: Optional[Dict[str, float]] = None   # {item_id: new_price}
+    dinner_cost_overrides: Optional[Dict[str, float]] = None    # {item_id: new_cost_price}
+    dinner_custom_items: Optional[List[dict]] = None            # user-added dinner items
+    grill_price_overrides: Optional[Dict[str, float]] = None    # {set_id: new_price/person}
+
+
+@api.get("/menu-settings")
+async def get_menu_settings(user=Depends(current_user)):
+    """Return per-workspace menu customizations (empty defaults if not saved yet)."""
+    doc = await db.menu_settings.find_one({"owner_id": ws(user)}, {"_id": 0}) or {}
+    return {
+        "dinner_price_overrides": doc.get("dinner_price_overrides") or {},
+        "dinner_cost_overrides":  doc.get("dinner_cost_overrides") or {},
+        "dinner_custom_items":    doc.get("dinner_custom_items") or [],
+        "grill_price_overrides":  doc.get("grill_price_overrides") or {},
+        "updated_at":             doc.get("updated_at") or "",
+    }
+
+
+@api.put("/menu-settings")
+async def put_menu_settings(body: MenuSettingsIn, user=Depends(current_user)):
+    """Upsert menu customizations for the current workspace."""
+    payload = {
+        "owner_id": ws(user),
+        "dinner_price_overrides": body.dinner_price_overrides or {},
+        "dinner_cost_overrides":  body.dinner_cost_overrides or {},
+        "dinner_custom_items":    body.dinner_custom_items or [],
+        "grill_price_overrides":  body.grill_price_overrides or {},
+        "updated_at":             now_utc().isoformat(),
+    }
+    await db.menu_settings.update_one(
+        {"owner_id": ws(user)}, {"$set": payload}, upsert=True
+    )
+    try:
+        await log_change(user, "update", "menu_settings", "", "Zaktualizowano cennik menu")
+    except Exception:
+        pass
+    return {"ok": True, **payload}
+
+
 import re as _re
 
 _WA_DATE_MSG = _re.compile(

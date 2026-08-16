@@ -93,6 +93,13 @@ export const api = {
   costRatios: () => request("/stats/cost-ratios"),
   importWhatsAppProfits: (content: string, dry_run: boolean = false, window_days: number = 7) =>
     request("/import/whatsapp-profits", { method: "POST", body: JSON.stringify({ content, dry_run, window_days }) }),
+  getMenuSettings: () => request("/menu-settings"),
+  saveMenuSettings: (data: {
+    dinner_price_overrides?: Record<string, number>;
+    dinner_cost_overrides?: Record<string, number>;
+    dinner_custom_items?: Array<{ id: string; section: string; name: string; unit: string; base_price: number; cost_price: number }>;
+    grill_price_overrides?: Record<string, number>;
+  }) => request("/menu-settings", { method: "PUT", body: JSON.stringify(data) }),
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
   importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),

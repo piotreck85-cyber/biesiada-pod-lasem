@@ -12,6 +12,7 @@ import { theme, formatPLN } from "@/src/theme";
 import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, DINNER_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
 import { DINNER_MENU, DINNER_SECTIONS, DINNER_DISCOUNT, discountedPrice, grillProfitForecast } from "@/src/dinnerMenu";
 import { api } from "@/src/api";
+import { useMenuSettings } from "@/src/menuSettings";
 
 type Tab = "urodziny" | "warsztaty" | "grill" | "obiad";
 
@@ -20,6 +21,78 @@ export default function Oferta() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("urodziny");
   const [seasonFilter, setSeasonFilter] = useState<string>("Wszystkie");
+
+  // Editable menu prices + custom items (per-workspace)
+  const menu = useMenuSettings();
+  const adultSetsLive = menu.adultSets;      // grill sets with overrides applied
+  const dinnerMenuLive = menu.dinnerMenu;    // dinner items with overrides + custom
+
+  // Cennik editor state
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorPrices, setEditorPrices] = useState<Record<string, string>>({});
+  const [editorCosts, setEditorCosts] = useState<Record<string, string>>({});
+  const [editorGrill, setEditorGrill] = useState<Record<string, string>>({});
+  const [editorCustom, setEditorCustom] = useState<Array<{ id: string; section: string; name: string; unit: string; base_price: string; cost_price: string }>>([]);
+  const openEditor = () => {
+    // Seed editor with current effective prices
+    const pr: Record<string, string> = {};
+    const co: Record<string, string> = {};
+    dinnerMenuLive.forEach(it => {
+      pr[it.id] = String(it.base_price);
+      co[it.id] = String(it.cost_price);
+    });
+    const gr: Record<string, string> = {};
+    adultSetsLive.forEach(zs => { gr[zs.id] = String(zs.price_per_person); });
+    setEditorPrices(pr);
+    setEditorCosts(co);
+    setEditorGrill(gr);
+    setEditorCustom((menu.settings.dinner_custom_items || []).map(it => ({
+      id: it.id, section: it.section, name: it.name, unit: it.unit,
+      base_price: String(it.base_price), cost_price: String(it.cost_price),
+    })));
+    setEditorOpen(true);
+  };
+  const saveEditor = async () => {
+    // Split into overrides (only diffs from defaults) — but easier: save absolute values as overrides for all items.
+    const parseNum = (v: string) => parseFloat(String(v || "").replace(",", ".")) || 0;
+    const priceOv: Record<string, number> = {};
+    const costOv: Record<string, number> = {};
+    // Take custom item ids out — those go into dinner_custom_items
+    const customIds = new Set(editorCustom.map(c => c.id));
+    Object.entries(editorPrices).forEach(([id, v]) => {
+      if (customIds.has(id)) return;
+      const val = parseNum(v);
+      if (val > 0) priceOv[id] = val;
+    });
+    Object.entries(editorCosts).forEach(([id, v]) => {
+      if (customIds.has(id)) return;
+      const val = parseNum(v);
+      if (val > 0) costOv[id] = val;
+    });
+    const grillOv: Record<string, number> = {};
+    Object.entries(editorGrill).forEach(([id, v]) => { const val = parseNum(v); if (val > 0) grillOv[id] = val; });
+
+    const customPayload = editorCustom
+      .filter(c => c.name.trim())
+      .map(c => ({
+        id: c.id, section: c.section, name: c.name.trim(),
+        unit: c.unit || "os",
+        base_price: parseNum(c.base_price),
+        cost_price: parseNum(c.cost_price),
+      }));
+
+    await menu.save({
+      dinner_price_overrides: priceOv,
+      dinner_cost_overrides: costOv,
+      dinner_custom_items: customPayload,
+      grill_price_overrides: grillOv,
+    });
+    setEditorOpen(false);
+  };
+  const addCustomItem = () => {
+    const id = "custom_" + Date.now();
+    setEditorCustom(prev => [...prev, { id, section: "dania", name: "", unit: "os", base_price: "0", cost_price: "0" }]);
+  };
 
   // ------ Send offer email state ------
   const [emailOpen, setEmailOpen] = useState(false);
@@ -35,7 +108,7 @@ export default function Oferta() {
   const [emailExtras, setEmailExtras] = useState<Record<string, { qty?: string; amount?: string }>>({});
   const [emailSending, setEmailSending] = useState(false);
 
-  const currentSet = ADULT_SETS.find(x => x.id === emailSet);
+  const currentSet = adultSetsLive.find(x => x.id === emailSet);
   const emailPreviewTotal = useMemo(() => {
     const ppl = parseInt(emailPeople, 10) || 0;
     let total = (currentSet?.price_per_person || 0) * ppl;
@@ -216,7 +289,7 @@ export default function Oferta() {
           style={[s.tabBtn, tab === "grill" && s.tabBtnActive]}
         >
           <Feather name="disc" size={14} color={tab === "grill" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
-          <Text style={[s.tabText, tab === "grill" && s.tabTextActive]}>Grill ({ADULT_SETS.length})</Text>
+          <Text style={[s.tabText, tab === "grill" && s.tabTextActive]}>Grill ({adultSetsLive.length})</Text>
         </Pressable>
         <Pressable
           testID="tab-obiad"
@@ -224,9 +297,19 @@ export default function Oferta() {
           style={[s.tabBtn, tab === "obiad" && s.tabBtnActive]}
         >
           <Feather name="coffee" size={14} color={tab === "obiad" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
-          <Text style={[s.tabText, tab === "obiad" && s.tabTextActive]}>Obiad ({DINNER_MENU.length})</Text>
+          <Text style={[s.tabText, tab === "obiad" && s.tabTextActive]}>Obiad ({dinnerMenuLive.length})</Text>
         </Pressable>
       </View>
+
+      {/* Edit prices button — visible only for grill/obiad tabs */}
+      {(tab === "grill" || tab === "obiad") && (
+        <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 6 }}>
+          <Pressable testID="edit-menu-prices" onPress={openEditor} style={s.editPricesBtn}>
+            <Feather name="edit-2" size={13} color={theme.color.brand} />
+            <Text style={s.editPricesText}>Edytuj cennik i pozycje</Text>
+          </Pressable>
+        </View>
+      )}
 
       {tab === "warsztaty" && (
         <ScrollView
@@ -261,7 +344,7 @@ export default function Oferta() {
               <Feather name="info" size={14} color={theme.color.brand} />
               <Text style={s.infoText}>Grill menu · Imprezy dla dorosłych (firmowe / okolicznościowe) · cena od osoby</Text>
             </View>
-            {ADULT_SETS.map(zs => {
+            {adultSetsLive.map(zs => {
               const forecast = grillProfitForecast(zs.id, zs.price_per_person, 50);
               return (
               <View key={zs.id} style={s.card} testID={`grill-card-${zs.id}`}>
@@ -322,7 +405,7 @@ export default function Oferta() {
               <Text style={s.infoText}>Cennik obiadowy · przy większych zamówieniach rabat −{(DINNER_DISCOUNT * 100).toFixed(0)}% od ceny listowej</Text>
             </View>
             {DINNER_SECTIONS.map(sec => {
-              const items = DINNER_MENU.filter(m => m.section === sec.id);
+              const items = dinnerMenuLive.filter(m => m.section === sec.id);
               if (items.length === 0) return null;
               return (
                 <View key={sec.id} style={[s.card, { padding: 14 }]}>
@@ -584,7 +667,7 @@ export default function Oferta() {
 
                   <Text style={s.fieldLabel}>Sugerowany zestaw</Text>
                   <View style={{ flexDirection: "row", gap: 6 }}>
-                    {ADULT_SETS.map(zs => {
+                    {adultSetsLive.map(zs => {
                       const active = emailSet === zs.id;
                       return (
                         <Pressable
@@ -687,6 +770,141 @@ export default function Oferta() {
               <Text style={s.footerNote}>
                 Wysyłamy z: biesiadapodlasem@gmail.com · Klient odpowie bezpośrednio do Ciebie.
               </Text>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* ---------- Menu Editor Modal ---------- */}
+      <Modal visible={editorOpen} transparent animationType="slide" onRequestClose={() => setEditorOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={s.backdrop} onPress={() => setEditorOpen(false)} />
+          <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={s.sheetHandle} />
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <Text style={s.sheetTitle}>Edytor cennika</Text>
+              <Pressable testID="editor-save" onPress={saveEditor} disabled={menu.saving} style={s.saveBtn}>
+                {menu.saving ? <ActivityIndicator color={theme.color.onBrand} size="small" /> : <Text style={s.saveBtnText}>Zapisz</Text>}
+              </Pressable>
+            </View>
+            <ScrollView style={{ maxHeight: 620 }} contentContainerStyle={{ paddingBottom: 20 }} keyboardShouldPersistTaps="handled">
+              <Text style={s.editorSection}>Grill — cena za osobę</Text>
+              {adultSetsLive.map(zs => (
+                <View key={zs.id} style={s.editorRow}>
+                  <Text style={s.editorRowName} numberOfLines={1}>{zs.name}</Text>
+                  <TextInput
+                    testID={`edit-grill-${zs.id}`}
+                    value={editorGrill[zs.id] ?? ""}
+                    onChangeText={(v) => setEditorGrill(p => ({ ...p, [zs.id]: v }))}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    style={s.editorInput}
+                  />
+                  <Text style={s.editorSuf}>zł/os.</Text>
+                </View>
+              ))}
+
+              <Text style={[s.editorSection, { marginTop: 16 }]}>Menu obiadowe — cena klienta / koszt zakupu</Text>
+              {DINNER_SECTIONS.map(sec => (
+                <View key={sec.id}>
+                  <Text style={s.editorSubHeader}>{sec.title}</Text>
+                  {dinnerMenuLive.filter(m => m.section === sec.id && !m.id.startsWith("custom_")).map(it => (
+                    <View key={it.id} style={s.editorRow}>
+                      <Text style={s.editorRowName} numberOfLines={1}>{it.name}</Text>
+                      <TextInput
+                        testID={`edit-price-${it.id}`}
+                        value={editorPrices[it.id] ?? ""}
+                        onChangeText={(v) => setEditorPrices(p => ({ ...p, [it.id]: v }))}
+                        keyboardType="decimal-pad"
+                        placeholder="cena"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        style={s.editorInput}
+                      />
+                      <TextInput
+                        testID={`edit-cost-${it.id}`}
+                        value={editorCosts[it.id] ?? ""}
+                        onChangeText={(v) => setEditorCosts(p => ({ ...p, [it.id]: v }))}
+                        keyboardType="decimal-pad"
+                        placeholder="koszt"
+                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        style={s.editorInputSmall}
+                      />
+                    </View>
+                  ))}
+                </View>
+              ))}
+
+              <View style={{ marginTop: 20, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                <Text style={s.editorSection}>Własne pozycje cateringu</Text>
+                <Pressable testID="editor-add-custom" onPress={addCustomItem} style={s.addCustomBtn}>
+                  <Feather name="plus" size={12} color={theme.color.brand} />
+                  <Text style={s.addCustomText}>Dodaj pozycję</Text>
+                </Pressable>
+              </View>
+              {editorCustom.length === 0 && (
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, padding: 8 }}>Brak — dodaj własną pozycję (np. deser autorski).</Text>
+              )}
+              {editorCustom.map((c, i) => (
+                <View key={c.id} style={s.customCard}>
+                  <View style={{ flexDirection: "row", gap: 6 }}>
+                    <TextInput
+                      testID={`custom-name-${i}`}
+                      value={c.name}
+                      onChangeText={(v) => setEditorCustom(prev => prev.map((x, ix) => ix === i ? { ...x, name: v } : x))}
+                      placeholder="Nazwa (np. Kaczka z żurawiną)"
+                      placeholderTextColor={theme.color.onSurfaceSecondary}
+                      style={[s.editorInput, { flex: 2 }]}
+                    />
+                    <TextInput
+                      testID={`custom-unit-${i}`}
+                      value={c.unit}
+                      onChangeText={(v) => setEditorCustom(prev => prev.map((x, ix) => ix === i ? { ...x, unit: v } : x))}
+                      placeholder="os / szt"
+                      placeholderTextColor={theme.color.onSurfaceSecondary}
+                      style={[s.editorInputSmall, { flex: 1 }]}
+                    />
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 6, marginTop: 6, alignItems: "center" }}>
+                    <View style={s.pillPicker}>
+                      {["zupy", "dania", "dodatki"].map(sid => (
+                        <Pressable
+                          key={sid}
+                          onPress={() => setEditorCustom(prev => prev.map((x, ix) => ix === i ? { ...x, section: sid } : x))}
+                          style={[s.pillBtn, c.section === sid && s.pillBtnActive]}
+                        >
+                          <Text style={[s.pillBtnText, c.section === sid && { color: "#FFF" }]}>{DINNER_SECTIONS.find(s => s.id === sid)?.title}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                    <TextInput
+                      testID={`custom-price-${i}`}
+                      value={c.base_price}
+                      onChangeText={(v) => setEditorCustom(prev => prev.map((x, ix) => ix === i ? { ...x, base_price: v } : x))}
+                      keyboardType="decimal-pad"
+                      placeholder="cena"
+                      placeholderTextColor={theme.color.onSurfaceSecondary}
+                      style={s.editorInput}
+                    />
+                    <TextInput
+                      testID={`custom-cost-${i}`}
+                      value={c.cost_price}
+                      onChangeText={(v) => setEditorCustom(prev => prev.map((x, ix) => ix === i ? { ...x, cost_price: v } : x))}
+                      keyboardType="decimal-pad"
+                      placeholder="koszt"
+                      placeholderTextColor={theme.color.onSurfaceSecondary}
+                      style={s.editorInputSmall}
+                    />
+                    <Pressable
+                      testID={`custom-del-${i}`}
+                      onPress={() => setEditorCustom(prev => prev.filter((_, ix) => ix !== i))}
+                      hitSlop={10}
+                    >
+                      <Feather name="trash-2" size={16} color={theme.color.error} />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
@@ -809,6 +1027,45 @@ const s = StyleSheet.create({
     alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8,
   },
   saveBtnText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 15 },
+  // Menu editor styles
+  editPricesBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: theme.color.brand,
+    backgroundColor: theme.color.brand + "12",
+  },
+  editPricesText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
+  editorSection: { color: theme.color.onSurface, fontWeight: "800", fontSize: 14, marginBottom: 8, marginTop: 4 },
+  editorSubHeader: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", marginTop: 10, marginBottom: 4 },
+  editorRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 5 },
+  editorRowName: { flex: 1, color: theme.color.onSurface, fontSize: 13 },
+  editorInput: {
+    width: 68, paddingHorizontal: 8, paddingVertical: 7,
+    borderWidth: 1, borderColor: theme.color.border, borderRadius: 8,
+    backgroundColor: theme.color.surface, color: theme.color.onSurface, fontSize: 13, textAlign: "right",
+  },
+  editorInputSmall: {
+    width: 62, paddingHorizontal: 8, paddingVertical: 7,
+    borderWidth: 1, borderColor: theme.color.border, borderRadius: 8,
+    backgroundColor: theme.color.surfaceSecondary, color: theme.color.onSurface, fontSize: 12, textAlign: "right",
+  },
+  editorSuf: { color: theme.color.onSurfaceSecondary, fontSize: 11, width: 40 },
+  addCustomBtn: {
+    flexDirection: "row", gap: 4, alignItems: "center",
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12",
+  },
+  addCustomText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
+  customCard: {
+    padding: 8, marginTop: 6, borderRadius: 12,
+    backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.divider,
+  },
+  pillPicker: {
+    flexDirection: "row", gap: 4, backgroundColor: theme.color.surface,
+    padding: 2, borderRadius: 999, borderWidth: 1, borderColor: theme.color.border,
+  },
+  pillBtn: { paddingHorizontal: 8, paddingVertical: 5, borderRadius: 999 },
+  pillBtnActive: { backgroundColor: theme.color.brand },
+  pillBtnText: { color: theme.color.onSurfaceSecondary, fontSize: 10, fontWeight: "700" },
   footerNote: { color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" },
   modeRow: {
     flexDirection: "row", gap: 6, marginTop: 4, marginBottom: 6,
