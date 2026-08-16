@@ -2723,8 +2723,6 @@ async def import_whatsapp_profits(body: WhatsAppProfitImportIn, user=Depends(cur
     }
 
 
-app.include_router(api)
-
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -2777,6 +2775,229 @@ async def _startup():
         logger.info("APScheduler started: alerts_scan every 2h")
     except Exception as e:
         logger.warning(f"APScheduler failed to start: {e}")
+
+
+# ================================================================
+# Rozliczenie wspólników (Partner Settlements) — cash flow module
+# ================================================================
+class PartnerPayoutIn(BaseModel):
+    partner_name: str
+    amount: float
+
+class SettlementIn(BaseModel):
+    date: Optional[str] = None            # ISO datetime — if None, uses now
+    payouts: List[PartnerPayoutIn]        # each partner + amount
+    cash_before: Optional[float] = None   # if None, computed server-side
+    notes: Optional[str] = ""
+
+
+async def _last_settlement(owner_id: str) -> Optional[dict]:
+    return await db.settlements.find_one(
+        {"owner_id": owner_id}, {"_id": 0}, sort=[("date", -1)]
+    )
+
+
+async def _sum_revenue(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None) -> float:
+    """Sum event revenues in a date window (inclusive on date field YYYY-MM-DD)."""
+    q: dict = {"owner_id": owner_id}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    total = 0.0
+    async for e in db.events.find(q, {"revenue": 1, "status": 1}):
+        if (e.get("status") or "").lower() == "anulowana":
+            continue
+        total += float(e.get("revenue") or 0)
+    return total
+
+
+async def _sum_expenses(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None,
+                       category: Optional[str] = None, exclude_category: Optional[str] = None) -> float:
+    q: dict = {"owner_id": owner_id}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    if category:
+        q["category"] = category
+    if exclude_category:
+        q["category"] = {"$ne": exclude_category}
+    total = 0.0
+    async for x in db.expenses.find(q, {"amount": 1}):
+        total += float(x.get("amount") or 0)
+    return total
+
+
+async def _sum_settlements(owner_id: str, date_from: Optional[str] = None, date_to: Optional[str] = None) -> float:
+    q: dict = {"owner_id": owner_id}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    total = 0.0
+    async for s in db.settlements.find(q, {"total_payout": 1}):
+        total += float(s.get("total_payout") or 0)
+    return total
+
+
+async def _compute_cash_state(owner_id: str) -> dict:
+    """
+    Cash state formula:
+    Aktualny stan = ΣRevenue(all) − ΣExpenses(all incl. wyplaty_szefow) − ΣSettlements(all)
+
+    'Od ostatniego rozliczenia' fields are computed only from the last settlement date.
+    """
+    all_revenue = await _sum_revenue(owner_id)
+    all_expenses = await _sum_expenses(owner_id)  # everything (incl. wyplaty_szefow legacy)
+    all_settlements = await _sum_settlements(owner_id)
+    cash_current = round(all_revenue - all_expenses - all_settlements, 2)
+
+    last = await _last_settlement(owner_id)
+    if last:
+        # Use the settlement's ISO date (YYYY-MM-DD-...) — everything strictly after that date
+        # We use the date-only prefix so any event/expense with date > last_settlement.date counts.
+        last_date_iso = (last.get("date") or "")[:10]
+        rev_since = await _sum_revenue(owner_id, date_from=_next_day_iso(last_date_iso)) if last_date_iso else all_revenue
+        # 'Koszty od rozliczenia' — WYKLUCZAMY wyplaty_szefow (te są rozliczeniami, nie kosztami)
+        cost_since = await _sum_expenses(owner_id, date_from=_next_day_iso(last_date_iso),
+                                         exclude_category="wyplaty_szefow") if last_date_iso else 0
+        payouts_since_from_expenses = await _sum_expenses(owner_id, date_from=_next_day_iso(last_date_iso),
+                                                          category="wyplaty_szefow") if last_date_iso else 0
+        # Any settlements after last one (should be 0 normally, since _last_settlement returns the most recent)
+        payouts_since_from_settlements = await _sum_settlements(owner_id, date_from=_next_day_iso(last_date_iso)) if last_date_iso else 0
+        payouts_since = payouts_since_from_expenses + payouts_since_from_settlements
+        cash_from_last = round(float(last.get("cash_after", 0)) + rev_since - cost_since - payouts_since, 2)
+        return {
+            "cash_current": cash_current,
+            "cash_from_last_settlement": cash_from_last,
+            "revenue_since_last": round(rev_since, 2),
+            "cost_since_last": round(cost_since, 2),
+            "payouts_since_last": round(payouts_since, 2),
+            "last_settlement": last,
+        }
+    # No settlement yet — everything counts
+    return {
+        "cash_current": cash_current,
+        "cash_from_last_settlement": cash_current,
+        "revenue_since_last": round(all_revenue, 2),
+        "cost_since_last": round(all_expenses - await _sum_expenses(owner_id, category="wyplaty_szefow"), 2),
+        "payouts_since_last": round(await _sum_expenses(owner_id, category="wyplaty_szefow") + all_settlements, 2),
+        "last_settlement": None,
+    }
+
+
+def _next_day_iso(d: str) -> str:
+    """Return ISO date one day after the given YYYY-MM-DD, or empty on parse errors."""
+    try:
+        y, m, dd = d.split("-")
+        from datetime import date as _dt
+        nd = _dt(int(y), int(m), int(dd)) + timedelta(days=1)
+        return nd.isoformat()
+    except Exception:
+        return d
+
+
+@api.get("/finance/cash-state")
+async def get_cash_state(user=Depends(current_user)):
+    """Return the current cash balance and breakdown from the last settlement."""
+    return await _compute_cash_state(ws(user))
+
+
+@api.get("/finance/period-summary")
+async def get_period_summary(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    """Return revenue / regular costs / partner payouts / result for an arbitrary date range."""
+    owner = ws(user)
+    df = date_from or None
+    dt = date_to or None
+    revenue = await _sum_revenue(owner, df, dt)
+    regular_costs = await _sum_expenses(owner, df, dt, exclude_category="wyplaty_szefow")
+    partner_payouts_expenses = await _sum_expenses(owner, df, dt, category="wyplaty_szefow")
+    settlements_total = await _sum_settlements(owner, df, dt)
+    partner_payouts_total = partner_payouts_expenses + settlements_total
+    # Lists — recent items for drill-down
+    q_ev: dict = {"owner_id": owner}
+    if df or dt:
+        q_ev["date"] = {}
+        if df: q_ev["date"]["$gte"] = df
+        if dt: q_ev["date"]["$lte"] = dt
+    events = await db.events.find(q_ev, {"_id": 0, "id": 1, "name": 1, "date": 1, "revenue": 1, "status": 1}).sort("date", 1).to_list(2000)
+    events = [e for e in events if (e.get("status") or "").lower() != "anulowana" and float(e.get("revenue") or 0) > 0]
+    q_ex: dict = {"owner_id": owner}
+    if df or dt:
+        q_ex["date"] = {}
+        if df: q_ex["date"]["$gte"] = df
+        if dt: q_ex["date"]["$lte"] = dt
+    expenses = await db.expenses.find(q_ex, {"_id": 0, "id": 1, "date": 1, "label": 1, "amount": 1, "category": 1}).sort("date", 1).to_list(5000)
+    return {
+        "date_from": df, "date_to": dt,
+        "revenue": round(revenue, 2),
+        "regular_costs": round(regular_costs, 2),
+        "partner_payouts": round(partner_payouts_total, 2),
+        "result": round(revenue - regular_costs, 2),  # standard profit excluding partner payouts
+        "result_after_payouts": round(revenue - regular_costs - partner_payouts_total, 2),
+        "events": events[:200],
+        "expenses": expenses[:500],
+    }
+
+
+@api.get("/settlements")
+async def list_settlements(user=Depends(current_user)):
+    """Return all settlements for this workspace, newest first."""
+    rows = await db.settlements.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", -1).to_list(500)
+    return rows
+
+
+@api.post("/settlements")
+async def create_settlement(body: SettlementIn, user=Depends(current_user)):
+    """Create a new partner-settlement snapshot.
+    The current cash is captured (if not provided) and the record becomes the new starting point.
+    """
+    owner = ws(user)
+    now_iso = now_utc().isoformat()
+    date_str = body.date or now_iso
+    # cash_before default = current computed cash
+    if body.cash_before is not None:
+        cash_before = float(body.cash_before)
+    else:
+        state = await _compute_cash_state(owner)
+        cash_before = float(state.get("cash_current") or 0)
+    payouts_norm = [{"partner_name": p.partner_name.strip(), "amount": float(p.amount or 0)} for p in body.payouts if p.partner_name.strip() and float(p.amount or 0) > 0]
+    total_payout = round(sum(p["amount"] for p in payouts_norm), 2)
+    cash_after = round(cash_before - total_payout, 2)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": owner,
+        "date": date_str,
+        "cash_before": round(cash_before, 2),
+        "payouts": payouts_norm,
+        "total_payout": total_payout,
+        "cash_after": cash_after,
+        "notes": (body.notes or "").strip(),
+        "created_by_id": user["id"],
+        "created_by_name": user.get("name") or user.get("email") or "",
+        "created_at": now_iso,
+    }
+    await db.settlements.insert_one(doc)
+    try:
+        await log_change(user, "create", "settlement", doc["id"],
+                         f"Rozliczenie wspólników: {len(payouts_norm)} osób, wypłacono {total_payout:.2f} zł, stan {cash_before:.2f} → {cash_after:.2f} zł")
+    except Exception:
+        pass
+    return doc
+
+
+@api.delete("/settlements/{settlement_id}")
+async def delete_settlement(settlement_id: str, user=Depends(current_user)):
+    """Soft policy: allow deletion (owner can undo a mistaken settlement).
+    Ważne: user prosił żeby NIE usuwać z historii — więc endpoint zwraca 403 dla bezpieczeństwa.
+    """
+    raise HTTPException(status_code=403, detail="Nie można usuwać rozliczeń z historii.")
+
+
+app.include_router(api)
+
+
 
 @app.on_event("shutdown")
 async def _shutdown():

@@ -81,6 +81,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="rozliczenie"
+        options={{
+          title: "Kasa",
+          tabBarIcon: ({ color }) => <Feather name="pie-chart" color={color} size={20} />,
+        }}
+      />
+      <Tabs.Screen
         name="statystyki"
         options={{
           title: "Statystyki",

@@ -100,6 +100,17 @@ export const api = {
     dinner_custom_items?: Array<{ id: string; section: string; name: string; unit: string; base_price: number; cost_price: number }>;
     grill_price_overrides?: Record<string, number>;
   }) => request("/menu-settings", { method: "PUT", body: JSON.stringify(data) }),
+  cashState: () => request("/finance/cash-state"),
+  periodSummary: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set("date_from", from);
+    if (to) params.set("date_to", to);
+    const q = params.toString();
+    return request(`/finance/period-summary${q ? `?${q}` : ""}`);
+  },
+  listSettlements: () => request("/settlements"),
+  createSettlement: (data: { date?: string; payouts: Array<{ partner_name: string; amount: number }>; cash_before?: number; notes?: string }) =>
+    request("/settlements", { method: "POST", body: JSON.stringify(data) }),
   backup: () => request("/export/backup"),
   importBackup: (data: any) => request("/import/backup", { method: "POST", body: JSON.stringify(data) }),
   importIcs: (ics: string, years_back: number = 5) => request("/import/ics", { method: "POST", body: JSON.stringify({ ics, years_back }) }),
