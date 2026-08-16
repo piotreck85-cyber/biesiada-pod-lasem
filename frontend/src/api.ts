@@ -102,16 +102,21 @@ export const api = {
   }) => request("/menu-settings", { method: "PUT", body: JSON.stringify(data) }),
   setOpeningBalance: (opening_balance: number, note?: string) =>
     request("/finance/opening-balance", { method: "PUT", body: JSON.stringify({ opening_balance, note }) }),
-  shoppingGenerate: (from?: string, to?: string) => {
+  shoppingGenerate: (from?: string, to?: string, expand: boolean = true) => {
     const p = new URLSearchParams();
     if (from) p.set("date_from", from);
     if (to) p.set("date_to", to);
+    if (!expand) p.set("expand", "false");
     return request(`/shopping/generate${p.toString() ? `?${p.toString()}` : ""}`);
   },
   shoppingList: () => request("/shopping/items"),
   shoppingAdd: (item: any) => request("/shopping/items", { method: "POST", body: JSON.stringify(item) }),
   shoppingUpdate: (id: string, patch: any) => request(`/shopping/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   shoppingDelete: (id: string) => request(`/shopping/items/${id}`, { method: "DELETE" }),
+  shoppingRecipes: () => request("/shopping/recipes"),
+  shoppingUpdateRecipe: (key: string, ingredients: Array<{ name: string; category: string; unit: string; qty: number; price: number }>) =>
+    request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ ingredients }) }),
+  shoppingResetRecipe: (key: string) => request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "DELETE" }),
   cashState: () => request("/finance/cash-state"),
   periodSummary: (from?: string, to?: string) => {
     const params = new URLSearchParams();

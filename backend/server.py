@@ -31,6 +31,9 @@ bearer = HTTPBearer(auto_error=False)
 import google_calendar as gcal
 from fastapi.responses import HTMLResponse
 
+# ---------- Static recipes / ingredient breakdown ----------
+from recipes import RECIPES as DEFAULT_RECIPES, FIXED_PER_EVENT, merge_recipes, RECIPE_LABELS
+
 
 async def _get_gcal_conn(user_id: str) -> Optional[dict]:
     """Return the google connection doc for a user (or None)."""
@@ -2454,6 +2457,8 @@ class MenuSettingsIn(BaseModel):
     dinner_cost_overrides: Optional[Dict[str, float]] = None    # {item_id: new_cost_price}
     dinner_custom_items: Optional[List[dict]] = None            # user-added dinner items
     grill_price_overrides: Optional[Dict[str, float]] = None    # {set_id: new_price/person}
+    recipe_overrides: Optional[Dict[str, List[dict]]] = None    # recipe_key -> [ingredient,...]
+    fixed_per_event: Optional[List[dict]] = None                # override fixed per-event items
 
 
 @api.get("/menu-settings")
@@ -2465,6 +2470,8 @@ async def get_menu_settings(user=Depends(current_user)):
         "dinner_cost_overrides":  doc.get("dinner_cost_overrides") or {},
         "dinner_custom_items":    doc.get("dinner_custom_items") or [],
         "grill_price_overrides":  doc.get("grill_price_overrides") or {},
+        "recipe_overrides":       doc.get("recipe_overrides") or {},
+        "fixed_per_event":        doc.get("fixed_per_event") or [],
         "updated_at":             doc.get("updated_at") or "",
     }
 
@@ -2478,6 +2485,8 @@ async def put_menu_settings(body: MenuSettingsIn, user=Depends(current_user)):
         "dinner_cost_overrides":  body.dinner_cost_overrides or {},
         "dinner_custom_items":    body.dinner_custom_items or [],
         "grill_price_overrides":  body.grill_price_overrides or {},
+        "recipe_overrides":       body.recipe_overrides or {},
+        "fixed_per_event":        body.fixed_per_event or [],
         "updated_at":             now_utc().isoformat(),
     }
     await db.menu_settings.update_one(
@@ -3130,11 +3139,77 @@ async def delete_shopping_item(item_id: str, user=Depends(current_user)):
     await db.shopping_items.delete_one({"id": item_id, "owner_id": ws(user)})
     return {"ok": True}
 
+@api.get("/shopping/recipes")
+async def get_recipes(user=Depends(current_user)):
+    """Return current recipes (defaults merged with per-workspace overrides) and labels."""
+    ms = await db.menu_settings.find_one({"owner_id": ws(user)}, {"_id": 0}) or {}
+    overrides = ms.get("recipe_overrides") or {}
+    fixed_ov = ms.get("fixed_per_event")
+    merged = merge_recipes(overrides)
+    return {
+        "recipes": merged,
+        "labels": RECIPE_LABELS,
+        "fixed_per_event": fixed_ov if fixed_ov else FIXED_PER_EVENT,
+        "categories": ["warzywa","mieso","nabial","spozywcze","pieczywo","napoje","kawa","jednorazowki","dekoracje","srodki","dodatkowe","inne"],
+        "units": ["kg","g","l","ml","szt","opak","sloik","peczek","porcja"],
+    }
+
+
+class RecipeUpdateIn(BaseModel):
+    model_config = {"extra": "allow"}
+    ingredients: List[dict]  # [{name, category, unit, qty, price}, ...]
+
+
+@api.put("/shopping/recipes/{key}")
+async def update_recipe(key: str, body: RecipeUpdateIn, user=Depends(current_user)):
+    """Save an override recipe for one dish/package key."""
+    owner = ws(user)
+    ms = await db.menu_settings.find_one({"owner_id": owner}, {"_id": 0}) or {}
+    ovr = ms.get("recipe_overrides") or {}
+    # Basic validation
+    cleaned = []
+    for it in body.ingredients:
+        name = str(it.get("name") or "").strip()
+        if not name: continue
+        cleaned.append({
+            "name": name,
+            "category": str(it.get("category") or "inne"),
+            "unit": str(it.get("unit") or "szt"),
+            "qty": float(it.get("qty") or 0),
+            "price": float(it.get("price") or 0),
+        })
+    ovr[key] = cleaned
+    await db.menu_settings.update_one(
+        {"owner_id": owner},
+        {"$set": {"recipe_overrides": ovr, "updated_at": now_utc().isoformat(), "owner_id": owner}},
+        upsert=True,
+    )
+    return {"ok": True, "recipe": cleaned}
+
+
+@api.delete("/shopping/recipes/{key}")
+async def reset_recipe(key: str, user=Depends(current_user)):
+    """Reset a recipe key back to default (remove override)."""
+    owner = ws(user)
+    ms = await db.menu_settings.find_one({"owner_id": owner}, {"_id": 0}) or {}
+    ovr = ms.get("recipe_overrides") or {}
+    if key in ovr:
+        ovr.pop(key, None)
+        await db.menu_settings.update_one(
+            {"owner_id": owner},
+            {"$set": {"recipe_overrides": ovr, "updated_at": now_utc().isoformat(), "owner_id": owner}},
+            upsert=True,
+        )
+    return {"ok": True}
+
+
 @api.get("/shopping/generate")
-async def generate_shopping_list(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+async def generate_shopping_list(user=Depends(current_user), date_from: str = "", date_to: str = "", expand: bool = True):
     """Analyze events in [date_from, date_to] and produce aggregated purchase suggestions.
+    When expand=True (default), packages/dishes are broken down into raw atomic ingredients.
+    Aggregation groups: warzywa, mieso, nabial, spozywcze, pieczywo, napoje, kawa,
+    jednorazowki, srodki, dekoracje, dodatkowe, inne.
     Response is READ-ONLY suggestion — user can accept items to store them (POST /shopping/items).
-    Aggregation groups: catering (per dinner item), grill, napoje, and extras from events.
     """
     owner = ws(user)
     q: dict = {"owner_id": owner}
@@ -3145,64 +3220,102 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
     events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(500)
     events = [e for e in events if (e.get("status") or "").lower() != "anulowana"]
 
-    # menu settings (for cost_price / prices)
+    # Load recipe overrides + fixed items
     ms = await db.menu_settings.find_one({"owner_id": owner}, {"_id": 0}) or {}
-    price_ov = ms.get("dinner_price_overrides") or {}
-    cost_ov = ms.get("dinner_cost_overrides") or {}
-    custom = ms.get("dinner_custom_items") or []
-    # Merge full menu (default + custom)
-    from collections import defaultdict
-    DEFAULT_DINNER = [
-        ("z1","Rosół / makaron","os",20,14.4),("z2","Zalewajka","os",22,17.6),
-        ("z3","Krem pomidorowo","os",22,17.6),("z4","Krem z białych warzyw","os",22,17.6),
-        ("d1","Polędwiczka","os",29,22.4),("d2","Roladka dr","os",27,20.0),
-        ("d3","Kotlet schabowy","os",22,14.4),("d4","Filet z kurczaka","os",22,14.4),
-        ("d5","Filet zapiekany","os",27,19.2),("d6","Cordon Blue","os",27,19.2),
-        ("d7","Karczek pieczony","os",27,20.8),("d8","Kotlet szydłowiecki","os",26,19.2),
-        ("dd1","Ziemniaki z wody","os",8,6.4),("dd2","Ziemniaki opiekane","os",9,7.2),
-        ("dd3","Kluski śląskie","os",12,8.0),("dd4","Kopytka","os",10,8.0),
-        ("dd5","Ryż z warzywami","os",12,8.0),("dd6","Zestaw surówek","os",9,6.4),
-        ("dd7","Wiosenna","os",9,6.4),("dd8","Kapusta zasmażana","os",10,6.4),
-    ]
-    menu_map = {}
-    for (mid, mname, munit, mp, mc) in DEFAULT_DINNER:
-        menu_map[mid] = {"name": mname, "unit": munit, "price": price_ov.get(mid, mp), "cost": cost_ov.get(mid, mc)}
-    for it in custom:
-        menu_map[it["id"]] = {"name": it["name"], "unit": it.get("unit","os"), "price": price_ov.get(it["id"], it.get("base_price",0)), "cost": cost_ov.get(it["id"], it.get("cost_price",0))}
+    recipes_map = merge_recipes(ms.get("recipe_overrides") or {})
+    fixed_items = ms.get("fixed_per_event") if ms.get("fixed_per_event") else FIXED_PER_EVENT
 
-    # aggregators: key = (category, name, unit) → {qty, unit_price, event_ids, event_names}
+    # aggregators: key = (category, name.lower(), unit) → row
     agg: dict = {}
     def _add(cat, name, unit, qty, unit_price, ev):
-        k = (cat, name.lower(), unit)
+        k = (cat, name.strip().lower(), unit)
         if k not in agg:
-            agg[k] = {"category": cat, "name": name, "unit": unit, "qty": 0.0, "unit_price": unit_price, "event_ids": [], "event_names": []}
+            agg[k] = {
+                "category": cat, "name": name.strip(), "unit": unit,
+                "qty": 0.0, "unit_price": unit_price,
+                "event_ids": [], "event_names": [],
+            }
         agg[k]["qty"] += float(qty)
         if unit_price > 0 and agg[k]["unit_price"] == 0:
             agg[k]["unit_price"] = unit_price
-        if ev["id"] not in agg[k]["event_ids"]:
+        if ev is not None and ev.get("id") and ev["id"] not in agg[k]["event_ids"]:
             agg[k]["event_ids"].append(ev["id"])
             agg[k]["event_names"].append(f"{ev.get('date','')} · {ev.get('name','')}")
 
-    GRILL_COST = {"set1": 25, "set2": 30, "set3": 35}
+    def _apply_recipe(key: str, people: float, ev: dict):
+        ings = recipes_map.get(key) or []
+        for ing in ings:
+            per = float(ing.get("qty") or 0)
+            if per <= 0: continue
+            total = round(per * float(people), 3)
+            _add(
+                ing.get("category") or "inne",
+                ing.get("name") or "?",
+                ing.get("unit") or "szt",
+                total,
+                float(ing.get("price") or 0),
+                ev,
+            )
+
     for ev in events:
         people = int(ev.get("people") or 0)
+        if people <= 0:
+            continue
         pkg = ev.get("package_set") or ""
-        # catering — dinner_items
+        # 1) catering — dinner_items (z1..dd8) each with its own qty (in "osoby")
         for dish_id, qty in (ev.get("dinner_items") or {}).items():
-            m = menu_map.get(dish_id)
-            if not m or not qty: continue
-            _add("catering", m["name"], m["unit"], qty, m["cost"], ev)
-        # grill package as aggregate per-person cost
-        if pkg in GRILL_COST and people > 0:
-            _add("grill", f"Pakiet grill {pkg.upper()} — składniki (per os.)", "os", people, GRILL_COST[pkg], ev)
-        # napoje (from extras_qty)
+            try: qn = float(qty)
+            except Exception: qn = 0
+            if not qn:
+                continue
+            if expand and dish_id in recipes_map:
+                _apply_recipe(dish_id, qn, ev)
+            else:
+                # Fallback: aggregate under generic label (no expansion)
+                label = RECIPE_LABELS.get(dish_id, dish_id)
+                _add("catering", label, "os", qn, 0, ev)
+
+        # 2) grill package — expand for all people
+        if pkg in ("set1", "set2", "set3"):
+            if expand:
+                _apply_recipe(pkg, people, ev)
+            else:
+                _add("grill", f"Pakiet grill {pkg.upper()} (per os.)", "os", people, 0, ev)
+
+        # 3) napoje (from extras_qty)
         extras = ev.get("extras_qty") or {}
         if extras.get("napoje") and people > 0:
-            _add("napoje", "Napoje (mix)", "os", people, 8, ev)
-        # other extras from event
+            if expand:
+                _apply_recipe("napoje", people, ev)
+            else:
+                _add("napoje", "Napoje (mix)", "os", people, 8, ev)
+
+        # 4) other extras from event (custom ones) — kept as-is
         for ex_id, ex_qty in extras.items():
-            if ex_id == "napoje" or not ex_qty: continue
-            _add("dodatkowe", ex_id, "szt", ex_qty, 0, ev)
+            if ex_id == "napoje" or not ex_qty:
+                continue
+            try: qn = float(ex_qty)
+            except Exception: qn = 0
+            if qn <= 0:
+                continue
+            # If we have a recipe for that extras id, expand it
+            if expand and ex_id in recipes_map:
+                # extras qty semantic: treat as "portions" ~ people count for that extra
+                _apply_recipe(ex_id, qn, ev)
+            else:
+                _add("dodatkowe", ex_id, "szt", qn, 0, ev)
+
+        # 5) Fixed per event items (serwetki, worki, płyn do naczyń...)
+        if fixed_items:
+            for it in fixed_items:
+                _add(
+                    it.get("category") or "jednorazowki",
+                    it.get("name") or "?",
+                    it.get("unit") or "szt",
+                    float(it.get("qty") or 0),
+                    float(it.get("price") or 0),
+                    ev,
+                )
 
     suggestions = []
     for row in agg.values():
@@ -3210,14 +3323,24 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         row["estimated_cost"] = round(row["qty"] * row["unit_price"], 2)
         suggestions.append(row)
     # sort: category then name
-    order = ["catering","grill","napoje","kawa","jednorazowki","dekoracje","srodki","dodatkowe","inne"]
+    order = ["mieso","warzywa","nabial","pieczywo","spozywcze","napoje","kawa","jednorazowki","srodki","dekoracje","dodatkowe","catering","grill","inne"]
     suggestions.sort(key=lambda x: (order.index(x["category"]) if x["category"] in order else 99, x["name"]))
     total_est = sum(s["estimated_cost"] for s in suggestions)
+
+    # Category totals for the frontend hero
+    from collections import defaultdict
+    cat_totals: dict = defaultdict(lambda: {"count": 0, "cost": 0.0})
+    for s in suggestions:
+        cat_totals[s["category"]]["count"] += 1
+        cat_totals[s["category"]]["cost"] += s["estimated_cost"]
+
     return {
         "date_from": date_from, "date_to": date_to,
         "event_count": len(events),
         "total_people": sum(int(e.get("people") or 0) for e in events),
         "estimated_total": round(total_est, 2),
+        "expanded": bool(expand),
+        "category_totals": {k: {"count": v["count"], "cost": round(v["cost"], 2)} for k, v in cat_totals.items()},
         "suggestions": suggestions,
     }
 
