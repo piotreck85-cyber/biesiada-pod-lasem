@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { theme, formatPLN } from "@/src/theme";
 import { api } from "@/src/api";
+import MagazynView from "@/src/components/MagazynView";
+import { printShoppingList } from "@/src/printShopping";
 
 type Item = {
   id: string; name: string; category: string; qty: number; unit: string;
@@ -126,11 +128,14 @@ export default function Zakupy() {
     else if (m === "30d") { const t = new Date(now); t.setDate(now.getDate() + 30); setDateFrom(iso(now)); setDateTo(iso(t)); }
   };
 
-  const acceptSuggestion = async (s: any) => {
+  const acceptSuggestion = async (sg: any) => {
     try {
+      const qty = sg.to_buy != null ? sg.to_buy : sg.qty;
+      if (qty <= 0) return;
       await api.shoppingAdd({
-        name: s.name, category: s.category, qty: s.qty, unit: s.unit,
-        unit_price: s.unit_price, event_ids: s.event_ids, event_names: s.event_names,
+        name: sg.name, category: sg.category, qty, unit: sg.unit,
+        unit_price: sg.unit_price, event_ids: sg.event_ids, event_names: sg.event_names,
+        stock_qty: sg.stock_qty || 0,
       });
       await load();
     } catch {}
@@ -192,6 +197,8 @@ export default function Zakupy() {
 
   const catTotals = gen?.category_totals || {};
 
+  const [view, setView] = useState<"buy" | "stock">("buy");
+
   if (loading) return <View style={s.rootLoading}><ActivityIndicator color={theme.color.brand} /></View>;
 
   return (
@@ -200,14 +207,39 @@ export default function Zakupy() {
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
           <View>
             <Text style={s.brand}>Zakupy</Text>
-            <Text style={s.title}>Automatyczna lista</Text>
+            <Text style={s.title}>{view === "buy" ? "Automatyczna lista" : "Magazyn"}</Text>
           </View>
-          <Pressable onPress={openRecipes} style={s.recipesBtn} hitSlop={8}>
-            <Feather name="book-open" size={14} color={theme.color.brand} />
-            <Text style={s.recipesBtnText}>Przepisy</Text>
+          {view === "buy" ? (
+            <View style={{ flexDirection: "row", gap: 6 }}>
+              <Pressable
+                onPress={() => printShoppingList(gen || {}, items, dateFrom, dateTo)}
+                style={s.recipesBtn} hitSlop={8}>
+                <Feather name="printer" size={14} color={theme.color.brand} />
+                <Text style={s.recipesBtnText}>Drukuj</Text>
+              </Pressable>
+              <Pressable onPress={openRecipes} style={s.recipesBtn} hitSlop={8}>
+                <Feather name="book-open" size={14} color={theme.color.brand} />
+                <Text style={s.recipesBtnText}>Przepisy</Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
+        {/* Segment switch */}
+        <View style={s.segRow}>
+          <Pressable onPress={() => setView("buy")} style={[s.segBtn, view === "buy" && s.segBtnActive]}>
+            <Feather name="shopping-cart" size={14} color={view === "buy" ? theme.color.onBrand : theme.color.onSurface} />
+            <Text style={[s.segBtnTxt, view === "buy" && s.segBtnTxtActive]}>Do kupienia</Text>
+          </Pressable>
+          <Pressable onPress={() => setView("stock")} style={[s.segBtn, view === "stock" && s.segBtnActive]}>
+            <Feather name="archive" size={14} color={view === "stock" ? theme.color.onBrand : theme.color.onSurface} />
+            <Text style={[s.segBtnTxt, view === "stock" && s.segBtnTxtActive]}>Magazyn</Text>
           </Pressable>
         </View>
       </View>
+
+      {view === "stock" ? (
+        <MagazynView />
+      ) : (
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme.color.brand} />}>
         {/* Quick ranges */}
@@ -282,23 +314,43 @@ export default function Zakupy() {
                   <View style={[s.catDot, { backgroundColor: c.color, width: 8, height: 8 }]} />
                   <Text style={s.subSection}>{c.label}</Text>
                 </View>
-                {sugByCat[c.id].map((sg: any, i: number) => (
-                  <View key={i} style={s.sugRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.sugName}>{sg.name}</Text>
-                      <Text style={s.sugMeta}>
-                        {sg.qty} {sg.unit}
-                        {sg.unit_price ? ` · ~${formatPLN(sg.estimated_cost)}` : ""}
-                      </Text>
-                      {sg.event_names?.length ? (
-                        <Text style={s.sugEv} numberOfLines={1}>{sg.event_names.join(" • ")}</Text>
+                {sugByCat[c.id].map((sg: any, i: number) => {
+                  const hasStock = (sg.stock_qty || 0) > 0;
+                  const hasReserved = (sg.reserved_qty || 0) > 0;
+                  const toBuy = sg.to_buy != null ? sg.to_buy : sg.qty;
+                  const isCovered = toBuy <= 0;
+                  const expBadge = sg.stock_expiry ? (
+                    <Text style={{ color: "#B91C1C", fontSize: 10, fontWeight: "700" }}>  · 🔴 ważne do {sg.stock_expiry}</Text>
+                  ) : null;
+                  return (
+                    <View key={i} style={[s.sugRow, isCovered && { opacity: 0.5 }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.sugName}>{sg.name}</Text>
+                        {(hasStock || hasReserved) ? (
+                          <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10 }}>
+                            potrzeba {sg.needed} {sg.unit}
+                            {hasStock ? ` · magazyn ${sg.stock_qty}` : ""}
+                            {hasReserved ? ` · zarezerwowane ${sg.reserved_qty}` : ""}
+                          </Text>
+                        ) : null}
+                        <Text style={[s.sugMeta, { color: isCovered ? theme.color.success : theme.color.onSurface, fontWeight: "700" }]}>
+                          Do kupienia: {toBuy} {sg.unit}
+                          {sg.unit_price ? ` · ~${formatPLN(sg.estimated_cost)}` : ""}
+                          {isCovered ? " ✓" : ""}
+                          {expBadge}
+                        </Text>
+                        {sg.event_names?.length ? (
+                          <Text style={s.sugEv} numberOfLines={1}>{sg.event_names.join(" • ")}</Text>
+                        ) : null}
+                      </View>
+                      {!isCovered ? (
+                        <Pressable onPress={() => acceptSuggestion(sg)} style={s.addBtn} hitSlop={10}>
+                          <Feather name="plus" size={16} color={theme.color.brand} />
+                        </Pressable>
                       ) : null}
                     </View>
-                    <Pressable onPress={() => acceptSuggestion(sg)} style={s.addBtn} hitSlop={10}>
-                      <Feather name="plus" size={16} color={theme.color.brand} />
-                    </Pressable>
-                  </View>
-                ))}
+                  );
+                })}
               </View>
             ))}
           </View>
@@ -356,6 +408,7 @@ export default function Zakupy() {
           </>
         ) : null}
       </ScrollView>
+      )}
 
       {/* === Recipes editor modal === */}
       <Modal visible={showRecipes} animationType="slide" onRequestClose={() => setShowRecipes(false)}>
@@ -469,6 +522,11 @@ const s = StyleSheet.create({
   title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
   recipesBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
   recipesBtnText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
+  segRow: { flexDirection: "row", gap: 6, marginTop: 10, backgroundColor: theme.color.border, borderRadius: 12, padding: 3 },
+  segBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 10 },
+  segBtnActive: { backgroundColor: theme.color.brand },
+  segBtnTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
+  segBtnTxtActive: { color: theme.color.onBrand },
   quickRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
   qBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
   qText: { color: theme.color.brand, fontSize: 12, fontWeight: "700" },

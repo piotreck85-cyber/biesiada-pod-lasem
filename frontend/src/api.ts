@@ -117,6 +117,27 @@ export const api = {
   shoppingUpdateRecipe: (key: string, ingredients: Array<{ name: string; category: string; unit: string; qty: number; price: number }>) =>
     request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ ingredients }) }),
   shoppingResetRecipe: (key: string) => request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "DELETE" }),
+
+  // Stock / Magazyn
+  stockList: () => request("/stock/items"),
+  stockAdd: (item: { name: string; category?: string; qty?: number; unit?: string; expiry_date?: string | null; notes?: string }) =>
+    request("/stock/items", { method: "POST", body: JSON.stringify(item) }),
+  stockUpdate: (id: string, patch: any) =>
+    request(`/stock/items/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  stockDelete: (id: string) => request(`/stock/items/${id}`, { method: "DELETE" }),
+  stockCheck: (items: any[], notes?: string, check_date?: string) =>
+    request("/stock/check", { method: "POST", body: JSON.stringify({ items, notes: notes || "", check_date }) }),
+  stockSnapshots: (limit: number = 30) => request(`/stock/snapshots?limit=${limit}`),
+  reservationsList: (event_id?: string) => request(`/stock/reservations${event_id ? `?event_id=${event_id}` : ""}`),
+  reservationsAdd: (data: { stock_id?: string; name: string; unit: string; qty: number; event_id: string; event_name?: string }) =>
+    request("/stock/reservations", { method: "POST", body: JSON.stringify(data) }),
+  reservationsDelete: (id: string) => request(`/stock/reservations/${id}`, { method: "DELETE" }),
+  stockNeededSuggestions: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set("date_from", from);
+    if (to) p.set("date_to", to);
+    return request(`/stock/needed-suggestions${p.toString() ? `?${p.toString()}` : ""}`);
+  },
   cashState: () => request("/finance/cash-state"),
   periodSummary: (from?: string, to?: string) => {
     const params = new URLSearchParams();
@@ -160,4 +181,8 @@ export const api = {
   gcalStart: () => request("/google-calendar/oauth/start"),
   gcalDisconnect: () => request("/google-calendar/disconnect", { method: "POST" }),
   gcalBackfill: () => request("/google-calendar/backfill", { method: "POST" }),
+
+  // Catering email
+  sendCateringEmail: (event_id: string, data?: { to_email?: string; pickup_time?: string; extra_notes?: string; greeting?: string }) =>
+    request(`/events/${event_id}/send-catering-email`, { method: "POST", body: JSON.stringify(data || {}) }),
 };

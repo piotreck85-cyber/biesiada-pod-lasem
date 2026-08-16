@@ -923,6 +923,177 @@ async def delete_event(event_id: str, user=Depends(current_user)):
             pass
     return {"ok": True}
 
+
+# ---------- Catering email ----------
+# Ceny z cateringu Yubari (z PDF Biesiada Pod Lasem) — zł/porcja
+CATERING_PRICES = {
+    "z1": ("Rosół z makaronem", 18.0),
+    "z2": ("Zalewajka świętokrzyska", 22.0),
+    "z3": ("Krem pomidorowo-paprykowy / mozzarella", 22.0),
+    "z4": ("Krem z białych warzyw", 22.0),
+    "d1": ("Polędwiczka WP / sos serowy z orzechami lub leśny", 28.0),
+    "d2": ("Roladka drobiowa / sos serowy", 25.0),
+    "d3": ("Kotlet schabowy", 18.0),
+    "d4": ("Filet z kurczaka", 18.0),
+    "d5": ("Filet zapiekany z pomidorami suszonymi, szpinakiem i mozzarellą", 24.0),
+    "d6": ("Cordon Bleu", 24.0),
+    "d7": ("Karczek pieczony / sos myśliwski", 26.0),
+    "d8": ("Kotlet szydłowiecki (faszerowany)", 24.0),
+    "dd1": ("Ziemniaki z wody", 8.0),
+    "dd2": ("Ziemniaki opiekane", 9.0),
+    "dd3": ("Kluski śląskie", 10.0),
+    "dd4": ("Kopytka", 10.0),
+    "dd5": ("Ryż z warzywami", 10.0),
+    "dd6": ("Zestaw surówek", 8.0),
+    "dd7": ("Surówka wiosenna", 8.0),
+    "dd8": ("Kapusta zasmażana", 8.0),
+}
+CATERING_DISCOUNT_PCT = 20.0  # nasz stały rabat od Yubari
+
+DEFAULT_DINNER_MENU = {k: v[0] for k, v in CATERING_PRICES.items()}
+
+
+class CateringEmailIn(BaseModel):
+    model_config = {"extra": "allow"}
+    to_email: EmailStr = "yubari.restauracja@gmail.com"
+    pickup_time: Optional[str] = None  # HH:MM (godzina odbioru)
+    extra_notes: Optional[str] = ""
+    greeting: Optional[str] = "Cześć Lorena, poniżej wysyłam zamówienie."
+
+
+@api.post("/events/{event_id}/send-catering-email")
+async def send_catering_email(event_id: str, body: CateringEmailIn, user=Depends(current_user)):
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+
+    ms = await db.menu_settings.find_one({"owner_id": ws(user)}, {"_id": 0}) or {}
+    custom_items = {c.get("id"): c for c in (ms.get("dinner_custom_items") or [])}
+    dinner_items = ev.get("dinner_items") or {}
+
+    def _label(dish_id: str) -> str:
+        if dish_id in DEFAULT_DINNER_MENU:
+            return DEFAULT_DINNER_MENU[dish_id]
+        if dish_id in custom_items:
+            return custom_items[dish_id].get("name", dish_id)
+        return dish_id
+
+    ordered = [(dish_id, qty) for dish_id, qty in dinner_items.items() if qty]
+    if not ordered:
+        raise HTTPException(400, "Ta impreza nie ma pozycji cateringu (dinner_items pusty).")
+
+    # --- Kalkulacja cen (bazowa z cennika + rabat 20%) ---
+    def _price(dish_id: str) -> float:
+        if dish_id in CATERING_PRICES:
+            return CATERING_PRICES[dish_id][1]
+        # custom item — spróbuj wziąć base_price z menu_settings
+        if dish_id in custom_items:
+            try: return float(custom_items[dish_id].get("base_price") or 0)
+            except Exception: return 0.0
+        return 0.0
+
+    def _line_str(dish_id: str, qty: float) -> str:
+        p = _price(dish_id)
+        if p > 0:
+            return f"  • {_label(dish_id)} — {qty} porcji × {p:.2f} zł = {qty * p:.2f} zł"
+        return f"  • {_label(dish_id)} — {qty} porcji"
+
+    zupy    = [_line_str(k, v) for k, v in ordered if k.startswith("z")]
+    dania   = [_line_str(k, v) for k, v in ordered if k.startswith("d") and not k.startswith("dd")]
+    dodatki = [_line_str(k, v) for k, v in ordered if k.startswith("dd")]
+
+    subtotal = sum(_price(k) * float(v) for k, v in ordered)
+    discount = round(subtotal * CATERING_DISCOUNT_PCT / 100.0, 2)
+    total_after = round(subtotal - discount, 2)
+
+    ev_date = ev.get("date") or ""
+    ev_name = ev.get("name") or "Impreza"
+    people = int(ev.get("people") or 0)
+    time_start = (ev.get("time_start") or ev.get("time") or "").strip()
+    pickup = (body.pickup_time or "").strip()
+
+    body_lines = [body.greeting or "", ""]
+    body_lines.append(f"ZAMÓWIENIE CATERINGOWE — {ev_name}")
+    body_lines.append(f"Termin imprezy: {ev_date}" + (f", godz. {time_start}" if time_start else ""))
+    if pickup:
+        body_lines.append(f"Godzina odbioru: {pickup}")
+    if people:
+        body_lines.append(f"Liczba osób: {people}")
+    body_lines.append("")
+    if zupy:
+        body_lines.append("ZUPY:"); body_lines.extend(zupy); body_lines.append("")
+    if dania:
+        body_lines.append("DANIA GŁÓWNE:"); body_lines.extend(dania); body_lines.append("")
+    if dodatki:
+        body_lines.append("DODATKI:"); body_lines.extend(dodatki); body_lines.append("")
+    if body.extra_notes:
+        body_lines.append("UWAGI:"); body_lines.append(body.extra_notes); body_lines.append("")
+    # Podsumowanie cen
+    body_lines.append("─" * 40)
+    body_lines.append(f"Suma cennika:           {subtotal:>10.2f} zł")
+    body_lines.append(f"Rabat cateringu ({int(CATERING_DISCOUNT_PCT)}%):  -{discount:>10.2f} zł")
+    body_lines.append(f"DO ZAPŁATY:             {total_after:>10.2f} zł")
+    body_lines.append("─" * 40)
+    body_lines.append("")
+    body_lines.append("Pozdrawiam,")
+    body_lines.append("Biesiada pod Lasem")
+    body_text = "\n".join(body_lines)
+
+    def _html_ul(rows):
+        cleaned = [r.replace("  • ", "").strip() for r in rows]
+        return "<ul style='margin:6px 0 12px 20px;padding:0'>" + "".join(f"<li style='margin:2px 0'>{r}</li>" for r in cleaned) + "</ul>"
+
+    html_parts = ['<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111827;line-height:1.5">']
+    html_parts.append(f"<p>{(body.greeting or '').replace(chr(10), '<br>')}</p>")
+    html_parts.append("<h2 style='color:#10B981;margin:6px 0'>Zamówienie cateringowe</h2>")
+    html_parts.append("<table style='border-collapse:collapse'>")
+    html_parts.append(f"<tr><td style='padding:2px 8px 2px 0;color:#6B7280'>Impreza:</td><td><b>{ev_name}</b></td></tr>")
+    html_parts.append(f"<tr><td style='padding:2px 8px 2px 0;color:#6B7280'>Termin:</td><td><b>{ev_date}</b>" + (f", godz. {time_start}" if time_start else "") + "</td></tr>")
+    if pickup:
+        html_parts.append(f"<tr><td style='padding:2px 8px 2px 0;color:#6B7280'>Godzina odbioru:</td><td><b style='color:#DC2626'>{pickup}</b></td></tr>")
+    if people:
+        html_parts.append(f"<tr><td style='padding:2px 8px 2px 0;color:#6B7280'>Osób:</td><td><b>{people}</b></td></tr>")
+    html_parts.append("</table>")
+    if zupy:
+        html_parts.append("<h3 style='margin:10px 0 4px'>Zupy</h3>"); html_parts.append(_html_ul(zupy))
+    if dania:
+        html_parts.append("<h3 style='margin:10px 0 4px'>Dania główne</h3>"); html_parts.append(_html_ul(dania))
+    if dodatki:
+        html_parts.append("<h3 style='margin:10px 0 4px'>Dodatki</h3>"); html_parts.append(_html_ul(dodatki))
+    if body.extra_notes:
+        html_parts.append(f"<p style='background:#FEF3C7;padding:8px;border-radius:6px'><b>Uwagi:</b> {body.extra_notes}</p>")
+    # Podsumowanie cen
+    html_parts.append("<div style='margin-top:14px;padding:12px;background:#F0FDF4;border:1px solid #10B98166;border-radius:8px'>")
+    html_parts.append("<table style='width:100%;border-collapse:collapse;font-size:13px'>")
+    html_parts.append(f"<tr><td style='padding:3px 0;color:#6B7280'>Suma cennika:</td><td style='text-align:right;font-variant-numeric:tabular-nums'>{subtotal:.2f} zł</td></tr>")
+    html_parts.append(f"<tr><td style='padding:3px 0;color:#DC2626'>Rabat cateringu ({int(CATERING_DISCOUNT_PCT)}%):</td><td style='text-align:right;color:#DC2626;font-variant-numeric:tabular-nums'>-{discount:.2f} zł</td></tr>")
+    html_parts.append(f"<tr><td style='padding:6px 0 0;border-top:1px solid #10B98188;font-weight:800;color:#065F46'>DO ZAPŁATY:</td><td style='padding:6px 0 0;border-top:1px solid #10B98188;text-align:right;font-weight:800;font-size:16px;color:#10B981;font-variant-numeric:tabular-nums'>{total_after:.2f} zł</td></tr>")
+    html_parts.append("</table></div>")
+    html_parts.append("<p style='margin-top:14px'>Pozdrawiam,<br>Biesiada pod Lasem</p>")
+    html_parts.append("</div>")
+    body_html = "".join(html_parts)
+
+    from offer_email import send_offer_email as _send
+    try:
+        _send(
+            to_email=body.to_email,
+            subject=f"Zamówienie cateringowe — {ev_name} ({ev_date})",
+            body_text=body_text,
+            body_html=body_html,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Nie udało się wysłać maila: {e}")
+
+    try:
+        await log_change(user, "email", "event", event_id, f"Wysłano zamówienie cateringu do {body.to_email} · {ev_name}")
+    except Exception:
+        pass
+
+    return {"ok": True, "to": body.to_email, "items_count": len(ordered),
+            "subtotal": subtotal, "discount": discount, "total": total_after,
+            "discount_pct": CATERING_DISCOUNT_PCT}
+
+
 # ---------- Templates ----------
 @api.get("/templates")
 async def list_templates(user=Depends(current_user)):
@@ -3322,15 +3493,72 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         row["qty"] = round(row["qty"], 2)
         row["estimated_cost"] = round(row["qty"] * row["unit_price"], 2)
         suggestions.append(row)
+
+    # --- Cross-reference with stock + reservations ---
+    stock_rows = await db.stock_items.find({"owner_id": owner}, {"_id": 0}).to_list(2000)
+    res_rows = await db.stock_reservations.find({"owner_id": owner}, {"_id": 0}).to_list(2000)
+    # Only reservations whose event still ongoing/future (date >= today)
+    today_iso = now_utc().date().isoformat()
+    active_res = []
+    for r in res_rows:
+        ev_id = r.get("event_id")
+        if not ev_id:
+            active_res.append(r); continue
+        # look up event date once (cache)
+        ev = next((e for e in events if e.get("id") == ev_id), None)
+        if ev is None:
+            ev = await db.events.find_one({"id": ev_id, "owner_id": owner}, {"_id": 0, "date": 1})
+        if ev and (ev.get("date") or "") >= today_iso:
+            active_res.append(r)
+
+    def _norm(x: str) -> str:
+        return (x or "").strip().lower()
+
+    # Build map (name_lower, unit) -> {stock_qty, expiry_min, reserved_qty, stock_id, reservations:[]}
+    smap: dict = {}
+    for st in stock_rows:
+        k = (_norm(st.get("name")), st.get("unit") or "")
+        d = smap.setdefault(k, {"stock_qty": 0.0, "expiry": None, "reserved_qty": 0.0, "stock_ids": [], "reservations": []})
+        d["stock_qty"] += float(st.get("qty") or 0)
+        exp = st.get("expiry_date") or ""
+        if exp and (d["expiry"] is None or exp < d["expiry"]):
+            d["expiry"] = exp
+        d["stock_ids"].append(st.get("id"))
+    for r in active_res:
+        k = (_norm(r.get("name")), r.get("unit") or "")
+        d = smap.setdefault(k, {"stock_qty": 0.0, "expiry": None, "reserved_qty": 0.0, "stock_ids": [], "reservations": []})
+        d["reserved_qty"] += float(r.get("qty") or 0)
+        d["reservations"].append({"id": r.get("id"), "event_id": r.get("event_id"), "event_name": r.get("event_name",""), "qty": r.get("qty",0)})
+
+    # Enrich each suggestion
+    for s in suggestions:
+        k = (_norm(s["name"]), s.get("unit") or "")
+        d = smap.get(k) or {}
+        stk = float(d.get("stock_qty") or 0)
+        rsv = float(d.get("reserved_qty") or 0)
+        available = max(0.0, stk - rsv)
+        needed = float(s["qty"])
+        to_buy = max(0.0, needed - available)
+        s["needed"] = round(needed, 2)
+        s["stock_qty"] = round(stk, 2)
+        s["reserved_qty"] = round(rsv, 2)
+        s["available_qty"] = round(available, 2)
+        s["to_buy"] = round(to_buy, 2)
+        s["stock_expiry"] = d.get("expiry")
+        # Adjust estimated cost to only what we actually buy
+        s["estimated_cost"] = round(to_buy * s["unit_price"], 2)
+
     # sort: category then name
     order = ["mieso","warzywa","nabial","pieczywo","spozywcze","napoje","kawa","jednorazowki","srodki","dekoracje","dodatkowe","catering","grill","inne"]
     suggestions.sort(key=lambda x: (order.index(x["category"]) if x["category"] in order else 99, x["name"]))
     total_est = sum(s["estimated_cost"] for s in suggestions)
 
-    # Category totals for the frontend hero
+    # Category totals for the frontend hero (based on to_buy cost)
     from collections import defaultdict
     cat_totals: dict = defaultdict(lambda: {"count": 0, "cost": 0.0})
     for s in suggestions:
+        if s.get("to_buy", s["qty"]) <= 0:
+            continue
         cat_totals[s["category"]]["count"] += 1
         cat_totals[s["category"]]["cost"] += s["estimated_cost"]
 
@@ -3342,6 +3570,217 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         "expanded": bool(expand),
         "category_totals": {k: {"count": v["count"], "cost": round(v["cost"], 2)} for k, v in cat_totals.items()},
         "suggestions": suggestions,
+    }
+
+
+# ================================================================
+# Magazyn (Stock / Inventory)
+# ================================================================
+def _expiry_status(exp: str | None) -> str:
+    """Return one of: '' | 'expired' | 'urgent' | 'soon' | 'ok'"""
+    if not exp:
+        return ""
+    try:
+        d = datetime.strptime(exp[:10], "%Y-%m-%d").date()
+    except Exception:
+        return ""
+    today = now_utc().date()
+    delta = (d - today).days
+    if delta < 0: return "expired"
+    if delta <= 3: return "urgent"
+    if delta <= 7: return "soon"
+    return "ok"
+
+
+class StockItemIn(BaseModel):
+    model_config = {"extra": "allow"}
+    name: str
+    category: str = "inne"
+    qty: float = 0
+    unit: str = "szt"
+    expiry_date: Optional[str] = None    # YYYY-MM-DD
+    notes: Optional[str] = ""
+
+
+@api.get("/stock/items")
+async def list_stock_items(user=Depends(current_user)):
+    rows = await db.stock_items.find({"owner_id": ws(user)}, {"_id": 0}).sort("category", 1).to_list(2000)
+    # reservations map to compute available
+    res_rows = await db.stock_reservations.find({"owner_id": ws(user)}, {"_id": 0}).to_list(2000)
+    today_iso = now_utc().date().isoformat()
+
+    def _norm(x): return (x or "").strip().lower()
+    res_by_key: dict = {}
+    for r in res_rows:
+        ev = await db.events.find_one({"id": r.get("event_id"), "owner_id": ws(user)}, {"_id": 0, "date": 1, "name": 1})
+        if not ev or (ev.get("date") or "") < today_iso:
+            continue
+        k = (_norm(r.get("name")), r.get("unit") or "")
+        res_by_key.setdefault(k, []).append({**r, "event_date": ev.get("date"), "event_name": ev.get("name","")})
+    for it in rows:
+        it["expiry_status"] = _expiry_status(it.get("expiry_date"))
+        k = (_norm(it.get("name")), it.get("unit") or "")
+        resvs = res_by_key.get(k, [])
+        it["reservations"] = resvs
+        it["reserved_qty"] = round(sum(float(x.get("qty") or 0) for x in resvs), 2)
+        it["available_qty"] = round(max(0.0, float(it.get("qty") or 0) - it["reserved_qty"]), 2)
+    return rows
+
+
+@api.post("/stock/items")
+async def add_stock_item(body: StockItemIn, user=Depends(current_user)):
+    doc = body.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = ws(user)
+    doc["created_at"] = now_utc().isoformat()
+    doc["updated_at"] = doc["created_at"]
+    await db.stock_items.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+class StockItemPatch(BaseModel):
+    model_config = {"extra": "allow"}
+    name: Optional[str] = None
+    category: Optional[str] = None
+    qty: Optional[float] = None
+    unit: Optional[str] = None
+    expiry_date: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@api.patch("/stock/items/{item_id}")
+async def update_stock_item(item_id: str, body: StockItemPatch, user=Depends(current_user)):
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates: return {"ok": True}
+    updates["updated_at"] = now_utc().isoformat()
+    await db.stock_items.update_one({"id": item_id, "owner_id": ws(user)}, {"$set": updates})
+    return {"ok": True}
+
+
+@api.delete("/stock/items/{item_id}")
+async def delete_stock_item(item_id: str, user=Depends(current_user)):
+    await db.stock_items.delete_one({"id": item_id, "owner_id": ws(user)})
+    # also clean orphan reservations
+    await db.stock_reservations.delete_many({"stock_id": item_id, "owner_id": ws(user)})
+    return {"ok": True}
+
+
+class StockCheckItem(BaseModel):
+    model_config = {"extra": "allow"}
+    id: Optional[str] = None  # existing stock item id (else new)
+    name: str
+    category: Optional[str] = "inne"
+    qty: float = 0
+    unit: str = "szt"
+    expiry_date: Optional[str] = None
+
+
+class StockCheckIn(BaseModel):
+    model_config = {"extra": "allow"}
+    items: List[StockCheckItem]
+    notes: Optional[str] = ""
+    check_date: Optional[str] = None  # default today
+
+
+@api.post("/stock/check")
+async def save_stock_check(body: StockCheckIn, user=Depends(current_user)):
+    """Bulk update stock quantities/expiry dates. Save snapshot for audit trail."""
+    owner = ws(user)
+    check_date = body.check_date or now_utc().date().isoformat()
+    snap_items = []
+    for it in body.items:
+        payload = {
+            "owner_id": owner,
+            "name": it.name.strip(),
+            "category": it.category or "inne",
+            "qty": float(it.qty or 0),
+            "unit": it.unit or "szt",
+            "expiry_date": it.expiry_date or None,
+            "updated_at": now_utc().isoformat(),
+        }
+        if it.id:
+            await db.stock_items.update_one({"id": it.id, "owner_id": owner}, {"$set": payload})
+            iid = it.id
+        else:
+            iid = str(uuid.uuid4())
+            payload["id"] = iid
+            payload["created_at"] = now_utc().isoformat()
+            await db.stock_items.insert_one(payload)
+        snap_items.append({
+            "id": iid, "name": payload["name"], "category": payload["category"],
+            "qty": payload["qty"], "unit": payload["unit"], "expiry_date": payload["expiry_date"],
+        })
+    snap = {
+        "id": str(uuid.uuid4()),
+        "owner_id": owner,
+        "check_date": check_date,
+        "created_at": now_utc().isoformat(),
+        "user_email": user.get("email",""),
+        "notes": body.notes or "",
+        "items": snap_items,
+        "item_count": len(snap_items),
+    }
+    await db.stock_snapshots.insert_one(snap)
+    snap.pop("_id", None)
+    return {"ok": True, "snapshot": snap}
+
+
+@api.get("/stock/snapshots")
+async def list_stock_snapshots(user=Depends(current_user), limit: int = 30):
+    rows = await db.stock_snapshots.find({"owner_id": ws(user)}, {"_id": 0}).sort("created_at", -1).to_list(int(limit))
+    return rows
+
+
+class StockReservationIn(BaseModel):
+    model_config = {"extra": "allow"}
+    stock_id: Optional[str] = None
+    name: str
+    unit: str = "szt"
+    qty: float = 0
+    event_id: str
+    event_name: Optional[str] = ""
+
+
+@api.post("/stock/reservations")
+async def add_reservation(body: StockReservationIn, user=Depends(current_user)):
+    doc = body.dict()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = ws(user)
+    doc["created_at"] = now_utc().isoformat()
+    await db.stock_reservations.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/stock/reservations")
+async def list_reservations(user=Depends(current_user), event_id: str = ""):
+    q = {"owner_id": ws(user)}
+    if event_id: q["event_id"] = event_id
+    rows = await db.stock_reservations.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return rows
+
+
+@api.delete("/stock/reservations/{res_id}")
+async def delete_reservation(res_id: str, user=Depends(current_user)):
+    await db.stock_reservations.delete_one({"id": res_id, "owner_id": ws(user)})
+    return {"ok": True}
+
+
+@api.get("/stock/needed-suggestions")
+async def stock_needed_suggestions(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    """Return raw ingredients needed for upcoming events (identical logic to /shopping/generate)
+    but WITHOUT stock subtraction — useful to prefill Kontrola magazynu with items you actually need.
+    """
+    resp = await generate_shopping_list(user=user, date_from=date_from, date_to=date_to, expand=True)
+    return {
+        "date_from": resp.get("date_from"),
+        "date_to": resp.get("date_to"),
+        "items": [{
+            "name": s["name"], "category": s["category"], "unit": s["unit"],
+            "qty_needed": s["needed"], "stock_qty": s["stock_qty"], "reserved_qty": s["reserved_qty"],
+            "expiry_status": _expiry_status(s.get("stock_expiry")), "expiry_date": s.get("stock_expiry"),
+        } for s in resp.get("suggestions", [])],
     }
 
 

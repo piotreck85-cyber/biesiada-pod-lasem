@@ -341,6 +341,47 @@ export default function EventDetail() {
     setOfferOpen(true);
   };
 
+  // ---- Send catering order email (dinner_items → yubari.restauracja@gmail.com) ----
+  const [cateringOpen, setCateringOpen] = useState(false);
+  const [cateringTo, setCateringTo] = useState("yubari.restauracja@gmail.com");
+  const [cateringPickup, setCateringPickup] = useState("");
+  const [cateringNotes, setCateringNotes] = useState("");
+  const [cateringGreeting, setCateringGreeting] = useState("Cześć Lorena, poniżej wysyłam zamówienie.");
+  const [cateringSending, setCateringSending] = useState(false);
+  const openCateringModal = () => {
+    if (isNew) {
+      Alert.alert("Zapisz najpierw", "Zapisz imprezę, żeby móc wysłać zamówienie cateringowe.");
+      return;
+    }
+    // Prefill godzina odbioru: 2h before event time_start if set
+    if (timeStart) {
+      const [hh, mm] = timeStart.split(":").map(Number);
+      if (!isNaN(hh)) {
+        const dt = new Date(); dt.setHours(hh - 2, mm || 0, 0);
+        setCateringPickup(`${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`);
+      }
+    }
+    setCateringOpen(true);
+  };
+  const sendCateringForEvent = async () => {
+    const hasDinner = Object.values(dinnerQty).some(q => (q || 0) > 0);
+    if (!hasDinner) { Alert.alert("Brak pozycji", "Nie zaznaczono nic z menu obiadowego."); return; }
+    if (!cateringTo.trim() || !cateringTo.includes("@")) { Alert.alert("Błąd", "Nieprawidłowy adres e-mail."); return; }
+    setCateringSending(true);
+    try {
+      await api.sendCateringEmail(id as string, {
+        to_email: cateringTo.trim(),
+        pickup_time: cateringPickup.trim() || undefined,
+        extra_notes: cateringNotes.trim() || undefined,
+        greeting: cateringGreeting,
+      });
+      setCateringOpen(false);
+      Alert.alert("Wysłano ✓", `Zamówienie poszło na ${cateringTo.trim()}.`);
+    } catch (e: any) {
+      Alert.alert("Nie udało się wysłać", e?.message || "Spróbuj ponownie.");
+    } finally { setCateringSending(false); }
+  };
+
   const sendOfferForEvent = async () => {
     if (!offerTo.trim() || !offerTo.includes("@")) {
       Alert.alert("Błąd", "Podaj poprawny adres e-mail klienta.");
@@ -1018,6 +1059,13 @@ export default function EventDetail() {
                 </View>
               </View>
             )}
+            {/* Wyślij do cateringu (Yubari) */}
+            {Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
+              <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.color.brand + "18", borderWidth: 1, borderColor: theme.color.brand }}>
+                <Feather name="send" size={16} color={theme.color.brand} />
+                <Text style={{ color: theme.color.brand, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
+              </Pressable>
+            ) : null}
             {costs.map((c, i) => (
               <View key={i} style={s.costRow}>
                 <TextInput
@@ -1289,6 +1337,101 @@ export default function EventDetail() {
                     <Feather name="send" size={16} color={theme.color.onBrand} />
                     <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 15 }}>Wyślij ofertę PDF</Text>
                   </>
+                )}
+              </Pressable>
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
+                Wysyłamy z: biesiadapodlasem@gmail.com
+              </Text>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Catering Order Modal (Yubari) */}
+      <Modal visible={cateringOpen} transparent animationType="slide" onRequestClose={() => setCateringOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setCateringOpen(false)} />
+          <View style={{
+            backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 20,
+            borderWidth: 1, borderColor: theme.color.border, maxHeight: "85%",
+          }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 }} />
+            <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 4 }}>Zamówienie do cateringu</Text>
+            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 }}>
+              Impreza: <Text style={{ fontWeight: "700" }}>{name || "?"}</Text>
+              {date ? ` · ${date}` : ""}
+              {timeStart ? ` · godz. ${timeStart}` : ""}
+              {peopleNum ? ` · ${peopleNum} os.` : ""}
+            </Text>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              <Text style={s.label}>Adres e-mail cateringu</Text>
+              <TextInput
+                value={cateringTo}
+                onChangeText={setCateringTo}
+                placeholder="yubari.restauracja@gmail.com"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={s.input}
+              />
+              <Text style={[s.label, { marginTop: 10 }]}>Godzina odbioru (HH:MM)</Text>
+              <TextInput
+                value={cateringPickup}
+                onChangeText={setCateringPickup}
+                placeholder="np. 14:30"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={s.input}
+              />
+              <Text style={[s.label, { marginTop: 10 }]}>Wstęp (powitanie)</Text>
+              <TextInput
+                value={cateringGreeting}
+                onChangeText={setCateringGreeting}
+                placeholder="Cześć Lorena, poniżej wysyłam zamówienie."
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                multiline
+                numberOfLines={2}
+                style={[s.input, { minHeight: 50 }]}
+              />
+              <Text style={[s.label, { marginTop: 10 }]}>Uwagi (opcjonalnie)</Text>
+              <TextInput
+                value={cateringNotes}
+                onChangeText={setCateringNotes}
+                placeholder="np. alergie, preferencje"
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                multiline
+                numberOfLines={3}
+                style={[s.input, { minHeight: 60 }]}
+              />
+              {/* Podgląd zawartości zamówienia */}
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.divider }}>
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", fontWeight: "700", marginBottom: 6 }}>Zamawiam:</Text>
+                {DINNER_SECTIONS.map(sec => {
+                  const items = DINNER_MENU.filter(m => m.section === sec.id && (dinnerQty[m.id] || 0) > 0);
+                  if (items.length === 0) return null;
+                  return (
+                    <View key={sec.id} style={{ marginBottom: 6 }}>
+                      <Text style={{ color: theme.color.brand, fontSize: 11, fontWeight: "700", marginBottom: 2 }}>{sec.title}</Text>
+                      {items.map(it => (
+                        <Text key={it.id} style={{ color: theme.color.onSurface, fontSize: 12, marginLeft: 6 }}>• {it.name} — {dinnerQty[it.id]} porcji</Text>
+                      ))}
+                    </View>
+                  );
+                })}
+              </View>
+              <Pressable
+                onPress={sendCateringForEvent}
+                disabled={cateringSending}
+                style={{
+                  marginTop: 14, borderRadius: 14, backgroundColor: theme.color.brand,
+                  paddingVertical: 14, alignItems: "center", justifyContent: "center",
+                  opacity: cateringSending ? 0.5 : 1,
+                }}
+              >
+                {cateringSending ? (
+                  <ActivityIndicator color={theme.color.onBrand} />
+                ) : (
+                  <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 15 }}>Wyślij zamówienie</Text>
                 )}
               </Pressable>
               <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
