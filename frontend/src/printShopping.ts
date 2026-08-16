@@ -94,30 +94,13 @@ export async function printShoppingList(gen: any, savedItems: any[] = [], dateFr
           <span style="margin-left:auto;color:#6B7280;font-weight:600;font-size:11px;">${items.length} poz. · ~${fmtPLN(sub)}</span>
         </div>
         <table>
-          <thead>
-            <tr>
-              <th style="width:22px">✓</th>
-              <th>Nazwa</th>
-              <th class="qty">Do kupienia</th>
-              <th class="qty">Potrzeba</th>
-              <th class="qty">Magazyn</th>
-              <th class="qty">Rezerwacja</th>
-              <th class="qty">~Koszt</th>
-            </tr>
-          </thead>
           <tbody>
             ${items.map((r: any) => `
               <tr>
-                <td class="check"><span class="check-box"></span></td>
-                <td>
-                  <strong>${escapeHtml(r.name)}</strong>
-                  ${r.event_names?.length ? `<div style="color:#9CA3AF;font-size:10px">${escapeHtml((r.event_names || []).join(" • "))}</div>` : ""}
-                </td>
-                <td class="qty"><strong>${fmtQty(r.qty)} ${r.unit || ""}</strong></td>
-                <td class="qty">${fmtQty(r.needed || 0)} ${r.unit || ""}</td>
-                <td class="qty">${r.stock_qty ? fmtQty(r.stock_qty) + " " + (r.unit || "") : "—"}</td>
-                <td class="qty">${r.reserved_qty ? fmtQty(r.reserved_qty) + " " + (r.unit || "") : "—"}</td>
-                <td class="qty">${r.estimated_cost ? fmtPLN(r.estimated_cost) : "—"}</td>
+                <td class="check" style="width:22px"><span class="check-box"></span></td>
+                <td><strong>${escapeHtml(r.name)}</strong></td>
+                <td class="qty" style="white-space:nowrap"><strong>${fmtQty(r.qty)} ${r.unit || ""}</strong></td>
+                <td class="qty" style="width:80px;color:#6B7280;white-space:nowrap">${r.estimated_cost ? "~" + fmtPLN(r.estimated_cost) : ""}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -129,20 +112,14 @@ export async function printShoppingList(gen: any, savedItems: any[] = [], dateFr
     <style>${baseCss}</style>
     <title>Lista zakupów — Biesiada pod lasem</title></head>
     <body>
-      <h1>Lista zakupów · Biesiada pod lasem</h1>
+      <h1>LISTA ZAKUPÓW · ${escapeHtml(dateFrom || "")}${dateTo && dateTo !== dateFrom ? " – " + escapeHtml(dateTo) : ""}</h1>
       <div class="sub">
-        Zakres: <strong>${dateFrom || "?"} — ${dateTo || "?"}</strong>
-        · ${gen?.event_count || 0} imprez · ${gen?.total_people || 0} osób
+        <strong>${rows.length}</strong> produktów do kupienia
+        · Szacowany koszt: <strong>${fmtPLN(total)}</strong>
         · wygenerowano ${now}
       </div>
-      <div class="hero">
-        <div class="box"><div class="k">POZYCJI</div><div class="v">${rows.length}</div></div>
-        <div class="box"><div class="k">SZACOWANY KOSZT</div><div class="v">${fmtPLN(total)}</div></div>
-        <div class="box"><div class="k">IMPREZ</div><div class="v">${gen?.event_count || 0}</div></div>
-        <div class="box"><div class="k">OSÓB</div><div class="v">${gen?.total_people || 0}</div></div>
-      </div>
       ${rows.length === 0 ? '<p style="color:#6B7280;text-align:center;padding:24px;">Nic nie trzeba kupować — wszystko jest w magazynie ✓</p>' : sectionsHtml}
-      <div class="footer">Biesiada pod lasem · Aplikacja zarządcza</div>
+      <div class="footer">Biesiada pod lasem</div>
     </body></html>`;
 
   try {

@@ -279,6 +279,23 @@ def ws(user: dict) -> str:
     """Workspace id used to scope all data queries."""
     return user.get("workspace_id") or user["id"]
 
+
+def is_staff(user: dict) -> bool:
+    """True if the logged-in user is a staff member (limited access)."""
+    return (user or {}).get("role") == "staff"
+
+
+def is_admin(user: dict) -> bool:
+    """True if the logged-in user is admin/owner (default)."""
+    return not is_staff(user)
+
+
+def require_admin(user=Depends(current_user)):
+    """Dependency: raises 403 if the caller is not an admin."""
+    if is_staff(user):
+        raise HTTPException(403, "Ta operacja jest dostępna tylko dla administratora")
+    return user
+
 async def log_change(user: dict, action: str, entity_type: str, entity_id: str, summary: str = ""):
     """Append an audit-log entry for the current workspace."""
     try:
@@ -377,8 +394,15 @@ async def login(body: LoginIn):
     u = await db.users.find_one({"email": email})
     if not u or not verify_pw(body.password, u["password_hash"]):
         raise HTTPException(401, "Nieprawidłowy email lub hasło")
+    if u.get("active") is False:
+        raise HTTPException(403, "Konto jest zablokowane. Skontaktuj się z administratorem.")
     token = make_token(u["id"])
-    return {"access_token": token, "user": {"id": u["id"], "email": u["email"], "name": u.get("name", "")}}
+    return {"access_token": token, "user": {
+        "id": u["id"], "email": u["email"], "name": u.get("name", ""),
+        "role": u.get("role", "admin"),
+        "staff_id": u.get("staff_id"),
+        "permissions": u.get("permissions") or {},
+    }}
 
 @api.get("/auth/me")
 async def me(user=Depends(current_user)):
@@ -802,7 +826,7 @@ async def list_staff(user=Depends(current_user)):
     return items
 
 @api.post("/staff")
-async def create_staff(body: StaffIn, user=Depends(current_user)):
+async def create_staff(body: StaffIn, user=Depends(require_admin)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
     doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
@@ -813,7 +837,7 @@ async def create_staff(body: StaffIn, user=Depends(current_user)):
     return doc
 
 @api.put("/staff/{staff_id}")
-async def update_staff(staff_id: str, body: StaffIn, user=Depends(current_user)):
+async def update_staff(staff_id: str, body: StaffIn, user=Depends(require_admin)):
     res = await db.staff.update_one(
         {"id": staff_id, "owner_id": ws(user)},
         {"$set": body.dict()},
@@ -826,10 +850,422 @@ async def update_staff(staff_id: str, body: StaffIn, user=Depends(current_user))
 
 @api.delete("/staff/{staff_id}")
 async def delete_staff(staff_id: str, user=Depends(current_user)):
+    require_admin(user)
     doc = await db.staff.find_one({"id": staff_id, "owner_id": ws(user)}, {"_id": 0})
     await db.staff.delete_one({"id": staff_id, "owner_id": ws(user)})
+    # remove linked staff login (User) if any
+    await db.users.delete_many({"staff_id": staff_id, "workspace_id": ws(user)})
     if doc: await log_change(user, "delete", "staff", staff_id, f"Usunięto pracownika: {doc.get('name','')}")
     return {"ok": True}
+
+
+# ---------- Staff login accounts (admin creates for their staff) ----------
+DEFAULT_STAFF_PERMISSIONS = {
+    "schedule":   True,   # Mój grafik
+    "attendance": True,   # Lista obecności
+    "checklist":  True,   # Checklisty imprezy
+    "shopping":   True,   # Zakupy
+    "stock":      True,   # Magazyn
+}
+
+
+class StaffLoginIn(BaseModel):
+    email: EmailStr
+    password: Optional[str] = None
+    permissions: Optional[Dict[str, bool]] = None
+    active: Optional[bool] = True
+
+
+@api.post("/staff/{staff_id}/login")
+async def create_staff_login(staff_id: str, body: StaffLoginIn, user=Depends(current_user)):
+    """Admin creates or updates a login account for an existing staff member."""
+    require_admin(user)
+    owner = ws(user)
+    st = await db.staff.find_one({"id": staff_id, "owner_id": owner}, {"_id": 0})
+    if not st:
+        raise HTTPException(404, "Nie znaleziono pracownika")
+    email = body.email.lower().strip()
+    # Prevent hijacking existing accounts
+    existing = await db.users.find_one({"email": email})
+    if existing and existing.get("staff_id") != staff_id:
+        raise HTTPException(409, "Ten adres email jest już powiązany z innym kontem")
+
+    perms = {**DEFAULT_STAFF_PERMISSIONS, **(body.permissions or {})}
+    if existing:
+        # Update: password (optional), permissions, active
+        updates = {
+            "role": "staff", "staff_id": staff_id,
+            "workspace_id": owner,
+            "permissions": perms,
+            "name": st.get("name") or existing.get("name") or email,
+            "active": bool(body.active) if body.active is not None else existing.get("active", True),
+            "updated_at": now_utc().isoformat(),
+        }
+        if body.password:
+            if len(body.password) < 6:
+                raise HTTPException(400, "Hasło musi mieć min. 6 znaków")
+            updates["password_hash"] = hash_pw(body.password)
+        await db.users.update_one({"id": existing["id"]}, {"$set": updates})
+        u_id = existing["id"]
+    else:
+        if not body.password or len(body.password) < 6:
+            raise HTTPException(400, "Hasło musi mieć min. 6 znaków")
+        u_id = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": u_id, "email": email, "name": st.get("name") or email,
+            "role": "staff", "staff_id": staff_id, "workspace_id": owner,
+            "password_hash": hash_pw(body.password), "permissions": perms,
+            "active": bool(body.active) if body.active is not None else True,
+            "created_at": now_utc().isoformat(),
+        })
+    # Also mark staff record with linked user_id (helpful for UI)
+    await db.staff.update_one({"id": staff_id, "owner_id": owner},
+                              {"$set": {"user_id": u_id, "login_email": email}})
+    await log_change(user, "update", "staff", staff_id, f"Utworzono/aktualizowano login pracownika {email}")
+    return {"ok": True, "user_id": u_id, "email": email, "permissions": perms, "active": True}
+
+
+@api.delete("/staff/{staff_id}/login")
+async def delete_staff_login(staff_id: str, user=Depends(current_user)):
+    require_admin(user)
+    owner = ws(user)
+    r = await db.users.delete_many({"staff_id": staff_id, "workspace_id": owner, "role": "staff"})
+    await db.staff.update_one({"id": staff_id, "owner_id": owner},
+                              {"$unset": {"user_id": "", "login_email": ""}})
+    await log_change(user, "delete", "staff", staff_id, "Usunięto login pracownika")
+    return {"ok": True, "deleted": r.deleted_count}
+
+
+# ---------- Time clock (Lista obecności) ----------
+class TimeStartIn(BaseModel):
+    model_config = {"extra": "allow"}
+    event_id: Optional[str] = None
+    note: Optional[str] = ""
+
+
+@api.post("/time-entries/start")
+async def time_start(body: TimeStartIn, user=Depends(current_user)):
+    """Staff clocks in (starts a work session)."""
+    if not is_staff(user):
+        # allow admin to test clock too, but require staff_id linkage otherwise
+        pass
+    sid = user.get("staff_id")
+    if not sid and is_staff(user):
+        raise HTTPException(400, "Twoje konto nie jest powiązane z rekordem pracownika")
+    owner = ws(user)
+    # Prevent duplicate open sessions
+    open_row = await db.time_entries.find_one({"owner_id": owner, "staff_id": sid, "end_at": None}, {"_id": 0})
+    if open_row:
+        return open_row
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": owner,
+        "staff_id": sid,
+        "user_id": user["id"],
+        "event_id": body.event_id,
+        "start_at": now_utc().isoformat(),
+        "end_at": None,
+        "manual": False,
+        "hours": 0.0,
+        "note": (body.note or "").strip(),
+        "paid": False,
+    }
+    await db.time_entries.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+class TimeStopIn(BaseModel):
+    model_config = {"extra": "allow"}
+    entry_id: Optional[str] = None
+    note: Optional[str] = ""
+
+
+@api.post("/time-entries/stop")
+async def time_stop(body: TimeStopIn, user=Depends(current_user)):
+    """Staff clocks out (ends open session)."""
+    sid = user.get("staff_id")
+    owner = ws(user)
+    q: dict = {"owner_id": owner, "end_at": None}
+    if body.entry_id:
+        q["id"] = body.entry_id
+    elif sid:
+        q["staff_id"] = sid
+    else:
+        raise HTTPException(400, "Brak aktywnej sesji do zakończenia")
+    row = await db.time_entries.find_one(q, {"_id": 0})
+    if not row:
+        raise HTTPException(404, "Nie znaleziono aktywnej sesji")
+    end_dt = now_utc()
+    start_dt = datetime.fromisoformat(row["start_at"])
+    hours = round((end_dt - start_dt).total_seconds() / 3600.0, 3)
+    await db.time_entries.update_one({"id": row["id"]},
+                                     {"$set": {"end_at": end_dt.isoformat(),
+                                               "hours": hours,
+                                               "note": ((row.get("note") or "") + " " + (body.note or "")).strip()}})
+    row["end_at"] = end_dt.isoformat(); row["hours"] = hours
+    return row
+
+
+@api.get("/time-entries/my")
+async def time_my(user=Depends(current_user), limit: int = 60):
+    sid = user.get("staff_id")
+    if not sid and is_staff(user):
+        return []
+    q = {"owner_id": ws(user)}
+    if sid: q["staff_id"] = sid
+    else:   q["user_id"] = user["id"]
+    rows = await db.time_entries.find(q, {"_id": 0}).sort("start_at", -1).to_list(int(limit))
+    return rows
+
+
+@api.get("/time-entries")
+async def time_all(user=Depends(current_user), staff_id: str = "",
+                   date_from: str = "", date_to: str = "", unpaid_only: bool = False):
+    """Admin: list all time entries with optional filters."""
+    require_admin(user)
+    q: dict = {"owner_id": ws(user)}
+    if staff_id: q["staff_id"] = staff_id
+    if unpaid_only: q["paid"] = False
+    if date_from or date_to:
+        q["start_at"] = {}
+        if date_from: q["start_at"]["$gte"] = date_from
+        if date_to:   q["start_at"]["$lt"]  = date_to + "T23:59:59"
+    rows = await db.time_entries.find(q, {"_id": 0}).sort("start_at", -1).to_list(2000)
+    return rows
+
+
+class TimeEntryPatch(BaseModel):
+    model_config = {"extra": "allow"}
+    start_at: Optional[str] = None
+    end_at: Optional[str] = None
+    note: Optional[str] = None
+    event_id: Optional[str] = None
+
+
+@api.patch("/time-entries/{entry_id}")
+async def time_patch(entry_id: str, body: TimeEntryPatch, user=Depends(current_user)):
+    """Admin corrects a time entry (start/end/note)."""
+    require_admin(user)
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates: return {"ok": True}
+    updates["manual"] = True
+    if "start_at" in updates or "end_at" in updates:
+        row = await db.time_entries.find_one({"id": entry_id, "owner_id": ws(user)}, {"_id": 0})
+        if row:
+            s = updates.get("start_at") or row.get("start_at")
+            e = updates.get("end_at") or row.get("end_at")
+            if s and e:
+                try:
+                    updates["hours"] = round((datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds() / 3600.0, 3)
+                except Exception: pass
+    await db.time_entries.update_one({"id": entry_id, "owner_id": ws(user)}, {"$set": updates})
+    return {"ok": True}
+
+
+@api.delete("/time-entries/{entry_id}")
+async def time_delete(entry_id: str, user=Depends(current_user)):
+    require_admin(user)
+    await db.time_entries.delete_one({"id": entry_id, "owner_id": ws(user)})
+    return {"ok": True}
+
+
+# ---------- Payroll: weekly settlement ----------
+@api.get("/payroll/summary")
+async def payroll_summary(user=Depends(require_admin), date_from: str = "", date_to: str = "", unpaid_only: bool = True):
+    """Return per-staff payroll summary for a given period.
+    Sums CLOSED time entries; each staff's `hourly_rate` × total hours = amount to pay.
+    """
+    owner = ws(user)
+    q: dict = {"owner_id": owner, "end_at": {"$ne": None}}
+    if unpaid_only:
+        q["paid"] = {"$ne": True}
+    if date_from or date_to:
+        q["start_at"] = {}
+        if date_from: q["start_at"]["$gte"] = date_from
+        if date_to:   q["start_at"]["$lt"]  = date_to + "T23:59:59"
+    entries = await db.time_entries.find(q, {"_id": 0}).to_list(5000)
+    staff_rows = await db.staff.find({"owner_id": owner}, {"_id": 0}).to_list(500)
+    smap = {s["id"]: s for s in staff_rows}
+
+    by_staff: dict = {}
+    for e in entries:
+        sid = e.get("staff_id")
+        st = smap.get(sid) or {}
+        row = by_staff.setdefault(sid or "?", {
+            "staff_id": sid, "name": st.get("name") or "?", "role": st.get("role") or "",
+            "hourly_rate": float(st.get("hourly_rate") or 0),
+            "hours": 0.0, "entries": [], "amount": 0.0,
+        })
+        row["hours"] += float(e.get("hours") or 0)
+        row["entries"].append(e.get("id"))
+    rows = list(by_staff.values())
+    for r in rows:
+        r["hours"] = round(r["hours"], 3)
+        r["amount"] = round(r["hours"] * r["hourly_rate"], 2)
+    rows.sort(key=lambda r: r["name"])
+    total = round(sum(r["amount"] for r in rows), 2)
+    return {"date_from": date_from, "date_to": date_to, "total": total, "staff": rows}
+
+
+class PayrollMarkPaidIn(BaseModel):
+    model_config = {"extra": "allow"}
+    date_from: str
+    date_to: str
+    staff_id: Optional[str] = None    # None = all staff in this period
+    create_expense: bool = True       # also add to /expenses category "wyplaty_pracownikow"
+    note: Optional[str] = ""
+
+
+@api.post("/payroll/mark-paid")
+async def payroll_mark_paid(body: PayrollMarkPaidIn, user=Depends(require_admin)):
+    owner = ws(user)
+    q: dict = {"owner_id": owner, "end_at": {"$ne": None}, "paid": {"$ne": True},
+               "start_at": {"$gte": body.date_from, "$lt": body.date_to + "T23:59:59"}}
+    if body.staff_id: q["staff_id"] = body.staff_id
+    entries = await db.time_entries.find(q, {"_id": 0}).to_list(5000)
+    if not entries:
+        return {"ok": True, "affected": 0, "total": 0.0, "expenses_created": 0}
+    # Group by staff for expense creation
+    staff_rows = await db.staff.find({"owner_id": owner}, {"_id": 0}).to_list(500)
+    smap = {s["id"]: s for s in staff_rows}
+    paid_at = now_utc().isoformat()
+    ids = [e["id"] for e in entries]
+    await db.time_entries.update_many(
+        {"id": {"$in": ids}, "owner_id": owner},
+        {"$set": {"paid": True, "paid_at": paid_at}},
+    )
+    # totals per staff
+    tot_by_staff: dict = {}
+    for e in entries:
+        sid = e.get("staff_id") or "?"
+        tot_by_staff.setdefault(sid, 0.0)
+        tot_by_staff[sid] += float(e.get("hours") or 0)
+    total_amount = 0.0
+    expenses_created = 0
+    if body.create_expense:
+        # Guardrail: use hourly_rate from staff record at the moment of settlement
+        for sid, hours in tot_by_staff.items():
+            st = smap.get(sid) or {}
+            rate = float(st.get("hourly_rate") or 0)
+            amount = round(hours * rate, 2)
+            if amount <= 0: continue
+            total_amount += amount
+            exp_doc = {
+                "id": str(uuid.uuid4()),
+                "owner_id": owner,
+                "date": paid_at[:10],
+                "amount": amount,
+                "name": f"Wypłata: {st.get('name') or 'Pracownik'} · {hours:.2f}h × {rate:.2f}zł",
+                "category": "wyplaty_pracownikow",
+                "staff_id": sid if sid != "?" else None,
+                "notes": (body.note or "") + f"  ({body.date_from} — {body.date_to})",
+                "created_at": paid_at,
+                "payroll_settlement": True,
+            }
+            await db.expenses.insert_one(exp_doc)
+            expenses_created += 1
+    else:
+        for sid, hours in tot_by_staff.items():
+            st = smap.get(sid) or {}
+            total_amount += round(hours * float(st.get("hourly_rate") or 0), 2)
+    await log_change(user, "update", "payroll", f"{body.date_from}_{body.date_to}",
+                     f"Oznaczono wypłatę: {len(ids)} wpisów, {round(total_amount,2)} PLN")
+    return {"ok": True, "affected": len(ids), "total": round(total_amount, 2),
+            "expenses_created": expenses_created, "paid_at": paid_at}
+
+
+# ---------- Wyposażenie / Majątek (Assets) ----------
+class AssetIn(BaseModel):
+    model_config = {"extra": "allow"}
+    name: str
+    qty: float = 1
+    value: float = 0.0                        # aktualna wartość jednostkowa (PLN)
+    photo_base64: Optional[str] = None        # data URL lub czysty base64
+    notes: Optional[str] = ""
+
+
+class AssetPatch(BaseModel):
+    model_config = {"extra": "allow"}
+    name: Optional[str] = None
+    qty: Optional[float] = None
+    value: Optional[float] = None
+    photo_base64: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@api.get("/assets")
+async def list_assets(user=Depends(require_admin), q: str = ""):
+    """List all assets for the workspace. `q` = case-insensitive substring on name."""
+    query: dict = {"owner_id": ws(user)}
+    if q:
+        query["name"] = {"$regex": _re.escape(q), "$options": "i"}
+    rows = await db.assets.find(query, {"_id": 0}).sort("name", 1).to_list(2000)
+    total_value = round(sum(float(a.get("qty") or 0) * float(a.get("value") or 0) for a in rows), 2)
+    return {"count": len(rows), "total_value": total_value, "items": rows}
+
+
+@api.post("/assets")
+async def create_asset(body: AssetIn, user=Depends(require_admin)):
+    doc = body.dict()
+    if not (doc.get("name") or "").strip():
+        raise HTTPException(400, "Brak nazwy")
+    doc["name"] = doc["name"].strip()
+    doc["id"] = str(uuid.uuid4())
+    doc["owner_id"] = ws(user)
+    doc["created_at"] = now_utc().isoformat()
+    doc["updated_at"] = doc["created_at"]
+    # Cap photo size (base64) at ~2 MB to protect Mongo document size
+    if doc.get("photo_base64") and len(doc["photo_base64"]) > 3_000_000:
+        raise HTTPException(413, "Zdjęcie jest za duże (max ~2 MB). Zmniejsz je i spróbuj ponownie.")
+    await db.assets.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.patch("/assets/{asset_id}")
+async def update_asset(asset_id: str, body: AssetPatch, user=Depends(require_admin)):
+    updates = {k: v for k, v in body.dict().items() if v is not None}
+    if not updates:
+        return {"ok": True}
+    if updates.get("photo_base64") and len(updates["photo_base64"]) > 3_000_000:
+        raise HTTPException(413, "Zdjęcie jest za duże (max ~2 MB). Zmniejsz je i spróbuj ponownie.")
+    updates["updated_at"] = now_utc().isoformat()
+    await db.assets.update_one({"id": asset_id, "owner_id": ws(user)}, {"$set": updates})
+    return {"ok": True}
+
+
+@api.delete("/assets/{asset_id}")
+async def delete_asset(asset_id: str, user=Depends(require_admin)):
+    await db.assets.delete_one({"id": asset_id, "owner_id": ws(user)})
+    return {"ok": True}
+
+
+# ---------- Staff-scoped views (own schedule / events) ----------
+@api.get("/staff/my/schedule")
+async def my_schedule(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    """Return events where the logged-in staff member is assigned via shifts.
+    Excludes any financial fields."""
+    sid = user.get("staff_id")
+    if not sid:
+        # Admin without linked staff — return empty list
+        return []
+    q: dict = {"owner_id": ws(user), "shifts.staff_id": sid}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    rows = await db.events.find(q, {
+        "_id": 0, "id": 1, "date": 1, "name": 1, "time_start": 1, "time_end": 1,
+        "people": 1, "status": 1, "shifts": 1, "location": 1, "package_set": 1,
+        "notes_public": 1,   # keep only public notes if present
+    }).sort("date", 1).to_list(500)
+    # keep only the current staff's shift line
+    for e in rows:
+        e["my_shift"] = next((sh for sh in (e.get("shifts") or []) if sh.get("staff_id") == sid), None)
+        e.pop("shifts", None)
+    return rows
+
 
 # ---------- Events ----------
 @api.get("/events")
@@ -838,16 +1274,29 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
+    # Staff sees only events they're assigned to (via shifts)
+    if is_staff(user):
+        sid = user.get("staff_id")
+        if not sid:
+            return []
+        q["shifts.staff_id"] = sid
     items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
     staff_map = await load_owner_staff_map(user["id"])
     cost_ratios = await _cost_ratios_by_category(ws(user))
     enriched = []
     for ev in items:
-        enriched.append(await compute_event_summary(ev, staff_map, cost_ratios))
+        row = await compute_event_summary(ev, staff_map, cost_ratios)
+        if is_staff(user):
+            # Strip all financial fields for staff
+            for k in ("price_total","discount_pct","deposit_amount","costs","total_cost",
+                      "profit","profit_projected","predicted_settlement","revenue_projected",
+                      "extras_qty","package_price","dinner_items_revenue","cost_breakdown"):
+                row.pop(k, None)
+        enriched.append(row)
     return enriched
 
 @api.post("/events")
-async def create_event(body: EventIn, user=Depends(current_user)):
+async def create_event(body: EventIn, user=Depends(require_admin)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
     doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
@@ -875,7 +1324,7 @@ async def get_event(event_id: str, user=Depends(current_user)):
     return await compute_event_summary(ev)
 
 @api.put("/events/{event_id}")
-async def update_event(event_id: str, body: EventIn, user=Depends(current_user)):
+async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)):
     # Detect status transitions to clear/reset alerts appropriately
     prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "status": 1})
     prev_status = (prev or {}).get("status") or ""
@@ -906,7 +1355,7 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
     return await compute_event_summary(ev)
 
 @api.delete("/events/{event_id}")
-async def delete_event(event_id: str, user=Depends(current_user)):
+async def delete_event(event_id: str, user=Depends(require_admin)):
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     # sync BEFORE delete so we still have google_event_ids
     try:
@@ -1263,7 +1712,7 @@ class BackupIn(BaseModel):
     mode: str = "merge"  # "merge" or "replace"
 
 @api.get("/export/backup")
-async def export_backup(user=Depends(current_user)):
+async def export_backup(user=Depends(require_admin)):
     staff = await db.staff.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
     events = await db.events.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(10000)
     templates = await db.templates.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
@@ -1708,7 +2157,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
 
 # ---------- Company Expenses ----------
 @api.get("/expenses")
-async def list_expenses(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+async def list_expenses(user=Depends(require_admin), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": ws(user)}
     if year and month:
         q["date"] = {"$regex": f"^{year:04d}-{month:02d}"}
@@ -1718,7 +2167,7 @@ async def list_expenses(user=Depends(current_user), year: Optional[int] = None, 
     return items
 
 @api.post("/expenses")
-async def create_expense(body: ExpenseIn, user=Depends(current_user)):
+async def create_expense(body: ExpenseIn, user=Depends(require_admin)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
     doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
@@ -1729,7 +2178,7 @@ async def create_expense(body: ExpenseIn, user=Depends(current_user)):
     return doc
 
 @api.put("/expenses/{expense_id}")
-async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_user)):
+async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(require_admin)):
     res = await db.expenses.update_one(
         {"id": expense_id, "owner_id": ws(user)},
         {"$set": body.dict()},
@@ -1741,7 +2190,7 @@ async def update_expense(expense_id: str, body: ExpenseIn, user=Depends(current_
     return doc
 
 @api.delete("/expenses/{expense_id}")
-async def delete_expense(expense_id: str, user=Depends(current_user)):
+async def delete_expense(expense_id: str, user=Depends(require_admin)):
     doc = await db.expenses.find_one({"id": expense_id, "owner_id": ws(user)}, {"_id": 0})
     await db.expenses.delete_one({"id": expense_id, "owner_id": ws(user)})
     if doc: await log_change(user, "delete", "expense", expense_id, f"Usunięto koszt: {doc.get('label','')} ({doc.get('amount',0)} zł)")
@@ -1749,7 +2198,7 @@ async def delete_expense(expense_id: str, user=Depends(current_user)):
 
 # ---------- Stats ----------
 @api.get("/staff/wages")
-async def staff_wages(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+async def staff_wages(user=Depends(require_admin), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
@@ -1817,7 +2266,7 @@ async def schedule(user=Depends(current_user), year: Optional[int] = None, month
 
 
 @api.get("/stats")
-async def stats(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+async def stats(user=Depends(require_admin), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
@@ -1866,7 +2315,7 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
             total_labor += float(ev.get("labor_cost") or 0)
         per_event.append({
             "id": ev["id"], "name": ev["name"], "date": ev["date"],
-            "revenue": ev["revenue"], "total_cost": ev["total_cost"], "profit": ev["profit"],
+            "revenue": ev.get("revenue") or 0, "total_cost": ev.get("total_cost") or 0, "profit": ev.get("profit") or 0,
             "status": ev.get("status", ""),
         })
     total_cost = total_material + total_labor
@@ -1890,7 +2339,7 @@ async def stats(user=Depends(current_user), year: Optional[int] = None, month: O
 
 # ---------- Export ----------
 @api.get("/export/events")
-async def export_events(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+async def export_events(user=Depends(require_admin), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": ws(user)}
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
@@ -1965,7 +2414,7 @@ async def get_cost_ratios(user=Depends(current_user)):
 
 # ---------- XLSX export (full statistics) ----------
 @api.get("/export/xlsx")
-async def export_xlsx(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
+async def export_xlsx(user=Depends(require_admin), year: Optional[int] = None, month: Optional[int] = None):
     """Full Excel export: monthly summary, events (with forecasted net), expenses, staff shifts."""
     try:
         from openpyxl import Workbook
@@ -2633,7 +3082,7 @@ class MenuSettingsIn(BaseModel):
 
 
 @api.get("/menu-settings")
-async def get_menu_settings(user=Depends(current_user)):
+async def get_menu_settings(user=Depends(require_admin)):
     """Return per-workspace menu customizations (empty defaults if not saved yet)."""
     doc = await db.menu_settings.find_one({"owner_id": ws(user)}, {"_id": 0}) or {}
     return {
@@ -2648,7 +3097,7 @@ async def get_menu_settings(user=Depends(current_user)):
 
 
 @api.put("/menu-settings")
-async def put_menu_settings(body: MenuSettingsIn, user=Depends(current_user)):
+async def put_menu_settings(body: MenuSettingsIn, user=Depends(require_admin)):
     """Upsert menu customizations for the current workspace."""
     payload = {
         "owner_id": ws(user),
@@ -3117,7 +3566,7 @@ def _next_day_iso(d: str) -> str:
 
 
 @api.get("/finance/cash-state")
-async def get_cash_state(user=Depends(current_user)):
+async def get_cash_state(user=Depends(require_admin)):
     """Return the current cash balance and breakdown from the last settlement."""
     return await _compute_cash_state(ws(user))
 
@@ -3149,7 +3598,7 @@ async def set_opening_balance(body: OpeningBalanceIn, user=Depends(current_user)
 
 
 @api.get("/finance/period-summary")
-async def get_period_summary(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+async def get_period_summary(user=Depends(require_admin), date_from: str = "", date_to: str = ""):
     """Return revenue / regular costs / partner payouts / result for an arbitrary date range."""
     owner = ws(user)
     df = date_from or None
@@ -3186,14 +3635,14 @@ async def get_period_summary(user=Depends(current_user), date_from: str = "", da
 
 
 @api.get("/settlements")
-async def list_settlements(user=Depends(current_user)):
+async def list_settlements(user=Depends(require_admin)):
     """Return all settlements for this workspace, newest first."""
     rows = await db.settlements.find({"owner_id": ws(user)}, {"_id": 0}).sort("date", -1).to_list(500)
     return rows
 
 
 @api.post("/settlements")
-async def create_settlement(body: SettlementIn, user=Depends(current_user)):
+async def create_settlement(body: SettlementIn, user=Depends(require_admin)):
     """Create a new partner-settlement snapshot.
     The current cash is captured (if not provided) and the record becomes the new starting point.
     """
@@ -3232,7 +3681,7 @@ async def create_settlement(body: SettlementIn, user=Depends(current_user)):
 
 
 @api.delete("/settlements/{settlement_id}")
-async def delete_settlement(settlement_id: str, user=Depends(current_user)):
+async def delete_settlement(settlement_id: str, user=Depends(require_admin)):
     """Soft policy: allow deletion (owner can undo a mistaken settlement).
     Ważne: user prosił żeby NIE usuwać z historii — więc endpoint zwraca 403 dla bezpieczeństwa.
     """
@@ -3494,6 +3943,22 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         row["estimated_cost"] = round(row["qty"] * row["unit_price"], 2)
         suggestions.append(row)
 
+    # --- Apply user overrides (manual qty / unit_price edits) ---
+    ov_rows = await db.shopping_overrides.find({"owner_id": owner}, {"_id": 0}).to_list(2000)
+    ov_map = {(r.get("category") or "inne", (r.get("name") or "").strip().lower(), r.get("unit") or ""): r for r in ov_rows}
+    for s in suggestions:
+        k = (s["category"], (s["name"] or "").strip().lower(), s.get("unit") or "")
+        ov = ov_map.get(k)
+        if not ov:
+            continue
+        s["overridden"] = True
+        if ov.get("qty_override") is not None:
+            try: s["qty"] = float(ov["qty_override"])
+            except Exception: pass
+        if ov.get("price_override") is not None:
+            try: s["unit_price"] = float(ov["price_override"])
+            except Exception: pass
+
     # --- Cross-reference with stock + reservations ---
     stock_rows = await db.stock_items.find({"owner_id": owner}, {"_id": 0}).to_list(2000)
     res_rows = await db.stock_reservations.find({"owner_id": owner}, {"_id": 0}).to_list(2000)
@@ -3562,6 +4027,20 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         cat_totals[s["category"]]["count"] += 1
         cat_totals[s["category"]]["cost"] += s["estimated_cost"]
 
+    # Staff sees the list but WITHOUT company financial totals / cost projections
+    if is_staff(user):
+        for s in suggestions:
+            s.pop("estimated_cost", None)
+            s.pop("unit_price", None)
+        return {
+            "date_from": date_from, "date_to": date_to,
+            "event_count": len(events),
+            "total_people": sum(int(e.get("people") or 0) for e in events),
+            "expanded": bool(expand),
+            "unique_to_buy": sum(1 for s in suggestions if (s.get("to_buy") or 0) > 0),
+            "suggestions": suggestions,
+        }
+
     return {
         "date_from": date_from, "date_to": date_to,
         "event_count": len(events),
@@ -3569,8 +4048,57 @@ async def generate_shopping_list(user=Depends(current_user), date_from: str = ""
         "estimated_total": round(total_est, 2),
         "expanded": bool(expand),
         "category_totals": {k: {"count": v["count"], "cost": round(v["cost"], 2)} for k, v in cat_totals.items()},
+        "unique_to_buy": sum(1 for s in suggestions if (s.get("to_buy") or 0) > 0),
         "suggestions": suggestions,
     }
+
+
+# ---------- Shopping suggestion overrides ----------
+class ShoppingOverrideIn(BaseModel):
+    model_config = {"extra": "allow"}
+    name: str
+    category: str = "inne"
+    unit: str = "szt"
+    qty_override: Optional[float] = None      # None = clear
+    price_override: Optional[float] = None    # None = clear
+
+
+@api.put("/shopping/overrides")
+async def upsert_shopping_override(body: ShoppingOverrideIn, user=Depends(current_user)):
+    owner = ws(user)
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "Brak nazwy")
+    key = f"{body.category}|{name.lower()}|{body.unit}"
+    doc = {
+        "owner_id": owner,
+        "key": key,
+        "name": name,
+        "category": body.category or "inne",
+        "unit": body.unit or "szt",
+        "qty_override": float(body.qty_override) if body.qty_override is not None else None,
+        "price_override": float(body.price_override) if body.price_override is not None else None,
+        "updated_at": now_utc().isoformat(),
+    }
+    await db.shopping_overrides.update_one(
+        {"owner_id": owner, "key": key},
+        {"$set": doc},
+        upsert=True,
+    )
+    return {"ok": True, **doc}
+
+
+@api.get("/shopping/overrides")
+async def list_shopping_overrides(user=Depends(current_user)):
+    rows = await db.shopping_overrides.find({"owner_id": ws(user)}, {"_id": 0}).to_list(2000)
+    return rows
+
+
+@api.delete("/shopping/overrides")
+async def clear_shopping_override(name: str, category: str = "inne", unit: str = "szt", user=Depends(current_user)):
+    key = f"{category}|{(name or '').strip().lower()}|{unit}"
+    await db.shopping_overrides.delete_one({"owner_id": ws(user), "key": key})
+    return {"ok": True}
 
 
 # ================================================================
@@ -3659,7 +4187,7 @@ async def update_stock_item(item_id: str, body: StockItemPatch, user=Depends(cur
 
 
 @api.delete("/stock/items/{item_id}")
-async def delete_stock_item(item_id: str, user=Depends(current_user)):
+async def delete_stock_item(item_id: str, user=Depends(require_admin)):
     await db.stock_items.delete_one({"id": item_id, "owner_id": ws(user)})
     # also clean orphan reservations
     await db.stock_reservations.delete_many({"stock_id": item_id, "owner_id": ws(user)})
@@ -3743,7 +4271,7 @@ class StockReservationIn(BaseModel):
 
 
 @api.post("/stock/reservations")
-async def add_reservation(body: StockReservationIn, user=Depends(current_user)):
+async def add_reservation(body: StockReservationIn, user=Depends(require_admin)):
     doc = body.dict()
     doc["id"] = str(uuid.uuid4())
     doc["owner_id"] = ws(user)
@@ -3754,7 +4282,7 @@ async def add_reservation(body: StockReservationIn, user=Depends(current_user)):
 
 
 @api.get("/stock/reservations")
-async def list_reservations(user=Depends(current_user), event_id: str = ""):
+async def list_reservations(user=Depends(require_admin), event_id: str = ""):
     q = {"owner_id": ws(user)}
     if event_id: q["event_id"] = event_id
     rows = await db.stock_reservations.find(q, {"_id": 0}).sort("created_at", -1).to_list(2000)
@@ -3762,7 +4290,7 @@ async def list_reservations(user=Depends(current_user), event_id: str = ""):
 
 
 @api.delete("/stock/reservations/{res_id}")
-async def delete_reservation(res_id: str, user=Depends(current_user)):
+async def delete_reservation(res_id: str, user=Depends(require_admin)):
     await db.stock_reservations.delete_one({"id": res_id, "owner_id": ws(user)})
     return {"ok": True}
 

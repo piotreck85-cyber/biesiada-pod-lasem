@@ -117,6 +117,12 @@ export const api = {
   shoppingUpdateRecipe: (key: string, ingredients: Array<{ name: string; category: string; unit: string; qty: number; price: number }>) =>
     request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ ingredients }) }),
   shoppingResetRecipe: (key: string) => request(`/shopping/recipes/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  shoppingSaveOverride: (data: { name: string; category: string; unit: string; qty_override?: number | null; price_override?: number | null }) =>
+    request(`/shopping/overrides`, { method: "PUT", body: JSON.stringify(data) }),
+  shoppingClearOverride: (name: string, category: string, unit: string) => {
+    const p = new URLSearchParams({ name, category, unit });
+    return request(`/shopping/overrides?${p.toString()}`, { method: "DELETE" });
+  },
 
   // Stock / Magazyn
   stockList: () => request("/stock/items"),
@@ -185,4 +191,48 @@ export const api = {
   // Catering email
   sendCateringEmail: (event_id: string, data?: { to_email?: string; pickup_time?: string; extra_notes?: string; greeting?: string }) =>
     request(`/events/${event_id}/send-catering-email`, { method: "POST", body: JSON.stringify(data || {}) }),
+
+  // Staff auth / time-clock
+  staffCreateLogin: (staff_id: string, data: { email: string; password?: string; permissions?: Record<string, boolean>; active?: boolean }) =>
+    request(`/staff/${staff_id}/login`, { method: "POST", body: JSON.stringify(data) }),
+  staffDeleteLogin: (staff_id: string) => request(`/staff/${staff_id}/login`, { method: "DELETE" }),
+  mySchedule: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set("date_from", from);
+    if (to) p.set("date_to", to);
+    return request(`/staff/my/schedule${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  timeStart: (data?: { event_id?: string; note?: string }) =>
+    request("/time-entries/start", { method: "POST", body: JSON.stringify(data || {}) }),
+  timeStop: (data?: { entry_id?: string; note?: string }) =>
+    request("/time-entries/stop", { method: "POST", body: JSON.stringify(data || {}) }),
+  timeMy: (limit?: number) => request(`/time-entries/my${limit ? `?limit=${limit}` : ""}`),
+  timeAll: (params?: { staff_id?: string; date_from?: string; date_to?: string; unpaid_only?: boolean }) => {
+    const p = new URLSearchParams();
+    if (params?.staff_id) p.set("staff_id", params.staff_id);
+    if (params?.date_from) p.set("date_from", params.date_from);
+    if (params?.date_to) p.set("date_to", params.date_to);
+    if (params?.unpaid_only) p.set("unpaid_only", "true");
+    return request(`/time-entries${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  timePatch: (id: string, patch: any) => request(`/time-entries/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  timeDelete: (id: string) => request(`/time-entries/${id}`, { method: "DELETE" }),
+
+  // Payroll
+  payrollSummary: (params?: { date_from?: string; date_to?: string; unpaid_only?: boolean }) => {
+    const p = new URLSearchParams();
+    if (params?.date_from) p.set("date_from", params.date_from);
+    if (params?.date_to) p.set("date_to", params.date_to);
+    if (params?.unpaid_only === false) p.set("unpaid_only", "false");
+    return request(`/payroll/summary${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  payrollMarkPaid: (data: { date_from: string; date_to: string; staff_id?: string; create_expense?: boolean; note?: string }) =>
+    request("/payroll/mark-paid", { method: "POST", body: JSON.stringify(data) }),
+
+  // Assets (Majątek)
+  assetsList: (q?: string) => request(`/assets${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  assetsAdd: (data: { name: string; qty?: number; value?: number; photo_base64?: string | null; notes?: string }) =>
+    request("/assets", { method: "POST", body: JSON.stringify(data) }),
+  assetsUpdate: (id: string, patch: any) => request(`/assets/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  assetsDelete: (id: string) => request(`/assets/${id}`, { method: "DELETE" }),
 };

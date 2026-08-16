@@ -188,12 +188,57 @@ export default function Zakupy() {
     return { todo: todo.length, bought: bought.length, estTodo, spentBought };
   }, [items]);
 
-  // Group suggestions by category for a cleaner display
+  // Group suggestions by category (only rows that still need buying)
   const sugByCat = useMemo(() => {
     const m: Record<string, any[]> = {};
-    (gen?.suggestions || []).forEach((s: any) => { (m[s.category] = m[s.category] || []).push(s); });
+    (gen?.suggestions || []).forEach((s: any) => {
+      const toBuy = s.to_buy != null ? s.to_buy : s.qty;
+      if ((toBuy || 0) <= 0) return;
+      (m[s.category] = m[s.category] || []).push(s);
+    });
     return m;
   }, [gen]);
+
+  const toBuyCount = useMemo(
+    () => (gen?.suggestions || []).filter((sg: any) => (sg.to_buy ?? sg.qty ?? 0) > 0).length,
+    [gen],
+  );
+
+  // Inline edit state
+  const [editSug, setEditSug] = useState<any | null>(null);
+  const [editQty, setEditQty] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const openEdit = (sg: any) => {
+    setEditSug(sg);
+    setEditQty(String(sg.qty ?? ""));
+    setEditPrice(String(sg.unit_price ?? ""));
+  };
+  const saveOverride = async () => {
+    if (!editSug) return;
+    const q = parseFloat(editQty.replace(",", ".")) || 0;
+    const p = parseFloat(editPrice.replace(",", ".")) || 0;
+    try {
+      await api.shoppingSaveOverride({
+        name: editSug.name,
+        category: editSug.category,
+        unit: editSug.unit || "szt",
+        qty_override: q,
+        price_override: p,
+      });
+      setEditSug(null);
+      await load();
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się zapisać");
+    }
+  };
+  const resetOverride = async () => {
+    if (!editSug) return;
+    try {
+      await api.shoppingClearOverride(editSug.name, editSug.category, editSug.unit || "szt");
+      setEditSug(null);
+      await load();
+    } catch {}
+  };
 
   const catTotals = gen?.category_totals || {};
 
@@ -268,8 +313,8 @@ export default function Zakupy() {
           <Text style={s.heroLabel}>ZAKUPY NA {dateFrom.slice(5)}–{dateTo.slice(5)}</Text>
           <View style={{ flexDirection: "row", gap: 12, marginTop: 6 }}>
             <View style={{ flex: 1 }}>
-              <Text style={s.k}>Sugerowane</Text>
-              <Text style={[s.v, { color: theme.color.brand }]}>{gen?.suggestions?.length || 0}</Text>
+              <Text style={s.k}>Do kupienia</Text>
+              <Text style={[s.v, { color: theme.color.brand }]}>{gen?.unique_to_buy ?? (gen?.suggestions?.filter((s: any) => (s.to_buy ?? s.qty) > 0).length || 0)}</Text>
             </View>
             <View style={{ flex: 1 }}>
               <Text style={s.k}>Szac. koszt</Text>
@@ -303,7 +348,7 @@ export default function Zakupy() {
         {gen?.suggestions?.length ? (
           <View style={s.card}>
             <View style={s.rowBet}>
-              <Text style={s.section}>🤖 Auto-sugestie ({gen.suggestions.length})</Text>
+              <Text style={s.section}>🛒 Do kupienia ({toBuyCount})</Text>
               <Pressable onPress={acceptAll} style={s.accBtn}>
                 <Text style={s.accBtnText}>Dodaj wszystkie</Text>
               </Pressable>
@@ -324,8 +369,15 @@ export default function Zakupy() {
                   ) : null;
                   return (
                     <View key={i} style={[s.sugRow, isCovered && { opacity: 0.5 }]}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.sugName}>{sg.name}</Text>
+                      <Pressable onPress={() => openEdit(sg)} style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                          <Text style={s.sugName}>{sg.name}</Text>
+                          {sg.overridden ? (
+                            <View style={{ paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, backgroundColor: "#F59E0B22" }}>
+                              <Text style={{ color: "#B45309", fontSize: 9, fontWeight: "800" }}>RĘCZNIE</Text>
+                            </View>
+                          ) : null}
+                        </View>
                         {(hasStock || hasReserved) ? (
                           <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10 }}>
                             potrzeba {sg.needed} {sg.unit}
@@ -335,14 +387,17 @@ export default function Zakupy() {
                         ) : null}
                         <Text style={[s.sugMeta, { color: isCovered ? theme.color.success : theme.color.onSurface, fontWeight: "700" }]}>
                           Do kupienia: {toBuy} {sg.unit}
-                          {sg.unit_price ? ` · ~${formatPLN(sg.estimated_cost)}` : ""}
+                          {sg.unit_price ? ` · ${sg.unit_price.toFixed(2)}zł/${sg.unit} = ${formatPLN(sg.estimated_cost)}` : ""}
                           {isCovered ? " ✓" : ""}
                           {expBadge}
                         </Text>
                         {sg.event_names?.length ? (
                           <Text style={s.sugEv} numberOfLines={1}>{sg.event_names.join(" • ")}</Text>
                         ) : null}
-                      </View>
+                      </Pressable>
+                      <Pressable onPress={() => openEdit(sg)} style={{ padding: 6 }} hitSlop={10}>
+                        <Feather name="edit-2" size={14} color={theme.color.onSurfaceSecondary} />
+                      </Pressable>
                       {!isCovered ? (
                         <Pressable onPress={() => acceptSuggestion(sg)} style={s.addBtn} hitSlop={10}>
                           <Feather name="plus" size={16} color={theme.color.brand} />
@@ -409,6 +464,64 @@ export default function Zakupy() {
         ) : null}
       </ScrollView>
       )}
+
+      {/* === Inline edit sheet (qty / unit_price override) === */}
+      <Modal visible={!!editSug} transparent animationType="slide" onRequestClose={() => setEditSug(null)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setEditSug(null)} />
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 20 }}>
+              <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.border, marginBottom: 12 }} />
+              <Text style={{ fontSize: 18, fontWeight: "700", color: theme.color.onSurface }}>Edytuj: {editSug?.name}</Text>
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 4 }}>
+                Auto wyliczyło: {editSug?.needed} {editSug?.unit}
+                {editSug?.stock_qty ? ` · magazyn ${editSug.stock_qty}` : ""}
+                {editSug?.reserved_qty ? ` · zarezerwowane ${editSug.reserved_qty}` : ""}
+              </Text>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.k}>Ilość ({editSug?.unit})</Text>
+                  <TextInput
+                    value={editQty}
+                    onChangeText={setEditQty}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    style={s.input}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.k}>Cena jedn. (zł/{editSug?.unit})</Text>
+                  <TextInput
+                    value={editPrice}
+                    onChangeText={setEditPrice}
+                    keyboardType="decimal-pad"
+                    placeholder="0.00"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    style={s.input}
+                  />
+                </View>
+              </View>
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: theme.color.brand + "10", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 0.5, fontWeight: "700", textTransform: "uppercase" }}>Podgląd</Text>
+                <Text style={{ color: theme.color.brand, fontSize: 16, fontWeight: "800", marginTop: 4 }}>
+                  {editQty || 0} {editSug?.unit} × {parseFloat(editPrice.replace(",", ".")) || 0} zł = {formatPLN((parseFloat(editQty.replace(",", ".")) || 0) * (parseFloat(editPrice.replace(",", ".")) || 0))}
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 16 }}>
+                {editSug?.overridden ? (
+                  <Pressable onPress={resetOverride} style={{ paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: theme.color.error }}>
+                    <Text style={{ color: theme.color.error, fontWeight: "700", fontSize: 13 }}>Cofnij ręczne</Text>
+                  </Pressable>
+                ) : null}
+                <Pressable onPress={saveOverride} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.color.brand, alignItems: "center" }}>
+                  <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 14 }}>Zapisz</Text>
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* === Recipes editor modal === */}
       <Modal visible={showRecipes} animationType="slide" onRequestClose={() => setShowRecipes(false)}>

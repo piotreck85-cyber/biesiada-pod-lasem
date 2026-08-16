@@ -22,7 +22,10 @@ function AuthGate() {
     if (loading) return;
     const inAuth = segments[0] === "(auth)";
     if (!user && !inAuth) router.replace("/(auth)/login");
-    else if (user && inAuth) router.replace("/(tabs)/kalendarz");
+    else if (user && inAuth) {
+      const home = (user as any)?.role === "staff" ? "/(tabs)/grafik" : "/(tabs)/kalendarz";
+      router.replace(home);
+    }
   }, [user, loading, segments]);
 
   return (

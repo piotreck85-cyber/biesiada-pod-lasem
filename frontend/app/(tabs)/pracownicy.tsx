@@ -67,6 +67,8 @@ export default function Pracownicy() {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [rate, setRate] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [saving, setSaving] = useState(false);
   const [workspace, setWorkspace] = useState<any>(null);
   const [wsModalOpen, setWsModalOpen] = useState(false);
@@ -176,8 +178,8 @@ export default function Pracownicy() {
   // Reload wages when year/month changes while in wages mode
   useMemo(() => { if (mode === "wages") { loadWages(); } }, [wagesYear, wagesMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openNew = () => { setEditing(null); setName(""); setRole(""); setRate(""); setModalOpen(true); };
-  const openEdit = (it: any) => { setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || "")); setModalOpen(true); };
+  const openNew = () => { setEditing(null); setName(""); setRole(""); setRate(""); setLoginEmail(""); setLoginPassword(""); setModalOpen(true); };
+  const openEdit = (it: any) => { setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || "")); setLoginEmail(it.login_email || ""); setLoginPassword(""); setModalOpen(true); };
 
   const save = async () => {
     if (!name.trim()) return;
@@ -499,7 +501,71 @@ export default function Pracownicy() {
               <TextInput testID="staff-role-input" value={role} onChangeText={setRole} placeholder="Barman, Kelner..." placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
               <Text style={s.label}>Stawka godzinowa (PLN)</Text>
               <TextInput testID="staff-rate-input" value={rate} onChangeText={setRate} placeholder="50" placeholderTextColor={theme.color.onSurfaceSecondary} keyboardType="decimal-pad" style={s.input} />
-              <Pressable testID="staff-save-btn" onPress={save} disabled={saving || !name.trim()} style={[s.saveBtn, (saving || !name.trim()) && { opacity: 0.5 }]}>
+              {editing ? (
+                <>
+                  <Text style={[s.label, { marginTop: 14 }]}>KONTO PRACOWNIKA (login)</Text>
+                  {editing.login_email ? (
+                    <View style={{ padding: 10, marginBottom: 6, borderRadius: 10, backgroundColor: theme.color.brand + "12", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                      <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>✓ {editing.login_email}</Text>
+                      <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>Pracownik może się już zalogować.</Text>
+                    </View>
+                  ) : (
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 6 }}>Ten pracownik nie ma jeszcze konta.</Text>
+                  )}
+                  <TextInput
+                    value={loginEmail}
+                    onChangeText={setLoginEmail}
+                    placeholder="email pracownika"
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    style={s.input}
+                  />
+                  <TextInput
+                    value={loginPassword}
+                    onChangeText={setLoginPassword}
+                    placeholder={editing.login_email ? "nowe hasło (opcjonalnie)" : "hasło (min 6 znaków)"}
+                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    autoCapitalize="none"
+                    secureTextEntry
+                    style={s.input}
+                  />
+                  <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
+                    <Pressable
+                      onPress={async () => {
+                        if (!loginEmail.trim() || !loginEmail.includes("@")) { Alert.alert("Błąd", "Podaj email"); return; }
+                        if (!editing.login_email && (loginPassword || "").length < 6) { Alert.alert("Błąd", "Hasło min. 6 znaków"); return; }
+                        try {
+                          await api.staffCreateLogin(editing.id, { email: loginEmail.trim(), password: loginPassword || undefined });
+                          Alert.alert("Zapisano", `${editing.name} może się teraz zalogować mailem ${loginEmail}.`);
+                          setLoginPassword("");
+                          await load();
+                        } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się"); }
+                      }}
+                      style={[s.saveBtn, { flex: 1, paddingHorizontal: 10 }]}
+                    >
+                      <Text style={s.saveBtnText}>{editing.login_email ? "Aktualizuj login" : "Utwórz login"}</Text>
+                    </Pressable>
+                    {editing.login_email ? (
+                      <Pressable
+                        onPress={() => {
+                          Alert.alert("Usunąć konto?", `Pracownik ${editing.name} straci dostęp.`, [
+                            { text: "Anuluj", style: "cancel" },
+                            { text: "Usuń", style: "destructive", onPress: async () => {
+                              try { await api.staffDeleteLogin(editing.id); await load(); Alert.alert("OK", "Login usunięty"); }
+                              catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                            }},
+                          ]);
+                        }}
+                        style={{ paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.color.error }}
+                      >
+                        <Feather name="user-x" size={16} color={theme.color.error} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </>
+              ) : null}
+              <Pressable testID="staff-save-btn" onPress={save} disabled={saving || !name.trim()} style={[s.saveBtn, { marginTop: 16 }, (saving || !name.trim()) && { opacity: 0.5 }]}>
                 {saving ? <ActivityIndicator color={theme.color.onBrand} /> : <Text style={s.saveBtnText}>Zapisz</Text>}
               </Pressable>
             </ScrollView>

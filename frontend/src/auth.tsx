@@ -3,7 +3,15 @@ import { Platform } from "react-native";
 import * as Linking from "expo-linking";
 import { api, tokenStore } from "./api";
 
-type User = { id: string; email: string; name?: string; picture?: string };
+type User = {
+  id: string;
+  email: string;
+  name?: string;
+  picture?: string;
+  role?: "admin" | "staff" | string;
+  staff_id?: string;
+  permissions?: Partial<Record<"schedule" | "attendance" | "checklist" | "shopping" | "stock", boolean>>;
+};
 type AuthContextValue = {
   user: User | null;
   loading: boolean;
