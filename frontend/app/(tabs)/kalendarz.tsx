@@ -117,13 +117,14 @@ export default function Kalendarz() {
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
 
   // Monthly summary — clear semantics:
-  //  - Rzeczywisty przychód: revenue from booked/done events (status != wstepne/anulowana)
+  //  - Rzeczywisty przychód: revenue from past events (any status except anulowana)
   //  - Rzeczywisty koszt: event costs + separate expenses (recorded)
-  //  - Planowany przychód: revenue/price_total ONLY from tentative offers (status='wstepne')
-  //  - Planowany koszt: estimated cost for tentative offers (from historical ratios)
+  //  - Planowany przychód: revenue/price_total from future events (any price entered)
+  //  - Planowany koszt: estimated from historical cost ratios for planned events
   const monthlySummary = useMemo(() => {
     const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
     const monthEvents = events.filter(e => (e.date || "").startsWith(monthPrefix));
+    const todayIso = new Date().toISOString().slice(0, 10);
 
     let actualRevenue = 0;
     let plannedRevenue = 0;
@@ -133,15 +134,15 @@ export default function Kalendarz() {
     monthEvents.forEach(e => {
       const st = (e.status || "").toLowerCase();
       const isCancelled = st === "anulowana";
-      const isTentative = st === "wstepne";
+      const isFuture = (e.date || "") >= todayIso;
       const rev = Number(e.revenue) || 0;
       const priceTotal = Number(e.price_total) || 0;
       const recordedCost = Number(e.total_cost) || 0;
 
       if (isCancelled) return;
 
-      if (isTentative) {
-        // Tentative offer → planned only
+      if (isFuture && (rev > 0 || priceTotal > 0)) {
+        // Future event with any price entered → planned
         plannedRevenue += rev || priceTotal;
         if (recordedCost > 0) {
           plannedCost += recordedCost;
@@ -149,7 +150,7 @@ export default function Kalendarz() {
           plannedCost += Number(e.estimated_cost) || 0;
         }
       } else {
-        // Booked / confirmed / done → actual
+        // Past / no-price event → actual
         actualRevenue += rev;
         eventActualCosts += recordedCost;
       }

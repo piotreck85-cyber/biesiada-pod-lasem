@@ -471,21 +471,21 @@ export default function Statystyki() {
               <BreakdownRow label="Razem" value={totalCost} bold />
             </View>
 
-            {/* Forecast card — planned from tentative offers ("wstepne") */}
+            {/* Forecast card — planned from future events with any price entered */}
             <View style={[s.breakdownCard, { borderColor: theme.color.brand + "44", backgroundColor: theme.color.brand + "0A" }]}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <Feather name="target" size={14} color={theme.color.brand} />
-                <Text style={s.sectionTitle}>Prognoza z ofert — {MONTHS_PL[month]} {year}</Text>
+                <Text style={s.sectionTitle}>Prognoza — {MONTHS_PL[month]} {year}</Text>
               </View>
               <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 6 }}>
-                Bazuje wyłącznie na imprezach ze statusem „wstępne zapytanie" (oferty).
+                Wszystkie przyszłe imprezy z wpisaną kwotą (wyceną).
               </Text>
-              <BreakdownRow label="Planowany przychód (z ofert)" value={plannedRevenue} />
+              <BreakdownRow label="Planowany przychód" value={plannedRevenue} />
               <BreakdownRow label="Planowany koszt (estymowany)" value={plannedCost} />
               <BreakdownRow label="Planowany zysk" value={plannedProfit} bold />
               <View style={s.sep} />
               <View style={{ flexDirection: "row", alignItems: "center", marginTop: 4 }}>
-                <Text style={{ flex: 1, color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>Prognoza łącznie (rzecz. + oferty)</Text>
+                <Text style={{ flex: 1, color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 0.5, textTransform: "uppercase" }}>Razem (rzecz. + planowane)</Text>
               </View>
               <BreakdownRow label="Przychód razem" value={projectedRevenue} />
               <BreakdownRow label="Koszt razem" value={projectedCost} />
@@ -498,10 +498,10 @@ export default function Statystyki() {
                 <Feather name="trending-up" size={14} color={theme.color.warning} />
                 <Text style={s.sectionTitle}>Prognoza — cały rok {year}</Text>
               </View>
-              <BreakdownRow label="Planowany przychód (z ofert)" value={yearPlannedRev} />
+              <BreakdownRow label="Planowany przychód" value={yearPlannedRev} />
               <BreakdownRow label="Planowany koszt (estymowany)" value={yearPlannedCost} />
               <View style={s.sep} />
-              <BreakdownRow label="Zysk prognozowany (rzecz. + oferty)" value={yearProjectedProfit} bold />
+              <BreakdownRow label="Zysk prognozowany (rzecz. + plan.)" value={yearProjectedProfit} bold />
             </View>
 
             <Pressable testID="export-csv-btn" onPress={doExport} style={s.exportBtn}>
