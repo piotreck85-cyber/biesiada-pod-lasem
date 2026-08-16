@@ -6,6 +6,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 
 import { theme, formatPLN } from "@/src/theme";
 import { api } from "@/src/api";
@@ -59,6 +60,55 @@ export default function Rozliczenie() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true); await load(); setRefreshing(false);
   }, [load]);
+
+  // ---------- Period summary (date range) ----------
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const firstOfMonth = (() => {
+    const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 10);
+  })();
+  const [periodFrom, setPeriodFrom] = useState<string>(firstOfMonth);
+  const [periodTo, setPeriodTo] = useState<string>(todayISO);
+  const [periodData, setPeriodData] = useState<any | null>(null);
+  const [periodLoading, setPeriodLoading] = useState(false);
+  const [showDrilldown, setShowDrilldown] = useState(false);
+  const [pickFor, setPickFor] = useState<null | "from" | "to">(null);
+
+  const loadPeriod = useCallback(async () => {
+    setPeriodLoading(true);
+    try {
+      const r: any = await api.periodSummary(periodFrom, periodTo);
+      setPeriodData(r);
+    } catch {} finally { setPeriodLoading(false); }
+  }, [periodFrom, periodTo]);
+
+  useFocusEffect(useCallback(() => { loadPeriod(); }, [loadPeriod]));
+
+  const setQuickRange = (mode: "today" | "7d" | "month" | "prev-month") => {
+    const now = new Date();
+    if (mode === "today") {
+      const t = now.toISOString().slice(0, 10);
+      setPeriodFrom(t); setPeriodTo(t);
+    } else if (mode === "7d") {
+      const d7 = new Date(now); d7.setDate(now.getDate() - 6);
+      setPeriodFrom(d7.toISOString().slice(0, 10)); setPeriodTo(now.toISOString().slice(0, 10));
+    } else if (mode === "month") {
+      const first = new Date(now.getFullYear(), now.getMonth(), 1);
+      setPeriodFrom(first.toISOString().slice(0, 10)); setPeriodTo(now.toISOString().slice(0, 10));
+    } else if (mode === "prev-month") {
+      const first = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const last = new Date(now.getFullYear(), now.getMonth(), 0);
+      setPeriodFrom(first.toISOString().slice(0, 10)); setPeriodTo(last.toISOString().slice(0, 10));
+    }
+  };
+
+  const openPicker = (which: "from" | "to") => setPickFor(which);
+  const onPickerChange = (_e: DateTimePickerEvent, d?: Date) => {
+    if (!d) { setPickFor(null); return; }
+    const iso = d.toISOString().slice(0, 10);
+    if (pickFor === "from") setPeriodFrom(iso);
+    else if (pickFor === "to") setPeriodTo(iso);
+    if (Platform.OS !== "ios") setPickFor(null);
+  };
 
   // ---------- New settlement form ----------
   const [rows, setRows] = useState<Array<{ name: string; amount: string }>>([
@@ -215,6 +265,135 @@ export default function Rozliczenie() {
           <Feather name="plus-circle" size={18} color={theme.color.onBrand} />
           <Text style={s.ctaText}>Nowe rozliczenie wspólników</Text>
         </Pressable>
+
+        {/* Period summary */}
+        <View style={{ marginTop: 22, marginBottom: 8, flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Feather name="calendar" size={14} color={theme.color.onSurface} />
+          <Text style={s.sectionTitle}>Podsumowanie okresu</Text>
+        </View>
+        <View style={s.periodCard}>
+          {/* Quick range buttons */}
+          <View style={s.quickRow}>
+            <Pressable testID="qr-today" onPress={() => setQuickRange("today")} style={s.quickBtn}><Text style={s.quickText}>Dzisiaj</Text></Pressable>
+            <Pressable testID="qr-7d" onPress={() => setQuickRange("7d")} style={s.quickBtn}><Text style={s.quickText}>7 dni</Text></Pressable>
+            <Pressable testID="qr-month" onPress={() => setQuickRange("month")} style={s.quickBtn}><Text style={s.quickText}>Ten mc</Text></Pressable>
+            <Pressable testID="qr-prev" onPress={() => setQuickRange("prev-month")} style={s.quickBtn}><Text style={s.quickText}>Poprzedni</Text></Pressable>
+          </View>
+          {/* Date pickers */}
+          <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.miniLabel}>OD</Text>
+              <Pressable testID="date-from-btn" onPress={() => openPicker("from")} style={s.dateBtn}>
+                <Feather name="calendar" size={13} color={theme.color.brand} />
+                <Text style={s.dateBtnText}>{fmtDate(periodFrom)}</Text>
+              </Pressable>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.miniLabel}>DO</Text>
+              <Pressable testID="date-to-btn" onPress={() => openPicker("to")} style={s.dateBtn}>
+                <Feather name="calendar" size={13} color={theme.color.brand} />
+                <Text style={s.dateBtnText}>{fmtDate(periodTo)}</Text>
+              </Pressable>
+            </View>
+          </View>
+          {/* Native web fallback: type=date inputs via TextInput inputMode */}
+          {Platform.OS === "web" ? (
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+              <TextInput
+                testID="date-from-web"
+                value={periodFrom}
+                onChangeText={setPeriodFrom}
+                style={[s.input, { flex: 1 }]}
+                placeholder="YYYY-MM-DD"
+                {...(Platform.OS === "web" ? ({ type: "date" } as any) : {})}
+              />
+              <TextInput
+                testID="date-to-web"
+                value={periodTo}
+                onChangeText={setPeriodTo}
+                style={[s.input, { flex: 1 }]}
+                placeholder="YYYY-MM-DD"
+                {...(Platform.OS === "web" ? ({ type: "date" } as any) : {})}
+              />
+            </View>
+          ) : null}
+
+          {/* Results */}
+          {periodLoading ? (
+            <ActivityIndicator style={{ marginTop: 10 }} color={theme.color.brand} />
+          ) : periodData ? (
+            <View style={{ marginTop: 12 }}>
+              <View style={s.rowBetween}>
+                <Text style={s.rowLabel}>Przychody</Text>
+                <Text style={[s.rowVal, { color: theme.color.success }]}>+{formatPLN(periodData.revenue || 0)}</Text>
+              </View>
+              <View style={s.rowBetween}>
+                <Text style={s.rowLabel}>Koszty (działalność)</Text>
+                <Text style={[s.rowVal, { color: theme.color.error }]}>−{formatPLN(periodData.regular_costs || 0)}</Text>
+              </View>
+              <View style={s.rowBetween}>
+                <Text style={s.rowLabel}>Wypłaty wspólników</Text>
+                <Text style={[s.rowVal, { color: "#8B5CF6" }]}>−{formatPLN(periodData.partner_payouts || 0)}</Text>
+              </View>
+              <View style={s.divider} />
+              <View style={s.rowBetween}>
+                <Text style={[s.rowLabel, { fontWeight: "800" }]}>Wynik okresu</Text>
+                <Text style={[s.rowVal, {
+                  fontWeight: "800",
+                  color: (periodData.result || 0) >= 0 ? theme.color.brand : theme.color.error,
+                }]}>
+                  {(periodData.result || 0) >= 0 ? "+" : ""}{formatPLN(periodData.result || 0)}
+                </Text>
+              </View>
+              <Pressable testID="drill-toggle" onPress={() => setShowDrilldown(v => !v)} style={s.drillBtn}>
+                <Feather name={showDrilldown ? "chevron-up" : "chevron-down"} size={13} color={theme.color.brand} />
+                <Text style={s.drillText}>
+                  {showDrilldown ? "Ukryj operacje" : `Pokaż operacje (${(periodData.events?.length || 0) + (periodData.expenses?.length || 0)})`}
+                </Text>
+              </Pressable>
+              {showDrilldown ? (
+                <View style={{ marginTop: 8 }}>
+                  {(periodData.events || []).length > 0 && (
+                    <>
+                      <Text style={s.editorSubHeader}>Przychody z imprez</Text>
+                      {periodData.events.map((ev: any) => (
+                        <View key={ev.id} style={s.opRow}>
+                          <Text style={s.opDate}>{ev.date}</Text>
+                          <Text style={s.opName} numberOfLines={1}>{ev.name}</Text>
+                          <Text style={[s.opAmt, { color: theme.color.success }]}>+{formatPLN(ev.revenue)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                  {(periodData.expenses || []).length > 0 && (
+                    <>
+                      <Text style={[s.editorSubHeader, { marginTop: 10 }]}>Wydatki</Text>
+                      {periodData.expenses.map((x: any) => (
+                        <View key={x.id} style={s.opRow}>
+                          <Text style={s.opDate}>{x.date}</Text>
+                          <Text style={s.opName} numberOfLines={1}>{x.label || x.category}</Text>
+                          <Text style={[s.opAmt, {
+                            color: x.category === "wyplaty_szefow" ? "#8B5CF6" : theme.color.error,
+                          }]}>−{formatPLN(x.amount)}</Text>
+                        </View>
+                      ))}
+                    </>
+                  )}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Native picker */}
+        {pickFor && Platform.OS !== "web" ? (
+          <DateTimePicker
+            value={new Date(pickFor === "from" ? periodFrom : periodTo)}
+            mode="date"
+            display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={onPickerChange}
+          />
+        ) : null}
 
         {/* History */}
         <View style={{ marginTop: 20, marginBottom: 10, flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -416,4 +595,34 @@ const s = StyleSheet.create({
     marginTop: 12, padding: 12, borderRadius: 12,
     backgroundColor: theme.color.brand + "10", borderWidth: 1, borderColor: theme.color.brand + "44",
   },
+  // ---- Period summary ----
+  periodCard: {
+    borderRadius: 14, padding: 12,
+    backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.border,
+  },
+  quickRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
+  quickBtn: {
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+    borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12",
+  },
+  quickText: { color: theme.color.brand, fontWeight: "700", fontSize: 11 },
+  dateBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 10,
+    borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary,
+    marginTop: 4,
+  },
+  dateBtnText: { color: theme.color.onSurface, fontWeight: "700", fontSize: 13 },
+  drillBtn: {
+    marginTop: 10, alignSelf: "flex-start", flexDirection: "row", gap: 4, alignItems: "center",
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand,
+    backgroundColor: theme.color.brand + "12",
+  },
+  drillText: { color: theme.color.brand, fontWeight: "700", fontSize: 11 },
+  opRow: {
+    flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5,
+    borderBottomWidth: 0.5, borderBottomColor: theme.color.divider,
+  },
+  opDate: { color: theme.color.onSurfaceSecondary, fontSize: 10, width: 74 },
+  opName: { flex: 1, color: theme.color.onSurface, fontSize: 12 },
+  opAmt: { fontSize: 12, fontWeight: "700" },
 });
