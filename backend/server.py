@@ -7,7 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os, uuid, io, csv, logging
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
@@ -157,6 +157,7 @@ class StaffShift(BaseModel):
     time_end: Optional[str] = ""    # HH:MM
 
 class EventIn(BaseModel):
+    model_config = {"extra": "allow"}  # accept optional custom fields (dinner_items, extras_qty, discount_pct, ...)
     name: str
     date: str  # ISO YYYY-MM-DD
     time: Optional[str] = ""
@@ -167,6 +168,7 @@ class EventIn(BaseModel):
     category: Optional[str] = ""
     people: Optional[int] = 0
     package_set: Optional[str] = ""   # for adult events: set1|set2|set3
+    extras_qty: Optional[Dict[str, float]] = None  # extra_id -> qty (or amount for 'kwota' unit)
     revenue: float = 0.0              # gross for firmowe
     revenue_net: Optional[float] = 0.0
     costs: List[CostItem] = []
@@ -182,9 +184,17 @@ class EventIn(BaseModel):
     client_notes: Optional[str] = ""
     # ---- Payment ----
     price_total: Optional[float] = 0.0
+    discount_pct: Optional[float] = 0.0
+    price_after_discount: Optional[float] = 0.0
     deposit_paid: Optional[bool] = False
     deposit_amount: Optional[float] = 0.0
     deposit_date: Optional[str] = ""
+    # ---- Dinner offer ----
+    dinner_items: Optional[Dict[str, float]] = None   # dinner_item_id -> qty
+    dinner_cost: Optional[float] = 0.0
+    dinner_revenue: Optional[float] = 0.0
+    dinner_profit: Optional[float] = 0.0
+    dinner_margin_pct: Optional[float] = 0.0
 
 class TemplateIn(BaseModel):
     name: str
@@ -828,6 +838,11 @@ async def create_event(body: EventIn, user=Depends(current_user)):
     await db.events.insert_one(doc)
     doc.pop("_id", None)
     await log_change(user, "create", "event", doc["id"], f"Utworzono imprezę: {doc.get('name','')} ({doc.get('date','')})")
+    # In-app notification for the whole workspace (both bosses see it)
+    try:
+        await _create_activity_alert("event_created", ws(user), doc, user)
+    except Exception:
+        pass
     # Best-effort Google Calendar sync (non-blocking of API response)
     try:
         await _sync_event_for_workspace(ws(user), doc["id"], "create")
@@ -883,7 +898,12 @@ async def delete_event(event_id: str, user=Depends(current_user)):
     except Exception:
         pass
     await db.events.delete_one({"id": event_id, "owner_id": ws(user)})
-    if ev: await log_change(user, "delete", "event", event_id, f"Usunięto imprezę: {ev.get('name','')} ({ev.get('date','')})")
+    if ev:
+        await log_change(user, "delete", "event", event_id, f"Usunięto imprezę: {ev.get('name','')} ({ev.get('date','')})")
+        try:
+            await _create_activity_alert("event_deleted", ws(user), ev, user)
+        except Exception:
+            pass
     return {"ok": True}
 
 # ---------- Templates ----------
@@ -2138,6 +2158,264 @@ async def alerts_scan_now(user=Depends(current_user)):
     """Trigger the alerts scan immediately (useful for testing / manual refresh)."""
     await scan_and_create_alerts()
     return {"ok": True}
+
+
+# ---------- Activity alerts (event created / deleted) ----------
+async def _create_activity_alert(kind: str, owner_id: str, event: dict, actor: dict):
+    """kind ∈ {'event_created','event_deleted'}. Non-fatal on errors."""
+    try:
+        doc = {
+            "id": str(uuid.uuid4()),
+            "owner_id": owner_id,
+            "event_id": event.get("id"),
+            "event_name": event.get("name") or "",
+            "event_date": event.get("date") or "",
+            "status": event.get("status") or "",
+            "kind": kind,
+            "actor_id": actor.get("id"),
+            "actor_name": actor.get("name") or actor.get("email") or "",
+            "client_name": event.get("client_name") or "",
+            "created_at": now_utc().isoformat(),
+            "dismissed": False,
+            "emailed": True,  # activity alerts are in-app only, no email needed
+        }
+        await db.alerts.insert_one(doc)
+    except Exception as e:
+        logging.getLogger("alerts").warning(f"activity alert failed: {e}")
+
+
+# ---------- WhatsApp profit import ----------
+import re as _re
+
+_WA_DATE_MSG = _re.compile(
+    r'(\d{1,2}\.\d{1,2}\.\d{4}),\s+\d{1,2}:\d{2}\s*-\s*([^:]+?):\s*(.*?)(?=\s\d{1,2}\.\d{1,2}\.\d{4},\s+\d{1,2}:\d{2}\s*-|$)',
+    _re.DOTALL,
+)
+_WA_OVERRIDE_DATE = _re.compile(
+    r'\((?:data\s+)?(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?\)|(?<!\d)(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?(?!\d)'
+)
+_WA_SKIP_PHRASES = [
+    "wiadomości i rozmowy", "utworzyłeś", "utworzyles", "dodano:", "zmieniłeś", "zmieniles",
+    "ikonę grupy", "ikone grupy", "wiadomość została usunięta", "usunąłeś", "usunales",
+    "opłacało się", "oplacalo sie",
+]
+
+def _parse_whatsapp_profits(text: str) -> List[dict]:
+    text = (text or "").replace("\r", "").replace("\n", " ")
+    results = []
+    for m in _WA_DATE_MSG.finditer(text):
+        date_str, author, msg = m.group(1), m.group(2).strip(), m.group(3).strip()
+        msg_low = msg.lower()
+        if any(p in msg_low for p in _WA_SKIP_PHRASES):
+            continue
+        if not msg:
+            continue
+        d, mo, y = date_str.split(".")
+        y_int, mo_int, d_int = int(y), int(mo), int(d)
+        iso = f"{y_int:04d}-{mo_int:02d}-{d_int:02d}"
+        amt = None
+        for cand in _re.finditer(r'(\d{1,6}(?:[.,]\d{1,2})?)(?:\s*(?:zł|zl|pln))?', msg):
+            raw = cand.group(1)
+            val = float(raw.replace(",", "."))
+            if val < 100 or val == y_int:
+                continue
+            after = msg[cand.end():cand.end()+12].lower()
+            if after.strip().startswith("%"):
+                continue
+            amt = val
+            break
+        if amt is None:
+            continue
+        # date override
+        override_iso = None
+        for om in _WA_OVERRIDE_DATE.finditer(msg):
+            g = om.groups()
+            dd, mm, yy = None, None, None
+            if g[0] and g[1]:
+                dd, mm, yy = int(g[0]), int(g[1]), int(g[2]) if g[2] else None
+            elif g[3] and g[4]:
+                dd, mm, yy = int(g[3]), int(g[4]), int(g[5]) if g[5] else None
+            if dd and mm:
+                if not yy:
+                    yy = y_int
+                if 1 <= dd <= 31 and 1 <= mm <= 12 and 2020 <= yy <= 2030:
+                    override_iso = f"{yy:04d}-{mm:02d}-{dd:02d}"
+                    break
+        results.append({
+            "date": override_iso or iso,
+            "amount": amt,
+            "msg": msg[:200],
+            "override": bool(override_iso),
+        })
+    return results
+
+
+class WhatsAppProfitImportIn(BaseModel):
+    content: str
+    dry_run: bool = True
+    window_days: int = 7
+
+
+@api.post("/import/whatsapp-profits")
+async def import_whatsapp_profits(body: WhatsAppProfitImportIn, user=Depends(current_user)):
+    """
+    Parse a WhatsApp chat export and attach profit amounts to events in the workspace.
+    - Matches each profit entry to the closest event within `window_days`.
+    - Idempotent: entries already applied (dedup key = date|amount|msg_hash) are skipped.
+    - `dry_run=True` returns a preview without changes.
+    """
+    entries = _parse_whatsapp_profits(body.content)
+    # Load all events in this workspace
+    events = await db.events.find(
+        {"owner_id": ws(user)},
+        {"_id": 0, "id": 1, "name": 1, "date": 1, "revenue": 1, "category": 1, "whatsapp_profits": 1}
+    ).sort("date", 1).to_list(None)
+
+    # Build a set of already-applied entry keys per event to prevent double-import
+    already_keys: set = set()
+    for ev in events:
+        for wp in (ev.get("whatsapp_profits") or []):
+            already_keys.add(wp.get("key"))
+
+    def entry_key(e: dict) -> str:
+        # stable dedup key
+        return f"{e['date']}|{e['amount']:.2f}|{(e.get('msg') or '')[:80]}"
+
+    from datetime import date as _date
+    def parse_iso(s: str):
+        try:
+            y, m, d = s.split("-"); return _date(int(y), int(m), int(d))
+        except Exception:
+            return None
+
+    matched, unmatched, skipped = [], [], []
+    # Track events already used in THIS import so we don't stack multiple different profits
+    # onto the same event unless there is no alternative in the ± window.
+    used_event_ids: set = set()
+
+    # ---- Keyword-based semantic matching ----
+    # Groups of related keywords: msg word -> preferred event name keywords.
+    KW_GROUPS = [
+        {"msg": ["komunia", "komunii"], "ev": ["komuni"]},
+        {"msg": ["urodzin", "urodziny", "urodzinki", "18 stka", "18-stka", "18stka", "18tka"],
+         "ev": ["urodz", "18", "roczek", "16", "40"]},
+        {"msg": ["wesele", "ślub", "slub"], "ev": ["wesel", "ślub", "slub"]},
+        {"msg": ["chrzcin", "chrzest"], "ev": ["chrzcin"]},
+        {"msg": ["firmow"], "ev": ["firmow", "resovia", "renault", "ekobox"]},
+        {"msg": ["wycieczk", "przedszkol", "szkol", "warsztat"],
+         "ev": ["wycieczk", "przedszkol", "szkol", "warsztat", "klas"]},
+        {"msg": ["roczek", "roczka"], "ev": ["roczek"]},
+        {"msg": ["ognisko"], "ev": ["ognisko"]},
+        {"msg": ["dziki zach"], "ev": ["dziki zach"]},
+        {"msg": ["harry", "potter"], "ev": ["harry", "potter"]},
+        {"msg": ["gady"], "ev": ["gady"]},
+        {"msg": ["konie", "kucyk"], "ev": ["kon", "alpak", "kucyk"]},
+    ]
+    def semantic_boost(msg: str, ev_name: str) -> int:
+        """Return negative score bonus (better) when msg keywords line up with event name."""
+        msg_l = (msg or "").lower()
+        name_l = (ev_name or "").lower()
+        for grp in KW_GROUPS:
+            if any(w in msg_l for w in grp["msg"]):
+                if any(w in name_l for w in grp["ev"]):
+                    return -500   # strong match
+                # msg has a strong keyword but event doesn't → mild penalty
+                return 200
+        return 0
+
+    # Sort entries by date so earlier ones win when there is ambiguity
+    entries_sorted = sorted(entries, key=lambda e: (e["date"], -e["amount"]))
+
+    for e in entries_sorted:
+        key = entry_key(e)
+        if key in already_keys:
+            skipped.append({**e, "reason": "already_applied"})
+            continue
+        target = parse_iso(e["date"])
+        if not target:
+            unmatched.append({**e, "reason": "bad_date"})
+            continue
+        # find candidate events within window
+        best = None
+        best_score = None
+        for ev in events:
+            ed = parse_iso(ev.get("date") or "")
+            if not ed:
+                continue
+            diff = abs((ed - target).days)
+            if diff > body.window_days:
+                continue
+            has_revenue = float(ev.get("revenue") or 0) > 0
+            already_used_here = ev["id"] in used_event_ids
+            # Score (lower = better):
+            #  - primary: date proximity (×100)
+            #  - keyword semantic boost (−500 for strong match, +200 for mismatch)
+            #  - secondary: prefer unused events (+1000 if used here)
+            #  - tertiary: prefer events with no revenue yet (+50 if has_revenue)
+            score = (
+                diff * 100
+                + semantic_boost(e.get("msg", ""), ev.get("name") or "")
+                + (1000 if already_used_here else 0)
+                + (50 if has_revenue else 0)
+            )
+            if best_score is None or score < best_score:
+                best = ev
+                best_score = score
+        if best:
+            used_event_ids.add(best["id"])
+            matched.append({
+                "entry": e,
+                "event": {"id": best["id"], "name": best.get("name") or "", "date": best.get("date")},
+                "previous_revenue": float(best.get("revenue") or 0),
+                "new_revenue": float(best.get("revenue") or 0) + e["amount"],
+                "days_off": abs((parse_iso(best.get("date")) - target).days),
+                "key": key,
+            })
+        else:
+            unmatched.append({**e, "reason": "no_event_in_window"})
+
+    if not body.dry_run and matched:
+        # apply changes
+        for row in matched:
+            ev_id = row["event"]["id"]
+            prev_rev = row["previous_revenue"]
+            new_rev = row["new_revenue"]
+            wp_entry = {
+                "key": row["key"],
+                "date": row["entry"]["date"],
+                "amount": row["entry"]["amount"],
+                "msg": row["entry"]["msg"],
+                "imported_at": now_utc().isoformat(),
+                "imported_by": user.get("email") or user.get("id"),
+            }
+            await db.events.update_one(
+                {"id": ev_id, "owner_id": ws(user)},
+                {
+                    "$set": {"revenue": new_rev},
+                    "$push": {"whatsapp_profits": wp_entry},
+                }
+            )
+        # Log a single summary in change history
+        try:
+            await log_change(
+                user, "import", "event", "",
+                f"Import zysków WhatsApp: dopasowano {len(matched)} wpisów, suma {sum(r['entry']['amount'] for r in matched):.2f} zł"
+            )
+        except Exception:
+            pass
+
+    return {
+        "parsed": len(entries),
+        "matched": matched,
+        "unmatched": unmatched,
+        "skipped": skipped,
+        "applied": (not body.dry_run) and bool(matched),
+        "totals": {
+            "matched_amount": round(sum(r["entry"]["amount"] for r in matched), 2),
+            "unmatched_amount": round(sum(u["amount"] for u in unmatched), 2),
+            "skipped_amount": round(sum(s["amount"] for s in skipped), 2),
+        },
+    }
 
 
 app.include_router(api)

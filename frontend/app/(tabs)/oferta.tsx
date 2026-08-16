@@ -334,8 +334,8 @@ export default function Oferta() {
                       <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.color.divider }}>
                         <Text style={{ flex: 1, fontSize: 13, color: theme.color.onSurface }}>{it.name}</Text>
                         <View style={{ alignItems: "flex-end", marginLeft: 8 }}>
-                          <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, textDecorationLine: "line-through" }}>{it.base_price} zł/{it.unit}</Text>
                           <Text style={{ fontSize: 14, fontWeight: "800", color: theme.color.brand }}>{disc} zł</Text>
+                          <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary }}>/ {it.unit}</Text>
                         </View>
                       </View>
                     );

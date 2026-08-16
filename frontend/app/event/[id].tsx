@@ -14,6 +14,7 @@ import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
 import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers";
+import { DINNER_MENU, DINNER_SECTIONS, discountedPrice, DINNER_DISCOUNT, dinnerAutoCost } from "@/src/dinnerMenu";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -58,6 +59,8 @@ export default function EventDetail() {
   const [revenueNet, setRevenueNet] = useState("");
   const [autoPrice, setAutoPrice] = useState(true);
   const [extras, setExtras] = useState<Record<string, number>>({}); // extra_id -> qty (or amount for 'kwota')
+  const [dinnerQty, setDinnerQty] = useState<Record<string, number>>({}); // dinner_item_id -> qty
+  const [dinnerCost, setDinnerCost] = useState<string>(""); // user-entered wholesale cost for margin calc
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
@@ -75,6 +78,7 @@ export default function EventDetail() {
   const [clientEmail, setClientEmail] = useState<string>("");
   const [clientNotes, setClientNotes] = useState<string>("");
   const [priceTotal, setPriceTotal] = useState<string>("");
+  const [discountPct, setDiscountPct] = useState<string>("");
   const [depositPaid, setDepositPaid] = useState<boolean>(false);
   const [depositAmount, setDepositAmount] = useState<string>("");
   const [depositDate, setDepositDate] = useState<string>("");
@@ -96,6 +100,11 @@ export default function EventDetail() {
           setImageUrl(ev.image_url || "");
           setCategory(ev.category || "");
           setPeople(ev.people ? String(ev.people) : "");
+          setPackageSet(ev.package_set || "");
+          setRevenueNet(ev.revenue_net ? String(ev.revenue_net) : "");
+          if (ev.extras_qty && typeof ev.extras_qty === "object") {
+            setExtras(ev.extras_qty as Record<string, number>);
+          }
           setAutoPrice(false); // editing existing event: don't override user's saved revenue
           // New fields
           setStatus(ev.status || "");
@@ -105,9 +114,15 @@ export default function EventDetail() {
           setClientEmail(ev.client_email || "");
           setClientNotes(ev.client_notes || "");
           setPriceTotal(ev.price_total ? String(ev.price_total) : "");
+          setDiscountPct(ev.discount_pct ? String(ev.discount_pct) : "");
           setDepositPaid(!!ev.deposit_paid);
           setDepositAmount(ev.deposit_amount ? String(ev.deposit_amount) : "");
           setDepositDate(ev.deposit_date || "");
+          // ---- Dinner offer ----
+          if (ev.dinner_items && typeof ev.dinner_items === "object") {
+            setDinnerQty(ev.dinner_items as Record<string, number>);
+          }
+          setDinnerCost(ev.dinner_cost ? String(ev.dinner_cost) : "");
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -145,7 +160,24 @@ export default function EventDetail() {
     () => computePricing(category, date, peopleNum, packageSet),
     [category, date, peopleNum, packageSet]
   );
-  const combinedTotal = (pricing?.total || 0) + extrasTotal;
+  const parseAmt = (v: string) => parseFloat(String(v || "").replace(",", ".")) || 0;
+
+  // Dinner-only aggregation (for margin calc)
+  const dinnerRevenue = useMemo(() => {
+    return Object.entries(dinnerQty).reduce((s, [id, q]) => {
+      const it = DINNER_MENU.find(m => m.id === id);
+      if (!it || !q) return s;
+      return s + discountedPrice(it.base_price) * q;
+    }, 0);
+  }, [dinnerQty]);
+  // Auto purchase cost (hidden): sum of cost_price × qty. User can still override via dinnerCost input.
+  const dinnerAutoCostVal = useMemo(() => dinnerAutoCost(dinnerQty), [dinnerQty]);
+  const dinnerCostOverride = parseAmt(dinnerCost);
+  const dinnerCostNum = dinnerCostOverride > 0 ? dinnerCostOverride : dinnerAutoCostVal;
+  const dinnerMargin = dinnerRevenue > 0 ? ((dinnerRevenue - dinnerCostNum) / dinnerRevenue) * 100 : 0;
+  const dinnerProfit = dinnerRevenue - dinnerCostNum;
+
+  const combinedTotal = (pricing?.total || 0) + extrasTotal + dinnerRevenue;
 
   // Auto-price when computable and user hasn't manually overridden
   useEffect(() => {
@@ -155,8 +187,6 @@ export default function EventDetail() {
       setPriceTotal(prev => (!prev || prev === "0" || prev === String(revenueNum)) ? String(combinedTotal) : prev);
     }
   }, [combinedTotal, autoPrice]);
-
-  const parseAmt = (v: string) => parseFloat(v.replace(",", ".")) || 0;
 
   const save = async () => {
     if (!name.trim() || !date) return;
@@ -168,8 +198,15 @@ export default function EventDetail() {
       notes, category,
       people: peopleNum,
       package_set: packageSet,
+      extras_qty: extras,
       revenue: revenueNum,
       revenue_net: parseFloat(revenueNet.replace(",", ".")) || 0,
+      // ---- Dinner offer ----
+      dinner_items: dinnerQty,
+      dinner_cost: parseAmt(dinnerCost),
+      dinner_revenue: dinnerRevenue,
+      dinner_profit: dinnerProfit,
+      dinner_margin_pct: Number(dinnerMargin.toFixed(2)),
       // ---- Status ----
       status: status || "",
       valid_until: validUntil || "",
@@ -180,6 +217,11 @@ export default function EventDetail() {
       client_notes: clientNotes.trim(),
       // ---- Payment ----
       price_total: parseAmt(priceTotal),
+      discount_pct: parseAmt(discountPct),
+      price_after_discount: (function(){
+        const t = parseAmt(priceTotal); const d = parseAmt(discountPct);
+        return d > 0 ? Number((t * (1 - d / 100)).toFixed(2)) : t;
+      })(),
       deposit_paid: !!depositPaid,
       deposit_amount: parseAmt(depositAmount),
       deposit_date: depositDate || "",
@@ -514,11 +556,43 @@ export default function EventDetail() {
 
           {/* Payment */}
           <Section title="Płatność">
-            <Field label="Całkowita cena imprezy">
-              <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
-                placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
-                keyboardType="decimal-pad" style={s.input} />
-            </Field>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 2 }}>
+                <Field label="Całkowita cena imprezy">
+                  <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
+                    placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="decimal-pad" style={s.input} />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Rabat %">
+                  <TextInput testID="discount-pct" value={discountPct} onChangeText={setDiscountPct}
+                    placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                    keyboardType="decimal-pad" style={s.input} />
+                </Field>
+              </View>
+            </View>
+            {(() => {
+              const total = parseAmt(priceTotal);
+              const disc = parseAmt(discountPct);
+              if (total > 0 && disc > 0) {
+                const discAmt = total * (disc / 100);
+                const afterDisc = total - discAmt;
+                return (
+                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: theme.color.brand + "10", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5 }}>
+                        RABAT −{disc.toFixed(0)}% ({discAmt.toFixed(2)} zł)
+                      </Text>
+                      <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.brand }}>
+                        {afterDisc.toFixed(2)} zł
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              return null;
+            })()}
             <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
               {[{v: true, lbl: "Zaliczka wpłacona"}, {v: false, lbl: "Brak zaliczki"}].map(o => {
                 const active = depositPaid === o.v;
@@ -563,12 +637,20 @@ export default function EventDetail() {
                 borderWidth: 1, borderColor: theme.color.brand,
               }}>
                 <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
-                <Text style={{
-                  color: (parseAmt(priceTotal) - (depositPaid ? parseAmt(depositAmount) : 0)) > 0 ? theme.color.brand : theme.color.success,
-                  fontSize: 24, fontWeight: "800", marginTop: 4,
-                }}>
-                  {(parseAmt(priceTotal) - (depositPaid ? parseAmt(depositAmount) : 0)).toFixed(2)} zł
-                </Text>
+                {(() => {
+                  const total = parseAmt(priceTotal);
+                  const disc = parseAmt(discountPct);
+                  const afterDisc = disc > 0 ? total * (1 - disc / 100) : total;
+                  const remaining = afterDisc - (depositPaid ? parseAmt(depositAmount) : 0);
+                  return (
+                    <Text style={{
+                      color: remaining > 0 ? theme.color.brand : theme.color.success,
+                      fontSize: 24, fontWeight: "800", marginTop: 4,
+                    }}>
+                      {remaining.toFixed(2)} zł
+                    </Text>
+                  );
+                })()}
               </View>
             )}
           </Section>
@@ -764,6 +846,82 @@ export default function EventDetail() {
             {activeExtras.length > 0 && (
               <View style={{ marginTop: 12, marginBottom: 4 }}>
                 <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
+              </View>
+            )}
+
+            {/* Oferta obiadowa — quick picker with auto-margin */}
+            <View style={{ marginTop: 20, marginBottom: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Feather name="coffee" size={14} color={theme.color.brand} />
+              <Text style={[s.label, { marginTop: 0 }]}>Oferta obiadowa (opcjonalnie)</Text>
+            </View>
+            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 8 }}>
+              Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
+            </Text>
+            {DINNER_SECTIONS.map(sec => {
+              const items = DINNER_MENU.filter(m => m.section === sec.id);
+              return (
+                <View key={sec.id} style={{ marginBottom: 8 }}>
+                  <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" }}>{sec.title}</Text>
+                  {items.map(it => {
+                    const q = dinnerQty[it.id] || 0;
+                    const price = discountedPrice(it.base_price);
+                    const line = q * price;
+                    return (
+                      <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, color: theme.color.onSurface }}>{it.name}</Text>
+                          <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary }}>{price} zł / {it.unit}</Text>
+                        </View>
+                        <TextInput
+                          testID={`dinner-qty-${it.id}`}
+                          value={q ? String(q) : ""}
+                          onChangeText={(v) => {
+                            const n = parseAmt(v);
+                            setDinnerQty(prev => ({ ...prev, [it.id]: n }));
+                            setAutoPrice(true);
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={theme.color.onSurfaceSecondary}
+                          keyboardType="decimal-pad"
+                          style={s.extraQtyInput}
+                        />
+                        <Text style={{ minWidth: 60, textAlign: "right", fontWeight: "700", color: line ? theme.color.brand : theme.color.onSurfaceSecondary, fontSize: 12 }}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+            {dinnerRevenue > 0 && (
+              <View style={{ marginTop: 12, backgroundColor: theme.color.brand + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                  <Text style={{ color: theme.color.onSurface, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
+                  <Text style={{ color: theme.color.brand, fontSize: 16, fontWeight: "800" }}>{dinnerRevenue.toFixed(0)} zł</Text>
+                </View>
+                <Text style={[s.label, { marginTop: 8 }]}>Koszt zakupu (opcjonalne nadpisanie — puste = auto)</Text>
+                <TextInput
+                  testID="dinner-cost-input"
+                  value={dinnerCost}
+                  onChangeText={setDinnerCost}
+                  placeholder={`Auto: ${dinnerAutoCostVal.toFixed(2)} zł`}
+                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  keyboardType="decimal-pad"
+                  style={s.input}
+                />
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <View style={{ flex: 1, backgroundColor: theme.color.surface, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.divider }}>
+                    <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5, textTransform: "uppercase" }}>Zysk</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerProfit >= 0 ? theme.color.brand : theme.color.error }}>
+                      {dinnerProfit.toFixed(0)} zł
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: theme.color.surface, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.divider }}>
+                    <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5, textTransform: "uppercase" }}>Marża</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerMargin >= 0 ? theme.color.brand : theme.color.error }}>
+                      {dinnerMargin.toFixed(1)}%
+                    </Text>
+                  </View>
+                </View>
               </View>
             )}
             {costs.map((c, i) => (
