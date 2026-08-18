@@ -331,14 +331,56 @@ export default function EventDetail() {
   const [offerTo, setOfferTo] = useState("");
   const [offerClient, setOfferClient] = useState("");
   const [offerNote, setOfferNote] = useState("");
+  const [offerGreeting, setOfferGreeting] = useState("");
   const [offerSending, setOfferSending] = useState(false);
+  const [offerPreviewing, setOfferPreviewing] = useState(false);
 
   const openOfferModal = () => {
     setOfferTo("");
-    // best-guess client name from event name (e.g. "Urodziny Ani" -> "Ani")
     setOfferClient("");
     setOfferNote(notes ? `Dot. imprezy: ${name}\n\n${notes}` : `Dot. imprezy: ${name}`);
+    setOfferGreeting("");
     setOfferOpen(true);
+  };
+
+  const buildOfferPayload = () => ({
+    to_email: (offerTo || "").trim() || "preview@local",
+    client_name: offerClient || undefined,
+    event_date: date || undefined,
+    people_count: peopleNum || undefined,
+    package_set_id: (packageSet || null) as any,
+    extras: Object.entries(extraQty).filter(([, q]) => (q || 0) > 0).map(([id, q]) => ({ id, qty: q as number })),
+    custom_note: offerNote || undefined,
+    custom_greeting: offerGreeting || undefined,
+    event_id: id === "new" ? undefined : (id as string),
+    event_type: "okolicznosciowe" as const,
+  });
+
+  const previewOfferPdf = async () => {
+    setOfferPreviewing(true);
+    try {
+      const blob = await api.previewOfferPdf(buildOfferPayload());
+      if (Platform.OS === "web") {
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank");
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } else {
+        // Save to cache + share/open with system viewer
+        const b64 = await new Promise<string>((res, rej) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result || "").split(",")[1] || "");
+          r.onerror = () => rej(r.error);
+          r.readAsDataURL(blob);
+        });
+        const FS = await import("expo-file-system");
+        const Sharing = await import("expo-sharing");
+        const path = FS.cacheDirectory + `Oferta-podglad-${Date.now()}.pdf`;
+        await FS.writeAsStringAsync(path, b64, { encoding: FS.EncodingType.Base64 });
+        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+      }
+    } catch (e: any) {
+      Alert.alert("Błąd podglądu", e?.message || "Nie udało się wygenerować podglądu");
+    } finally { setOfferPreviewing(false); }
   };
 
   // ---- Send catering order email (dinner_items → yubari.restauracja@gmail.com) ----
@@ -414,6 +456,7 @@ export default function EventDetail() {
         package_set_id: isSetId ? (packageSet as any) : undefined,
         extras: extrasPayload,
         custom_note: offerNote.trim() || undefined,
+        custom_greeting: offerGreeting.trim() || undefined,
         event_id: isNew ? undefined : (id as string),
         event_type: eventType,
       });
@@ -1310,6 +1353,15 @@ export default function EventDetail() {
                 placeholderTextColor={theme.color.onSurfaceSecondary}
                 style={s.input}
               />
+              <Text style={[s.label, { marginTop: 12 }]}>Powitanie (opcjonalnie)</Text>
+              <TextInput
+                value={offerGreeting}
+                onChangeText={setOfferGreeting}
+                placeholder={"Domyślnie: „Dzień dobry " + (offerClient || "Panie/Pani") + ",”\n\nMożesz np. wpisać:\nCześć Aniu, dzięki za spotkanie — poniżej oferta o której mówiliśmy."}
+                placeholderTextColor={theme.color.onSurfaceSecondary}
+                style={[s.input, { minHeight: 70, textAlignVertical: "top" }]}
+                multiline
+              />
               <Text style={[s.label, { marginTop: 12 }]}>Uwagi w mailu</Text>
               <TextInput
                 testID="event-offer-email-note"
@@ -1321,11 +1373,30 @@ export default function EventDetail() {
                 multiline
               />
               <Pressable
+                onPress={previewOfferPdf}
+                disabled={offerPreviewing}
+                style={{
+                  marginTop: 12, borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: theme.color.brand,
+                  backgroundColor: theme.color.brand + "12",
+                  flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                  opacity: offerPreviewing ? 0.5 : 1,
+                }}
+              >
+                {offerPreviewing ? (
+                  <ActivityIndicator color={theme.color.brand} />
+                ) : (
+                  <>
+                    <Feather name="eye" size={16} color={theme.color.brand} />
+                    <Text style={{ color: theme.color.brand, fontWeight: "800", fontSize: 14 }}>Zobacz podgląd PDF</Text>
+                  </>
+                )}
+              </Pressable>
+              <Pressable
                 testID="event-offer-send-btn"
                 onPress={sendOfferForEvent}
                 disabled={offerSending || !offerTo.trim()}
                 style={{
-                  marginTop: 18, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15,
+                  marginTop: 10, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15,
                   flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                   opacity: (offerSending || !offerTo.trim()) ? 0.5 : 1,
                 }}

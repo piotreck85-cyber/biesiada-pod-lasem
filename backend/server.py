@@ -227,6 +227,8 @@ class SendOfferIn(BaseModel):
     package_set_id: Optional[str] = None # set1 | set2 | set3
     extras: Optional[List[dict]] = None  # [{id, qty?, amount?}]
     custom_note: Optional[str] = ""
+    custom_greeting: Optional[str] = ""  # override default "Dzień dobry {who}"
+    custom_subject: Optional[str] = ""   # override default subject
     event_id: Optional[str] = None       # optional link to event
     event_type: Optional[str] = None     # okolicznosciowe | firmowe | urodziny | warsztaty
     attachments_mode: Optional[str] = "both"  # For adult events: grill | dinner | both
@@ -610,7 +612,13 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
 
     # ---- Email body (plaintext) using the type-specific intro
     intro = build_intro_text(body.event_type)
-    greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
+    if (body.custom_greeting or "").strip():
+        greeting = body.custom_greeting.strip()
+    else:
+        greeting = f"Dzień dobry {who}," if who else "Dzień dobry,"
+    # Also allow overriding subject
+    if (body.custom_subject or "").strip():
+        subject = body.custom_subject.strip()
 
     # Attachment strategy per event type
     is_workshops = body.event_type == "warsztaty"
@@ -818,6 +826,39 @@ async def send_offer(body: SendOfferIn, user=Depends(current_user)):
           + (f" [{when}]" if when else ""),
     )
     return {"ok": True, "to": str(body.to_email)}
+
+
+@api.post("/offers/preview-pdf")
+async def preview_offer_pdf(body: SendOfferIn, user=Depends(current_user)):
+    """Same PDF that would be sent — returned inline for preview. Does NOT send email."""
+    from fastapi.responses import Response
+    from offer_email import build_offer_pdf
+    event_type = body.event_type or "okolicznosciowe"
+    is_adult = event_type in ("okolicznosciowe", "firmowe")
+    extras_norm = None
+    if is_adult and body.extras:
+        norm = []
+        for e in body.extras or []:
+            eid = e.get("id"); qty = e.get("qty") or 0; amount = e.get("amount") or 0
+            if not eid: continue
+            if eid == "ciasto": norm.append({"id": eid, "amount": float(amount)})
+            elif eid: norm.append({"id": eid, "qty": float(qty)})
+        extras_norm = norm
+    try:
+        pdf_bytes = build_offer_pdf(
+            client_name=body.client_name or None,
+            event_date=body.event_date or None,
+            people_count=body.people_count,
+            package_set_id=body.package_set_id if is_adult else None,
+            extras=extras_norm,
+            custom_note=body.custom_note or None,
+            event_type=event_type,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Nie udało się wygenerować PDF: {e}")
+    return Response(content=pdf_bytes, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="Oferta-podglad.pdf"'})
+
 
 # ---------- Staff ----------
 @api.get("/staff")

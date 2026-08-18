@@ -168,10 +168,26 @@ export const api = {
     package_set_id?: "set1" | "set2" | "set3" | null;
     extras?: { id: string; qty?: number; amount?: number }[];
     custom_note?: string;
+    custom_greeting?: string;
+    custom_subject?: string;
     event_id?: string;
     event_type?: "okolicznosciowe" | "firmowe" | "urodziny" | "warsztaty";
     attachments_mode?: "grill" | "dinner" | "both";
   }) => request("/offers/send-email", { method: "POST", body: JSON.stringify(data) }),
+  previewOfferPdfUrl: () => `${BASE}/api/offers/preview-pdf`,
+  previewOfferPdf: async (data: any): Promise<Blob> => {
+    const token = await tokenStore.get();
+    const res = await fetch(`${BASE}/api/offers/preview-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return await res.blob();
+  },
   icsUrl: () => `${BASE}/api/export/calendar.ics`,
 
   listAlerts: () => request("/alerts"),
