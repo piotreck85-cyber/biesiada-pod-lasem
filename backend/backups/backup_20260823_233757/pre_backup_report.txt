@@ -1,0 +1,29 @@
+BACKUP #3 — PRZED FAZĄ 4 (rozliczenia wspólników + moduł pracownika)
+2026-08-23T23:37:57.250936+00:00
+------------------------------------------------------------
+  _dedup_manifest                                     1
+  _removed_duplicates_events_004_dedup_events_staff_20260823_205527     508
+  _removed_duplicates_staff_004_dedup_events_staff_20260823_205527      12
+  alerts                                              0
+  assets                                              1
+  audit_log                                         234
+  checklist_items                                     0
+  checklist_templates                                 2
+  event_payments                                      1
+  events                                            525
+  expenses                                          711
+  google_calendar_connections                         0
+  menu_settings                                       1
+  oauth_states                                        0
+  shopping_items                                      0
+  shopping_overrides                                  1
+  staff                                              65
+  stock_items                                         4
+  stock_reservations                                  0
+  templates                                          36
+  time_entries                                        1
+  user_sessions                                      14
+  users                                              82
+  workspace_settings                                  1
+
+Total: 2200
