@@ -1,0 +1,24 @@
+BACKUP RAPORT — 2026-08-23T19:07:20.705935+00:00
+Baza: eventa_db
+Kolekcje: 20 · Dokumentów łącznie: 2185
+------------------------------------------------------------
+  alerts                                    0
+  assets                                    1
+  audit_log                               232
+  checklist_items                           0
+  checklist_templates                       2
+  events                                 1033
+  expenses                                711
+  google_calendar_connections               0
+  menu_settings                             1
+  oauth_states                              0
+  shopping_items                            0
+  shopping_overrides                        1
+  staff                                    77
+  stock_items                               4
+  stock_reservations                        0
+  templates                                36
+  time_entries                              1
+  user_sessions                             3
+  users                                    82
+  workspace_settings                        1

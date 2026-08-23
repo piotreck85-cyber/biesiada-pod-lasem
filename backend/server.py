@@ -27,6 +27,34 @@ app = FastAPI(title="Eventa API")
 api = APIRouter(prefix="/api")
 bearer = HTTPBearer(auto_error=False)
 
+# ---------- Temporary backup download (Preview only) ----------
+import secrets as _secrets, json as _json
+from fastapi.responses import FileResponse
+
+_BACKUP_TOKENS_FILE = "/app/backend/backups/.download_tokens.json"
+
+def _load_backup_tokens() -> dict:
+    try:
+        with open(_BACKUP_TOKENS_FILE) as f:
+            return _json.load(f)
+    except Exception:
+        return {}
+
+@app.get("/api/admin/backup-download")
+async def admin_backup_download(token: str, filename: str):
+    """One-time backup ZIP download. Token issued out-of-band by main agent."""
+    tokens = _load_backup_tokens()
+    stored = tokens.get(token)
+    if not stored or stored != filename:
+        raise HTTPException(404, "Invalid or expired backup token")
+    import re
+    if not re.match(r"^backup_\d{8}_\d{6}\.zip$", filename):
+        raise HTTPException(404)
+    path = f"/app/backend/backups/{filename}"
+    if not os.path.exists(path):
+        raise HTTPException(404, "Backup file missing")
+    return FileResponse(path, filename=filename, media_type="application/zip")
+
 # ---------- Google Calendar sync helpers ----------
 import google_calendar as gcal
 from fastapi.responses import HTMLResponse
