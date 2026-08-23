@@ -40,9 +40,9 @@ def _load_backup_tokens() -> dict:
     except Exception:
         return {}
 
-@app.get("/api/admin/backup-download")
-async def admin_backup_download(token: str, filename: str):
-    """One-time backup ZIP download. Token issued out-of-band by main agent."""
+@app.get("/api/admin/backup-download/{token}/{filename}")
+async def admin_backup_download_v2(token: str, filename: str):
+    """Backup ZIP download via path params (avoids query-string mangling)."""
     tokens = _load_backup_tokens()
     stored = tokens.get(token)
     if not stored or stored != filename:
@@ -54,6 +54,11 @@ async def admin_backup_download(token: str, filename: str):
     if not os.path.exists(path):
         raise HTTPException(404, "Backup file missing")
     return FileResponse(path, filename=filename, media_type="application/zip")
+
+@app.get("/api/admin/backup-download")
+async def admin_backup_download(token: str, filename: str):
+    """Legacy query-string variant (kept for compatibility)."""
+    return await admin_backup_download_v2(token, filename)
 
 # ---------- Google Calendar sync helpers ----------
 import google_calendar as gcal
