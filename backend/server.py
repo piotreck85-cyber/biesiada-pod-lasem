@@ -4353,6 +4353,278 @@ async def stock_needed_suggestions(user=Depends(current_user), date_from: str = 
     }
 
 
+# ---------- Checklists (event tasks) ----------
+class ChecklistTemplateIn(BaseModel):
+    title: str
+    event_types: Optional[List[str]] = None   # None or empty = all event types
+    order: Optional[int] = 0
+
+class ChecklistTaskIn(BaseModel):
+    title: str
+    order: Optional[int] = 0
+
+class ChecklistTaskPatch(BaseModel):
+    title: Optional[str] = None
+    done: Optional[bool] = None
+    order: Optional[int] = None
+
+
+@api.get("/checklist-templates")
+async def list_checklist_templates(user=Depends(require_admin)):
+    rows = await db.checklist_templates.find(
+        {"owner_id": ws(user)}, {"_id": 0}
+    ).sort([("order", 1), ("created_at", 1)]).to_list(500)
+    return rows
+
+
+@api.post("/checklist-templates")
+async def create_checklist_template(body: ChecklistTemplateIn, user=Depends(require_admin)):
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "Podaj treść zadania")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "title": title,
+        "event_types": [e.lower() for e in (body.event_types or []) if e] or None,
+        "order": int(body.order or 0),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.checklist_templates.insert_one(dict(doc))
+    await log_change(user, "create", "checklist_template", doc["id"], f"Dodano szablon zadania: {title}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.put("/checklist-templates/{tpl_id}")
+async def update_checklist_template(tpl_id: str, body: ChecklistTemplateIn, user=Depends(require_admin)):
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "Podaj treść zadania")
+    r = await db.checklist_templates.update_one(
+        {"id": tpl_id, "owner_id": ws(user)},
+        {"$set": {
+            "title": title,
+            "event_types": [e.lower() for e in (body.event_types or []) if e] or None,
+            "order": int(body.order or 0),
+        }},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Nie znaleziono szablonu")
+    doc = await db.checklist_templates.find_one({"id": tpl_id}, {"_id": 0})
+    await log_change(user, "update", "checklist_template", tpl_id, f"Edytowano szablon zadania: {title}")
+    return doc
+
+
+@api.delete("/checklist-templates/{tpl_id}")
+async def delete_checklist_template(tpl_id: str, user=Depends(require_admin)):
+    doc = await db.checklist_templates.find_one({"id": tpl_id, "owner_id": ws(user)}, {"_id": 0})
+    await db.checklist_templates.delete_one({"id": tpl_id, "owner_id": ws(user)})
+    if doc:
+        await log_change(user, "delete", "checklist_template", tpl_id, f"Usunięto szablon zadania: {doc.get('title','')}")
+    return {"ok": True}
+
+
+async def _materialize_checklist_from_templates(ws_id: str, ev: dict) -> None:
+    """Create default checklist tasks for an event from admin templates.
+    Idempotent — skips if the event was already initialized. Adds tasks that don't yet
+    exist for this event (by template_id) so re-init picks up NEW templates."""
+    et = (ev.get("category") or ev.get("event_type") or "").strip().lower()
+    q: dict = {"owner_id": ws_id}
+    if et:
+        q["$or"] = [
+            {"event_types": None},
+            {"event_types": {"$size": 0}},
+            {"event_types": {"$in": [et]}},
+        ]
+    else:
+        q["$or"] = [{"event_types": None}, {"event_types": {"$size": 0}}]
+    tpls = await db.checklist_templates.find(q, {"_id": 0}).sort([("order", 1), ("created_at", 1)]).to_list(500)
+    # Skip templates already applied to this event
+    existing = await db.checklist_items.find(
+        {"owner_id": ws_id, "event_id": ev["id"], "source": "template"},
+        {"_id": 0, "template_id": 1},
+    ).to_list(1000)
+    already = {x.get("template_id") for x in existing if x.get("template_id")}
+    now = datetime.now(timezone.utc).isoformat()
+    docs = []
+    for i, t in enumerate(tpls):
+        if t["id"] in already:
+            continue
+        docs.append({
+            "id": str(uuid.uuid4()),
+            "owner_id": ws_id,
+            "event_id": ev["id"],
+            "title": t["title"],
+            "order": int(t.get("order") or i),
+            "done": False,
+            "done_by_id": None,
+            "done_by_name": None,
+            "done_at": None,
+            "source": "template",
+            "template_id": t["id"],
+            "created_at": now,
+        })
+    if docs:
+        await db.checklist_items.insert_many(docs)
+    await db.events.update_one(
+        {"id": ev["id"]},
+        {"$set": {"checklist_initialized": True, "checklist_initialized_at": now}},
+    )
+
+
+async def _event_visible_to_user(user: dict, event_id: str) -> Optional[dict]:
+    """Return event doc iff the user can see it (owner or assigned staff)."""
+    q: dict = {"id": event_id, "owner_id": ws(user)}
+    if is_staff(user):
+        sid = user.get("staff_id")
+        if not sid:
+            return None
+        q["shifts.staff_id"] = sid
+    return await db.events.find_one(q, {"_id": 0})
+
+
+@api.get("/events/{event_id}/checklist")
+async def get_event_checklist(event_id: str, user=Depends(current_user)):
+    ev = await _event_visible_to_user(user, event_id)
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    if not ev.get("checklist_initialized"):
+        await _materialize_checklist_from_templates(ws(user), ev)
+    items = await db.checklist_items.find(
+        {"owner_id": ws(user), "event_id": event_id}, {"_id": 0}
+    ).sort([("order", 1), ("created_at", 1)]).to_list(1000)
+    return {
+        "event": {
+            "id": ev["id"],
+            "name": ev.get("name", ""),
+            "date": ev.get("date", ""),
+            "time_start": ev.get("time_start", ""),
+            "time_end": ev.get("time_end", ""),
+            "category": ev.get("category", ""),
+        },
+        "items": items,
+    }
+
+
+@api.post("/events/{event_id}/checklist/init")
+async def init_event_checklist(event_id: str, user=Depends(require_admin)):
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    await _materialize_checklist_from_templates(ws(user), ev)
+    items = await db.checklist_items.find(
+        {"owner_id": ws(user), "event_id": event_id}, {"_id": 0}
+    ).sort([("order", 1), ("created_at", 1)]).to_list(1000)
+    return {"ok": True, "items": items}
+
+
+@api.post("/events/{event_id}/checklist")
+async def add_checklist_task(event_id: str, body: ChecklistTaskIn, user=Depends(require_admin)):
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    title = (body.title or "").strip()
+    if not title:
+        raise HTTPException(400, "Podaj treść zadania")
+    now = datetime.now(timezone.utc).isoformat()
+    # Compute next order at the end
+    last = await db.checklist_items.find(
+        {"owner_id": ws(user), "event_id": event_id}, {"_id": 0, "order": 1}
+    ).sort("order", -1).limit(1).to_list(1)
+    next_order = int(body.order) if body.order else ((last[0]["order"] + 1) if last else 0)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "event_id": event_id,
+        "title": title,
+        "order": next_order,
+        "done": False,
+        "done_by_id": None,
+        "done_by_name": None,
+        "done_at": None,
+        "source": "adhoc",
+        "created_at": now,
+    }
+    await db.checklist_items.insert_one(dict(doc))
+    await db.events.update_one({"id": event_id}, {"$set": {"checklist_initialized": True}})
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.patch("/events/{event_id}/checklist/{task_id}")
+async def patch_checklist_task(event_id: str, task_id: str, body: ChecklistTaskPatch,
+                                user=Depends(current_user)):
+    ev = await _event_visible_to_user(user, event_id)
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    updates: dict = {}
+    if body.done is not None:
+        updates["done"] = bool(body.done)
+        if body.done:
+            updates["done_by_id"] = user.get("id")
+            updates["done_by_name"] = user.get("name") or user.get("email", "")
+            updates["done_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            updates["done_by_id"] = None
+            updates["done_by_name"] = None
+            updates["done_at"] = None
+    if is_admin(user):
+        if body.title is not None:
+            t = body.title.strip()
+            if not t:
+                raise HTTPException(400, "Treść zadania nie może być pusta")
+            updates["title"] = t
+        if body.order is not None:
+            updates["order"] = int(body.order)
+    if not updates:
+        raise HTTPException(400, "Brak zmian")
+    r = await db.checklist_items.update_one(
+        {"id": task_id, "event_id": event_id, "owner_id": ws(user)},
+        {"$set": updates},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Nie znaleziono zadania")
+    doc = await db.checklist_items.find_one({"id": task_id}, {"_id": 0})
+    return doc
+
+
+@api.delete("/events/{event_id}/checklist/{task_id}")
+async def delete_checklist_task(event_id: str, task_id: str, user=Depends(require_admin)):
+    await db.checklist_items.delete_one(
+        {"id": task_id, "event_id": event_id, "owner_id": ws(user)}
+    )
+    return {"ok": True}
+
+
+@api.get("/staff/my/checklists")
+async def my_checklists(user=Depends(current_user), days: int = 14):
+    """Upcoming events (next `days`) visible to the caller with checklist progress."""
+    from datetime import date as _date
+    today = _date.today().isoformat()
+    end = (_date.today() + timedelta(days=max(1, int(days or 14)))).isoformat()
+    q: dict = {"owner_id": ws(user), "date": {"$gte": today, "$lte": end}}
+    if is_staff(user):
+        sid = user.get("staff_id")
+        if not sid:
+            return []
+        q["shifts.staff_id"] = sid
+    events = await db.events.find(q, {
+        "_id": 0, "id": 1, "date": 1, "name": 1, "time_start": 1, "time_end": 1,
+        "status": 1, "category": 1, "location": 1, "checklist_initialized": 1,
+    }).sort("date", 1).to_list(200)
+    out = []
+    for ev in events:
+        if not ev.get("checklist_initialized"):
+            await _materialize_checklist_from_templates(ws(user), ev)
+        total = await db.checklist_items.count_documents(
+            {"owner_id": ws(user), "event_id": ev["id"]}
+        )
+        done = await db.checklist_items.count_documents(
+            {"owner_id": ws(user), "event_id": ev["id"], "done": True}
+        )
+        out.append({**ev, "tasks_total": total, "tasks_done": done})
+    return out
+
+
 app.include_router(api)
 
 

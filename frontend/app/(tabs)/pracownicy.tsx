@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
@@ -87,6 +87,49 @@ export default function Pracownicy() {
 
   // ---- Wages view ----
   const [mode, setMode] = useState<"list" | "wages">("list");
+  // Payroll (weekly settlement based on clocked time_entries)
+  const mondayIso = (d: Date) => {
+    const day = d.getDay() || 7;
+    const monday = new Date(d); monday.setDate(d.getDate() - day + 1);
+    return monday.toISOString().slice(0, 10);
+  };
+  const sundayIso = (d: Date) => {
+    const day = d.getDay() || 7;
+    const sun = new Date(d); sun.setDate(d.getDate() + (7 - day));
+    return sun.toISOString().slice(0, 10);
+  };
+  const [payrollOpen, setPayrollOpen] = useState(false);
+  const [payrollFrom, setPayrollFrom] = useState<string>(mondayIso(new Date()));
+  const [payrollTo, setPayrollTo]     = useState<string>(sundayIso(new Date()));
+  const [payrollData, setPayrollData] = useState<any | null>(null);
+  const [payrollLoading, setPayrollLoading] = useState(false);
+  const [payrollMarking, setPayrollMarking] = useState(false);
+  const loadPayroll = useCallback(async () => {
+    setPayrollLoading(true);
+    try { const r: any = await api.payrollSummary({ date_from: payrollFrom, date_to: payrollTo, unpaid_only: true }); setPayrollData(r || null); }
+    catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+    finally { setPayrollLoading(false); }
+  }, [payrollFrom, payrollTo]);
+  useEffect(() => { if (payrollOpen) loadPayroll(); }, [payrollOpen, loadPayroll]);
+  const doMarkPaid = async () => {
+    if (!payrollData?.staff?.length) return;
+    Alert.alert(
+      "Oznaczyć jako wypłacone?",
+      `${payrollFrom} — ${payrollTo}\nŁącznie do wypłaty: ${formatPLN(payrollData.total || 0)}\n\nZostanie automatycznie zaksięgowany koszt firmowy w kategorii „Wypłaty pracowników”.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        { text: "Rozlicz", onPress: async () => {
+          setPayrollMarking(true);
+          try {
+            const r: any = await api.payrollMarkPaid({ date_from: payrollFrom, date_to: payrollTo, create_expense: true });
+            Alert.alert("Rozliczono ✓", `${r.affected} wpisów · ${formatPLN(r.total)} · ${r.expenses_created} kosztów.`);
+            await loadPayroll();
+          } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+          finally { setPayrollMarking(false); }
+        }},
+      ],
+    );
+  };
   const now = new Date();
   const [wagesYear, setWagesYear] = useState(now.getFullYear());
   const [wagesMonth, setWagesMonth] = useState(now.getMonth());  // 0-indexed
@@ -310,6 +353,11 @@ export default function Pracownicy() {
                     </View>
                     <Feather name="dollar-sign" size={22} color={theme.color.brand} />
                   </View>
+                  <Pressable onPress={() => setPayrollOpen(true)} style={s.payrollBtn}>
+                    <Feather name="check-circle" size={16} color={theme.color.brand} />
+                    <Text style={s.payrollBtnText}>Rozlicz tygodniówkę (zapisane godziny)</Text>
+                    <Feather name="chevron-right" size={16} color={theme.color.brand} />
+                  </Pressable>
                   <FlatList
                     data={wagesData?.staff || []}
                     keyExtractor={(w) => w.staff_id}
@@ -735,6 +783,84 @@ export default function Pracownicy() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Payroll (weekly settlement) modal */}
+      <Modal visible={payrollOpen} transparent animationType="slide" onRequestClose={() => setPayrollOpen(false)}>
+        <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.5)" }}>
+          <Pressable style={{ flex: 1 }} onPress={() => setPayrollOpen(false)} />
+          <View style={{ backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: insets.bottom + 20, maxHeight: "80%" }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.border, marginBottom: 12 }} />
+            <Text style={s.title}>Rozliczenie wypłat</Text>
+            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>
+              Wypłaca się tylko godziny z listy obecności (rzeczywiście zaklikane „Rozpoczynam / Kończę pracę”)
+            </Text>
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.label}>Od</Text>
+                <TextInput value={payrollFrom} onChangeText={setPayrollFrom} style={s.input}
+                  {...(Platform.OS === "web" ? ({ type: "date" } as any) : {})} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.label}>Do</Text>
+                <TextInput value={payrollTo} onChangeText={setPayrollTo} style={s.input}
+                  {...(Platform.OS === "web" ? ({ type: "date" } as any) : {})} />
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              <Pressable onPress={() => { const now = new Date(); setPayrollFrom(mondayIso(now)); setPayrollTo(sundayIso(now)); }} style={s.quickChip}>
+                <Text style={s.quickChipTxt}>Ten tydzień</Text>
+              </Pressable>
+              <Pressable onPress={() => { const d = new Date(); d.setDate(d.getDate() - 7); setPayrollFrom(mondayIso(d)); setPayrollTo(sundayIso(d)); }} style={s.quickChip}>
+                <Text style={s.quickChipTxt}>Poprzedni tydzień</Text>
+              </Pressable>
+              <Pressable onPress={loadPayroll} style={s.quickChip}>
+                <Feather name="refresh-ccw" size={12} color={theme.color.brand} />
+                <Text style={s.quickChipTxt}>Odśwież</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView style={{ marginTop: 12, maxHeight: 380 }}>
+              {payrollLoading ? <ActivityIndicator color={theme.color.brand} /> :
+               !payrollData?.staff?.length ? (
+                <Text style={{ color: theme.color.onSurfaceSecondary, textAlign: "center", padding: 20 }}>
+                  Brak nierozliczonych godzin w tym okresie.
+                </Text>
+               ) : payrollData.staff.map((r: any) => (
+                <View key={r.staff_id || r.name} style={s.payrollRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "700" }}>{r.name}</Text>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11 }}>
+                      {r.hours.toFixed(2)} godz. × {r.hourly_rate.toFixed(2)} zł
+                    </Text>
+                  </View>
+                  <Text style={{ color: theme.color.brand, fontSize: 15, fontWeight: "800" }}>{formatPLN(r.amount)}</Text>
+                </View>
+               ))}
+            </ScrollView>
+
+            {payrollData?.staff?.length ? (
+              <View style={{ marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: theme.color.brand + "12", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1, fontWeight: "700" }}>ŁĄCZNIE DO WYPŁATY</Text>
+                <Text style={{ color: theme.color.brand, fontSize: 22, fontWeight: "800", marginTop: 2 }}>{formatPLN(payrollData.total || 0)}</Text>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={doMarkPaid}
+              disabled={payrollMarking || !payrollData?.staff?.length}
+              style={[{ marginTop: 14, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 8 },
+                     (payrollMarking || !payrollData?.staff?.length) && { opacity: 0.5 }]}
+            >
+              {payrollMarking ? <ActivityIndicator color="#fff" /> : (
+                <>
+                  <Feather name="check" size={16} color="#fff" />
+                  <Text style={{ color: "#fff", fontWeight: "800", fontSize: 15 }}>Oznacz wypłacone</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -778,6 +904,11 @@ const s = StyleSheet.create({
   wagesSumLabel: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
   wagesSumValue: { color: theme.color.brand, fontSize: 26, fontWeight: "800", marginTop: 2 },
   wagesSumSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  payrollBtn: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, marginBottom: 10, borderRadius: 12, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "0A" },
+  payrollBtnText: { flex: 1, color: theme.color.brand, fontSize: 13, fontWeight: "700" },
+  payrollRow: { flexDirection: "row", alignItems: "center", padding: 10, borderBottomWidth: 0.5, borderBottomColor: theme.color.divider },
+  quickChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
+  quickChipTxt: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
   wageRow: {
     flexDirection: "row", alignItems: "center", gap: 12,
     backgroundColor: theme.color.surfaceSecondary,

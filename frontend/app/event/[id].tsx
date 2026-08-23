@@ -1216,6 +1216,24 @@ export default function EventDetail() {
             ) : null}
           </Section>
 
+          {/* Checklist (Zadania imprezy) — only for saved events */}
+          {!isNew && (
+            <Pressable
+              onPress={() => router.push({ pathname: "/checklist/[id]", params: { id: String(id) } } as any)}
+              style={s.checklistLink}
+              testID="event-checklist-link"
+            >
+              <View style={s.checklistIconBox}>
+                <Feather name="check-square" size={20} color={theme.color.brand} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.checklistLabel}>Zadania imprezy</Text>
+                <Text style={s.checklistSub}>Checklista przygotowań · widoczna dla pracowników</Text>
+              </View>
+              <Feather name="chevron-right" size={20} color={theme.color.onSurfaceSecondary} />
+            </Pressable>
+          )}
+
           {/* Summary */}
           <View style={s.summary}>
             <SummaryRow label="Przychód" value={revenueNum} />
@@ -1668,4 +1686,17 @@ const s = StyleSheet.create({
     color: theme.color.brand, fontSize: 11, letterSpacing: 2, fontWeight: "800",
     marginTop: 4, marginBottom: 4, paddingHorizontal: 4,
   },
+  checklistLink: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, marginTop: 14, borderRadius: 14,
+    borderWidth: 1, borderColor: theme.color.brand + "44",
+    backgroundColor: theme.color.brand + "0A",
+  },
+  checklistIconBox: {
+    width: 42, height: 42, borderRadius: 12,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: theme.color.brand + "18",
+  },
+  checklistLabel: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
+  checklistSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
 });

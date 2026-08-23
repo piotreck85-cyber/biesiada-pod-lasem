@@ -251,4 +251,25 @@ export const api = {
     request("/assets", { method: "POST", body: JSON.stringify(data) }),
   assetsUpdate: (id: string, patch: any) => request(`/assets/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
   assetsDelete: (id: string) => request(`/assets/${id}`, { method: "DELETE" }),
+
+  // ---------- Checklists (event tasks) ----------
+  listChecklistTemplates: () => request("/checklist-templates"),
+  createChecklistTemplate: (data: { title: string; event_types?: string[] | null; order?: number }) =>
+    request("/checklist-templates", { method: "POST", body: JSON.stringify(data) }),
+  updateChecklistTemplate: (id: string, data: { title: string; event_types?: string[] | null; order?: number }) =>
+    request(`/checklist-templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteChecklistTemplate: (id: string) =>
+    request(`/checklist-templates/${id}`, { method: "DELETE" }),
+
+  getEventChecklist: (eventId: string) => request(`/events/${eventId}/checklist`),
+  initEventChecklist: (eventId: string) =>
+    request(`/events/${eventId}/checklist/init`, { method: "POST" }),
+  addChecklistTask: (eventId: string, title: string) =>
+    request(`/events/${eventId}/checklist`, { method: "POST", body: JSON.stringify({ title }) }),
+  patchChecklistTask: (eventId: string, taskId: string, patch: { title?: string; done?: boolean; order?: number }) =>
+    request(`/events/${eventId}/checklist/${taskId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteChecklistTask: (eventId: string, taskId: string) =>
+    request(`/events/${eventId}/checklist/${taskId}`, { method: "DELETE" }),
+
+  myChecklists: (days?: number) => request(`/staff/my/checklists${days ? `?days=${days}` : ""}`),
 };

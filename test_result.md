@@ -294,6 +294,31 @@ agent_communication:
       message: |
         Please test the 5 backend tasks and 3 frontend tasks above. Test credentials at
         /app/memory/test_credentials.md. Use test@eventa.pl / test123 for login.
+    - agent: "main"
+      message: |
+        Iteration 17 — Event Checklists (Zadania) Stage 2 implemented.
+        Backend (`/app/backend/server.py`): checklist_templates + checklist_items collections.
+          - GET/POST/PUT/DELETE /api/checklist-templates (admin only)
+          - GET /api/events/{event_id}/checklist (visible to owner + assigned staff; auto-materializes from templates)
+          - POST /api/events/{event_id}/checklist/init (admin — re-material only NEW templates)
+          - POST /api/events/{event_id}/checklist (admin — add ad-hoc task)
+          - PATCH /api/events/{event_id}/checklist/{task_id} (staff can only toggle `done`; admin can edit title/order)
+          - DELETE /api/events/{event_id}/checklist/{task_id} (admin)
+          - GET /api/staff/my/checklists (upcoming events assigned to staff with progress)
+        Frontend:
+          - New reusable component /app/frontend/src/components/EventChecklist.tsx
+          - New route /app/frontend/app/checklist/[id].tsx (shared per-event checklist view)
+          - Rewrote /app/frontend/app/(tabs)/zadania.tsx (staff list of upcoming events + progress bars)
+          - New /app/frontend/app/(tabs)/checklist-templates.tsx (admin template management with event-type filters)
+          - Added "Zadania imprezy" link inside /app/frontend/app/event/[id].tsx (admin)
+          - Added "Szablony zadań (checklisty)" row in Więcej hub
+          - Updated (tabs)/_layout.tsx to hide checklist-templates from both admin and staff tab bars
+        Verified via curl + browser screenshots:
+          - Templates CRUD OK
+          - Auto-materialization on first checklist read OK (only matching event_types + null=all)
+          - Toggle done stores done_by_name/done_at
+          - Progress bar renders correctly in staff view
+          - Payroll modal (from previous session) renders correctly on Wypłaty tab
     - agent: "testing"
       message: |
         Iteration 16 — ALL PASSED (11/11 pytest + 4/4 UI checks).
