@@ -1,0 +1,88 @@
+{
+  "collections": {
+    "alerts": {
+      "total": 0,
+      "unique_id": null
+    },
+    "assets": {
+      "total": 1,
+      "unique_id": 1
+    },
+    "audit_log": {
+      "total": 234,
+      "unique_id": 234
+    },
+    "checklist_items": {
+      "total": 0,
+      "unique_id": null
+    },
+    "checklist_templates": {
+      "total": 2,
+      "unique_id": 2
+    },
+    "event_payments": {
+      "total": 1,
+      "unique_id": 1
+    },
+    "events": {
+      "total": 1033,
+      "unique_id": 525
+    },
+    "expenses": {
+      "total": 711,
+      "unique_id": 711
+    },
+    "google_calendar_connections": {
+      "total": 0,
+      "unique_id": null
+    },
+    "menu_settings": {
+      "total": 1,
+      "unique_id": null
+    },
+    "oauth_states": {
+      "total": 0,
+      "unique_id": null
+    },
+    "shopping_items": {
+      "total": 0,
+      "unique_id": null
+    },
+    "shopping_overrides": {
+      "total": 1,
+      "unique_id": null
+    },
+    "staff": {
+      "total": 77,
+      "unique_id": 65
+    },
+    "stock_items": {
+      "total": 4,
+      "unique_id": 4
+    },
+    "stock_reservations": {
+      "total": 0,
+      "unique_id": null
+    },
+    "templates": {
+      "total": 36,
+      "unique_id": 36
+    },
+    "time_entries": {
+      "total": 1,
+      "unique_id": 1
+    },
+    "user_sessions": {
+      "total": 8,
+      "unique_id": null
+    },
+    "users": {
+      "total": 82,
+      "unique_id": 82
+    },
+    "workspace_settings": {
+      "total": 1,
+      "unique_id": null
+    }
+  }
+}

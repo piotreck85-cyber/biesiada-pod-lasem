@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"06e228b3df2a406ebab7dbf4fb3e74c0","collectionName":"workspace_settings","type":"collection"}
