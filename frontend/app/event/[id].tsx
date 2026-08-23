@@ -15,6 +15,7 @@ import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
 import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers";
 import { DINNER_MENU, DINNER_SECTIONS, discountedPrice, DINNER_DISCOUNT, dinnerAutoCost } from "@/src/dinnerMenu";
+import EventPayments from "@/src/components/EventPayments";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -832,6 +833,16 @@ export default function EventDetail() {
               </View>
             )}
           </Section>
+
+          {/* Wpłaty klienta (Faza 2 v2.0) — historia wpłat */}
+          {!isNew && (
+            <Section title="Wpłaty klienta">
+              <EventPayments eventId={String(id)} priceTotalOverride={parseAmt(priceTotal)} />
+              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
+                💡 Pole „Zaliczka wpłacona" powyżej pozostaje na razie dla kompatybilności — nowe wpłaty rejestruj tutaj.
+              </Text>
+            </Section>
+          )}
 
           {/* Weather */}
           <Section title="Pogoda w dniu imprezy">

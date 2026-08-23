@@ -272,4 +272,13 @@ export const api = {
     request(`/events/${eventId}/checklist/${taskId}`, { method: "DELETE" }),
 
   myChecklists: (days?: number) => request(`/staff/my/checklists${days ? `?days=${days}` : ""}`),
+
+  // ---------- Event Payments (Faza 2) ----------
+  getEventPayments: (eventId: string) => request(`/events/${eventId}/payments`),
+  addEventPayment: (eventId: string, data: { amount: number; date: string; method?: string; note?: string; kind?: string }) =>
+    request(`/events/${eventId}/payments`, { method: "POST", body: JSON.stringify(data) }),
+  editEventPayment: (eventId: string, paymentId: string, patch: { amount?: number; date?: string; method?: string; note?: string; kind?: string }) =>
+    request(`/events/${eventId}/payments/${paymentId}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deleteEventPayment: (eventId: string, paymentId: string) =>
+    request(`/events/${eventId}/payments/${paymentId}`, { method: "DELETE" }),
 };

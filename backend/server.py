@@ -4658,6 +4658,160 @@ async def my_checklists(user=Depends(current_user), days: int = 14):
     return out
 
 
+# ---------- Event Payments (Faza 2 v2.0) ----------
+# Historia wpłat klienta per impreza. Odrębna kolekcja `event_payments`.
+# Nie nadpisuje pola `deposit_amount` — pozostawione dla kompatybilności wstecznej.
+
+PAYMENT_METHODS = {"Gotówka", "Przelew", "BLIK", "Karta", "Inne", "Zaliczka"}
+
+class EventPaymentIn(BaseModel):
+    amount: float
+    date: str                     # ISO date YYYY-MM-DD
+    method: str = "Przelew"
+    note: Optional[str] = ""
+    kind: Optional[str] = "wpłata"  # "zaliczka" | "wpłata" | "końcowa"
+
+class EventPaymentPatch(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+    kind: Optional[str] = None
+
+
+def _payment_status(price_total: float, paid_sum: float, n_payments: int) -> str:
+    """Wyliczany automatycznie status płatności."""
+    try:
+        p = float(price_total or 0)
+    except Exception:
+        p = 0.0
+    try:
+        s = float(paid_sum or 0)
+    except Exception:
+        s = 0.0
+    if s <= 0:
+        return "Nie zapłacono"
+    if p > 0 and s >= p - 0.01:
+        return "Zapłacono"
+    if n_payments == 1 and s < p:
+        return "Zaliczka"
+    return "Częściowo zapłacono"
+
+
+async def _event_payments_summary(ws_id: str, event_id: str, price_total: float) -> dict:
+    """Zwraca {payments: [...], paid_sum, remaining, payment_status}."""
+    payments = await db.event_payments.find(
+        {"owner_id": ws_id, "event_id": event_id}, {"_id": 0}
+    ).sort([("date", 1), ("created_at", 1)]).to_list(500)
+    paid = sum(float(p.get("amount") or 0) for p in payments)
+    price = float(price_total or 0)
+    remaining = max(0.0, price - paid) if price > 0 else 0.0
+    status = _payment_status(price, paid, len(payments))
+    return {
+        "payments": payments,
+        "payments_total": round(paid, 2),
+        "payments_remaining": round(remaining, 2),
+        "payment_status": status,
+    }
+
+
+@api.get("/events/{event_id}/payments")
+async def list_event_payments(event_id: str, user=Depends(current_user)):
+    ev = await _event_visible_to_user(user, event_id)
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    summary = await _event_payments_summary(ws(user), event_id, ev.get("price_total") or ev.get("revenue") or 0)
+    return {
+        "event": {
+            "id": ev["id"],
+            "name": ev.get("name", ""),
+            "date": ev.get("date", ""),
+            "price_total": float(ev.get("price_total") or ev.get("revenue") or 0),
+        },
+        **summary,
+    }
+
+
+@api.post("/events/{event_id}/payments")
+async def add_event_payment(event_id: str, body: EventPaymentIn, user=Depends(require_admin)):
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+    try:
+        amount = float(body.amount)
+    except Exception:
+        raise HTTPException(400, "Nieprawidłowa kwota")
+    if amount <= 0:
+        raise HTTPException(400, "Kwota musi być większa od zera")
+    if not body.date or len(body.date) < 8:
+        raise HTTPException(400, "Podaj datę wpłaty")
+    method = (body.method or "Przelew").strip() or "Przelew"
+    kind = (body.kind or "wpłata").strip().lower()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "event_id": event_id,
+        "amount": round(amount, 2),
+        "date": body.date,
+        "method": method,
+        "note": (body.note or "").strip(),
+        "kind": kind,
+        "created_by": user.get("id"),
+        "created_by_name": user.get("name") or user.get("email", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.event_payments.insert_one(dict(doc))
+    await log_change(user, "create", "event_payment", doc["id"],
+                     f"Wpłata {amount:.2f} zł ({method}) do imprezy „{ev.get('name','')}")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.patch("/events/{event_id}/payments/{payment_id}")
+async def edit_event_payment(event_id: str, payment_id: str, body: EventPaymentPatch,
+                              user=Depends(require_admin)):
+    updates: dict = {}
+    if body.amount is not None:
+        try:
+            a = float(body.amount)
+        except Exception:
+            raise HTTPException(400, "Nieprawidłowa kwota")
+        if a <= 0:
+            raise HTTPException(400, "Kwota musi być większa od zera")
+        updates["amount"] = round(a, 2)
+    if body.date is not None:
+        if len(body.date) < 8:
+            raise HTTPException(400, "Podaj datę")
+        updates["date"] = body.date
+    if body.method is not None:
+        updates["method"] = body.method.strip() or "Przelew"
+    if body.note is not None:
+        updates["note"] = body.note.strip()
+    if body.kind is not None:
+        updates["kind"] = body.kind.strip().lower() or "wpłata"
+    if not updates:
+        raise HTTPException(400, "Brak zmian")
+    r = await db.event_payments.update_one(
+        {"id": payment_id, "event_id": event_id, "owner_id": ws(user)},
+        {"$set": updates},
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Nie znaleziono wpłaty")
+    doc = await db.event_payments.find_one({"id": payment_id}, {"_id": 0})
+    return doc
+
+
+@api.delete("/events/{event_id}/payments/{payment_id}")
+async def delete_event_payment(event_id: str, payment_id: str, user=Depends(require_admin)):
+    doc = await db.event_payments.find_one({"id": payment_id, "event_id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    await db.event_payments.delete_one(
+        {"id": payment_id, "event_id": event_id, "owner_id": ws(user)}
+    )
+    if doc:
+        await log_change(user, "delete", "event_payment", payment_id,
+                         f"Usunięto wpłatę {doc.get('amount',0)} zł")
+    return {"ok": True}
+
+
 app.include_router(api)
 
 
