@@ -81,18 +81,24 @@ export default function Kalendarz() {
 
   const load = useCallback(async () => {
     try {
-      const [evs, staff, exps] = await Promise.all([
+      const monthLast = new Date(year, month + 1, 0).getDate();
+      const df = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+      const dt = `${year}-${String(month + 1).padStart(2, "0")}-${String(monthLast).padStart(2, "0")}`;
+      const [evs, staff, exps, mv2Res] = await Promise.all([
         api.listEvents(year, month + 1),
         api.listStaff(),
         api.listExpenses(year, month + 1),
+        api.financeSummaryV2({ date_from: df, date_to: dt }).catch(() => null),
       ]);
       setEvents(evs as any[]);
       setStaffAll(staff as any[]);
       setExpenses(exps as any[]);
+      setMv2(mv2Res as any);
     } catch {}
   }, [year, month]);
 
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [mv2, setMv2] = useState<any | null>(null);
 
   // Alerts (2-day stale bookings)
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -268,59 +274,42 @@ export default function Kalendarz() {
         </View>
       </View>
 
-      {/* Monthly summary card — 4 clear values + separate profit line */}
-      <View style={s.summaryCard} testID="monthly-summary">
-        <Pressable style={s.summaryCol} testID="summary-actual-rev" onPress={() => router.push("/(tabs)/statystyki")}>
-          <View style={[s.summaryDot, { backgroundColor: theme.color.success }]} />
-          <Text style={s.summaryLabel}>Przychód</Text>
-          <Text style={[s.summaryValue, { color: theme.color.success }]}>
-            {monthlySummary.actualRevenue.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={s.summaryUnit}>zł</Text>
-        </Pressable>
-        <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-actual-cost" onPress={() => router.push("/(tabs)/koszty")}>
-          <View style={[s.summaryDot, { backgroundColor: theme.color.error }]} />
-          <Text style={s.summaryLabel}>Koszt</Text>
-          <Text style={[s.summaryValue, { color: theme.color.error }]}>
-            {monthlySummary.actualCost.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={s.summaryUnit}>zł</Text>
-        </Pressable>
-        <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-planned-rev" onPress={() => router.push("/(tabs)/imprezy")}>
-          <View style={[s.summaryDot, { backgroundColor: theme.color.warning }]} />
-          <Text style={s.summaryLabel}>Planowany</Text>
-          <Text style={[s.summaryValue, { color: theme.color.warning }]}>
-            {monthlySummary.plannedRevenue.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={s.summaryUnit}>zł</Text>
-        </Pressable>
-        <View style={s.summaryDivider} />
-        <Pressable style={s.summaryCol} testID="summary-planned-cost" onPress={() => router.push("/(tabs)/imprezy")}>
-          <View style={[s.summaryDot, { backgroundColor: "#8B5CF6" }]} />
-          <Text style={s.summaryLabel}>Plan. koszt</Text>
-          <Text style={[s.summaryValue, { color: "#8B5CF6" }]}>
-            {monthlySummary.plannedCost.toLocaleString("pl-PL", { maximumFractionDigits: 0 })}
-          </Text>
-          <Text style={s.summaryUnit}>zł</Text>
-        </Pressable>
-      </View>
-
-      {/* Profit strip — actual + projected */}
-      <View style={s.profitStrip} testID="profit-strip">
-        <View style={s.profitCol}>
-          <Text style={s.profitLabel}>ZYSK (rzeczywisty)</Text>
-          <Text style={[s.profitValue, { color: monthlySummary.profitActual >= 0 ? theme.color.brand : theme.color.error }]}>
-            {monthlySummary.profitActual.toLocaleString("pl-PL", { maximumFractionDigits: 0 })} zł
-          </Text>
+      {/* Monthly summary v2.0 — spec: liczba imprez, realny przychód, koszty, zysk, do pobrania */}
+      <View style={s.summaryCardV2} testID="monthly-summary-v2">
+        <View style={s.mv2Row}>
+          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/imprezy" as any)}>
+            <Text style={s.mv2Label}>Imprezy</Text>
+            <Text style={[s.mv2Value, { color: theme.color.onSurface }]}>{mv2?.events_count ?? monthlySummary.eventCount ?? 0}</Text>
+          </Pressable>
+          <View style={s.mv2Divider} />
+          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/finanse" as any)}>
+            <Text style={s.mv2Label}>Przychód</Text>
+            <Text style={[s.mv2Value, { color: theme.color.success }]}>
+              {formatPLN(mv2?.revenue_real ?? 0)}
+            </Text>
+          </Pressable>
+          <View style={s.mv2Divider} />
+          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/koszty" as any)}>
+            <Text style={s.mv2Label}>Koszty</Text>
+            <Text style={[s.mv2Value, { color: theme.color.error }]}>
+              {formatPLN(mv2?.costs_real ?? 0)}
+            </Text>
+          </Pressable>
         </View>
-        <View style={s.profitDivider} />
-        <View style={s.profitCol}>
-          <Text style={s.profitLabel}>ZYSK (prognozowany)</Text>
-          <Text style={[s.profitValue, { color: monthlySummary.profitProjected >= 0 ? theme.color.brand : theme.color.error }]}>
-            {monthlySummary.profitProjected.toLocaleString("pl-PL", { maximumFractionDigits: 0 })} zł
-          </Text>
+        <View style={s.mv2Row}>
+          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/finanse" as any)}>
+            <Text style={s.mv2Label}>Zysk</Text>
+            <Text style={[s.mv2Value, { color: (mv2?.profit_real ?? 0) >= 0 ? theme.color.brand : theme.color.error }]}>
+              {formatPLN(mv2?.profit_real ?? 0)}
+            </Text>
+          </Pressable>
+          <View style={s.mv2Divider} />
+          <Pressable style={[s.mv2Cell, { flex: 2 }]} onPress={() => router.push("/(tabs)/finanse" as any)}>
+            <Text style={s.mv2Label}>Do pobrania od klientów</Text>
+            <Text style={[s.mv2Value, { color: (mv2?.receivables ?? 0) > 0 ? theme.color.warning : theme.color.onSurfaceSecondary }]}>
+              {formatPLN(mv2?.receivables ?? 0)}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -669,6 +658,18 @@ const s = StyleSheet.create({
   summaryValue: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
   summaryUnit: { color: theme.color.onSurfaceSecondary, fontSize: 9, marginTop: 1 },
   summaryDivider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 6 },
+  // Monthly summary v2.0 (Faza 3B)
+  summaryCardV2: {
+    marginHorizontal: 12, marginTop: 12, marginBottom: 6,
+    backgroundColor: theme.color.surfaceSecondary,
+    borderRadius: 16, borderWidth: 1, borderColor: theme.color.border,
+    padding: 8,
+  },
+  mv2Row: { flexDirection: "row", alignItems: "stretch" },
+  mv2Cell: { flex: 1, alignItems: "center", paddingVertical: 8, paddingHorizontal: 4 },
+  mv2Label: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: "700", marginBottom: 4 },
+  mv2Value: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3, textAlign: "center" },
+  mv2Divider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 4 },
   // Profit strip below summary card
   profitStrip: {
     flexDirection: "row",

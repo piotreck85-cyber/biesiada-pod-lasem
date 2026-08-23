@@ -4812,6 +4812,157 @@ async def delete_event_payment(event_id: str, payment_id: str, user=Depends(requ
     return {"ok": True}
 
 
+# ---------- Finance Summary v2.0 (Faza 3B) ----------
+# Realny przychód (revenue_real) = suma wpłat klientów w okresie
+# Realne koszty (costs_real) = suma expenses w okresie
+# Realny zysk (profit_real) = revenue_real - costs_real
+# Należności (receivables) = SUM(price_total - wpłaty) dla eventów zaplanowanych w okresie
+# Cena imprez (planned_revenue) = SUM(price_total) dla eventów w okresie
+
+def _month_range(year: int, month: int) -> tuple[str, str]:
+    """Zwraca (date_from, date_to) dla podanego miesiąca w formacie YYYY-MM-DD."""
+    from calendar import monthrange
+    last_day = monthrange(year, month)[1]
+    return f"{year:04d}-{month:02d}-01", f"{year:04d}-{month:02d}-{last_day:02d}"
+
+
+async def _finance_summary_v2(ws_id: str, date_from: str, date_to: str) -> dict:
+    """
+    KANONICZNY helper dla nowej logiki finansowej v2.0.
+    Ważne: każda kwota liczona z pojedynczego źródła w bazie.
+    """
+    # 1) REALNY PRZYCHÓD — wpłaty w okresie (event_payments po dacie wpłaty)
+    revenue_real = 0.0
+    pay_count = 0
+    async for p in db.event_payments.find({
+        "owner_id": ws_id,
+        "date": {"$gte": date_from, "$lte": date_to},
+    }, {"amount": 1}):
+        revenue_real += float(p.get("amount") or 0)
+        pay_count += 1
+
+    # 2) REALNE KOSZTY — expenses w okresie (bez wypłat wspólników — Faza 4)
+    costs_real = 0.0
+    exp_count = 0
+    async for e in db.expenses.find({
+        "owner_id": ws_id,
+        "date": {"$gte": date_from, "$lte": date_to},
+    }, {"amount": 1, "type": 1}):
+        # W Fazie 4 wykluczymy tu wypłaty wspólników (type='partner_payout')
+        if e.get("type") == "partner_payout":
+            continue
+        costs_real += float(e.get("amount") or 0)
+        exp_count += 1
+
+    # 3) EVENTY W OKRESIE (po dacie imprezy) → cena, wpłaty, należności
+    events = await db.events.find({
+        "owner_id": ws_id,
+        "date": {"$gte": date_from, "$lte": date_to},
+    }, {"_id": 0, "id": 1, "name": 1, "date": 1, "status": 1,
+        "price_total": 1, "revenue": 1}).to_list(2000)
+
+    n_events = len(events)
+    n_by_status: Dict[str, int] = {}
+    price_planned = 0.0
+    for ev in events:
+        st = (ev.get("status") or "").strip() or "brak"
+        n_by_status[st] = n_by_status.get(st, 0) + 1
+        # price_total ma pierwszeństwo, fallback revenue (starsze dane)
+        p = float(ev.get("price_total") or 0) or float(ev.get("revenue") or 0)
+        price_planned += p
+
+    # Wpłaty per event (dla należności trzeba wiedzieć ile wpłacono w danym evencie)
+    event_ids = [ev["id"] for ev in events]
+    paid_per_event: Dict[str, float] = {eid: 0.0 for eid in event_ids}
+    if event_ids:
+        async for p in db.event_payments.find({
+            "owner_id": ws_id, "event_id": {"$in": event_ids},
+        }, {"event_id": 1, "amount": 1}):
+            paid_per_event[p["event_id"]] = paid_per_event.get(p["event_id"], 0.0) + float(p.get("amount") or 0)
+
+    # NALEŻNOŚCI = SUM max(0, price_total - wpłaty) dla nie-anulowanych
+    receivables = 0.0
+    for ev in events:
+        status = (ev.get("status") or "").lower()
+        if status in ("anulowana", "anulowane", "cancelled", "cancel"):
+            continue
+        price = float(ev.get("price_total") or 0) or float(ev.get("revenue") or 0)
+        paid = paid_per_event.get(ev["id"], 0.0)
+        outstanding = max(0.0, price - paid)
+        receivables += outstanding
+
+    profit_real = revenue_real - costs_real
+
+    return {
+        "date_from": date_from,
+        "date_to": date_to,
+        "revenue_real": round(revenue_real, 2),           # Realny przychód (wpłaty)
+        "costs_real": round(costs_real, 2),               # Realne koszty
+        "profit_real": round(profit_real, 2),             # Realny zysk
+        "receivables": round(receivables, 2),             # Do pobrania
+        "price_planned": round(price_planned, 2),         # Planowana wartość imprez
+        "events_count": n_events,                         # Ile imprez w okresie
+        "events_by_status": n_by_status,                  # Rozkład statusów
+        "payments_count": pay_count,                      # Ile wpłat
+        "expenses_count": exp_count,                      # Ile dokumentów kosztów
+    }
+
+
+@api.get("/finance/summary-v2")
+async def finance_summary_v2(
+    user=Depends(require_admin),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    period: Optional[str] = None,   # "current_month" | "prev_month" | "current_year"
+):
+    from datetime import date as _date
+    today = _date.today()
+
+    # Quick filters
+    if period == "current_month":
+        date_from, date_to = _month_range(today.year, today.month)
+    elif period == "prev_month":
+        y = today.year if today.month > 1 else today.year - 1
+        m = today.month - 1 if today.month > 1 else 12
+        date_from, date_to = _month_range(y, m)
+    elif period == "current_year":
+        date_from = f"{today.year:04d}-01-01"
+        date_to = f"{today.year:04d}-12-31"
+
+    if not date_from or not date_to:
+        # Fallback: bieżący miesiąc
+        date_from, date_to = _month_range(today.year, today.month)
+
+    if len(date_from) < 8 or len(date_to) < 8:
+        raise HTTPException(400, "Nieprawidłowy format daty")
+    if date_from > date_to:
+        raise HTTPException(400, "date_from musi być <= date_to")
+
+    return await _finance_summary_v2(ws(user), date_from, date_to)
+
+
+@api.get("/finance/monthly-series")
+async def finance_monthly_series(user=Depends(require_admin), year: Optional[int] = None):
+    """12 miesięcy przycho / koszty / zysk dla wykresu."""
+    from datetime import date as _date
+    if not year:
+        year = _date.today().year
+    out = []
+    for m in range(1, 13):
+        df, dt = _month_range(year, m)
+        s = await _finance_summary_v2(ws(user), df, dt)
+        out.append({
+            "month": m,
+            "label": f"{year:04d}-{m:02d}",
+            "revenue_real": s["revenue_real"],
+            "costs_real": s["costs_real"],
+            "profit_real": s["profit_real"],
+            "receivables": s["receivables"],
+            "events_count": s["events_count"],
+        })
+    return {"year": year, "months": out}
+
+
 app.include_router(api)
 
 

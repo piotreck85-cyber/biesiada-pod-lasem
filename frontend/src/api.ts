@@ -281,4 +281,15 @@ export const api = {
     request(`/events/${eventId}/payments/${paymentId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deleteEventPayment: (eventId: string, paymentId: string) =>
     request(`/events/${eventId}/payments/${paymentId}`, { method: "DELETE" }),
+
+  // ---------- Finance v2 (Faza 3B) ----------
+  financeSummaryV2: (params: { date_from?: string; date_to?: string; period?: "current_month" | "prev_month" | "current_year" }) => {
+    const q = new URLSearchParams();
+    if (params.period) q.set("period", params.period);
+    if (params.date_from) q.set("date_from", params.date_from);
+    if (params.date_to) q.set("date_to", params.date_to);
+    return request(`/finance/summary-v2${q.toString() ? `?${q}` : ""}`);
+  },
+  financeMonthlySeries: (year?: number) =>
+    request(`/finance/monthly-series${year ? `?year=${year}` : ""}`),
 };
