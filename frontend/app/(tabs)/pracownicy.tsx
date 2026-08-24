@@ -69,6 +69,9 @@ export default function Pracownicy() {
   const [rate, setRate] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [loginPerms, setLoginPerms] = useState<Record<string, boolean>>({
+    schedule: true, attendance: true, checklist: true, shopping: true, stock: true,
+  });
   const [saving, setSaving] = useState(false);
   const [workspace, setWorkspace] = useState<any>(null);
   const [wsModalOpen, setWsModalOpen] = useState(false);
@@ -221,8 +224,26 @@ export default function Pracownicy() {
   // Reload wages when year/month changes while in wages mode
   useMemo(() => { if (mode === "wages") { loadWages(); } }, [wagesYear, wagesMonth]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openNew = () => { setEditing(null); setName(""); setRole(""); setRate(""); setLoginEmail(""); setLoginPassword(""); setModalOpen(true); };
-  const openEdit = (it: any) => { setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || "")); setLoginEmail(it.login_email || ""); setLoginPassword(""); setModalOpen(true); };
+  const openNew = () => {
+    setEditing(null); setName(""); setRole(""); setRate("");
+    setLoginEmail(""); setLoginPassword("");
+    setLoginPerms({ schedule: true, attendance: true, checklist: true, shopping: true, stock: true });
+    setModalOpen(true);
+  };
+  const openEdit = (it: any) => {
+    setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || ""));
+    setLoginEmail(it.login_email || ""); setLoginPassword("");
+    // Merge existing permissions with defaults
+    const p = it.permissions || {};
+    setLoginPerms({
+      schedule:   p.schedule   !== false,
+      attendance: p.attendance !== false,
+      checklist:  p.checklist  !== false,
+      shopping:   p.shopping   !== false,
+      stock:      p.stock      !== false,
+    });
+    setModalOpen(true);
+  };
 
   const save = async () => {
     if (!name.trim()) return;
@@ -623,13 +644,55 @@ export default function Pracownicy() {
                     secureTextEntry
                     style={s.input}
                   />
+
+                  {/* Uprawnienia */}
+                  <Text style={[s.label, { marginTop: 12 }]}>UPRAWNIENIA PRACOWNIKA</Text>
+                  <View style={{ gap: 6, marginBottom: 8 }}>
+                    {([
+                      ["schedule",   "Mój grafik",       "Widzi swój grafik pracy"],
+                      ["attendance", "Obecność",         "Start/stop pracy, historia godzin"],
+                      ["checklist",  "Checklisty",       "Odhacza zadania na imprezie"],
+                      ["shopping",   "Zakupy",           "Widzi listę zakupów"],
+                      ["stock",      "Magazyn",          "Widzi stan magazynu"],
+                    ] as const).map(([k, label, desc]) => (
+                      <Pressable
+                        key={k}
+                        onPress={() => setLoginPerms({ ...loginPerms, [k]: !loginPerms[k] })}
+                        style={{
+                          flexDirection: "row", alignItems: "center", gap: 10,
+                          paddingHorizontal: 12, paddingVertical: 10,
+                          borderRadius: 10, borderWidth: 1,
+                          borderColor: loginPerms[k] ? theme.color.brand : theme.color.border,
+                          backgroundColor: loginPerms[k] ? theme.color.brand + "12" : theme.color.surface,
+                        }}
+                      >
+                        <View style={{
+                          width: 20, height: 20, borderRadius: 4, borderWidth: 2,
+                          borderColor: loginPerms[k] ? theme.color.brand : theme.color.borderStrong,
+                          backgroundColor: loginPerms[k] ? theme.color.brand : "transparent",
+                          alignItems: "center", justifyContent: "center",
+                        }}>
+                          {loginPerms[k] ? <Feather name="check" size={13} color={theme.color.onBrand} /> : null}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.color.onSurface, fontSize: 13, fontWeight: "800" }}>{label}</Text>
+                          <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11 }}>{desc}</Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
                     <Pressable
                       onPress={async () => {
                         if (!loginEmail.trim() || !loginEmail.includes("@")) { Alert.alert("Błąd", "Podaj email"); return; }
                         if (!editing.login_email && (loginPassword || "").length < 6) { Alert.alert("Błąd", "Hasło min. 6 znaków"); return; }
                         try {
-                          await api.staffCreateLogin(editing.id, { email: loginEmail.trim(), password: loginPassword || undefined });
+                          await api.staffCreateLogin(editing.id, {
+                            email: loginEmail.trim(),
+                            password: loginPassword || undefined,
+                            permissions: loginPerms,
+                          });
                           Alert.alert("Zapisano", `${editing.name} może się teraz zalogować mailem ${loginEmail}.`);
                           setLoginPassword("");
                           await load();
@@ -637,7 +700,7 @@ export default function Pracownicy() {
                       }}
                       style={[s.saveBtn, { flex: 1, paddingHorizontal: 10 }]}
                     >
-                      <Text style={s.saveBtnText}>{editing.login_email ? "Aktualizuj login" : "Utwórz login"}</Text>
+                      <Text style={s.saveBtnText}>{editing.login_email ? "Aktualizuj login + uprawnienia" : "Utwórz login"}</Text>
                     </Pressable>
                     {editing.login_email ? (
                       <Pressable

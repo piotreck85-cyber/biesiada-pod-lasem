@@ -112,3 +112,42 @@ Polish mobile app for event organizers to manage:
 - Test Report iteration 16 wykrył: `event-delete-btn` kasował imprezę **bez pytania**
 - Naprawione: `Alert.alert("Usunąć imprezę?")` z dwoma przyciskami [Anuluj / Usuń (destructive)]
 - Zabezpiecza przed przypadkowym skasowaniem
+
+### Import finansów 2021-2026 z paczki ZIP — Aug 2026
+- Rozpakowano `BPL_calendar_finance_import_2021-2026.json` (504 rekordy) + dokumentacja
+- Backup finansów wykonany: `/app/backend/backups/finance_import_20260824_093754/events_finance_snapshot.json` (524 imprezy przed importem)
+- DRY RUN zapisany: `dry_run_report.json`
+- **Zaimportowano 423 imprezy** (UPDATE_FINANCE):
+  - +588 670 zł przychodu
+  - +162 039 zł kosztów
+  - +429 588 zł zysku
+  - 79 pominiętych (REVIEW_ONLY/NO_FINANCE_DATA — zgodnie z regułami)
+  - 2 unmatched UID pominięte
+- Audit log: `/app/backend/backups/finance_import_audit_20260824_094112/audit_log.json`
+- **Zachowana bezpieczna logika**: nie nadpisujemy istniejących ACTUAL wartości, nie dotykamy dat/nazw/klientów/statusów/zaliczek
+- Zapisane pola: `revenue`, `cost_total`, `profit`, `margin_ratio`, `price_total` (jeśli puste) + zagnieżdżony obiekt `finance.*` z metadanymi
+- Liczba imprez w bazie: **524 (bez zmian)** ✅
+
+### Etykieta „SZACUNEK" w UI
+- Pigułka `SZAC.` obok Ceny na kartach imprez w Kalendarz > Pulpit
+- Pigułka `SZAC.` w agendzie dnia (Kalendarz > Miesiąc)
+- Banner na górze Centrum Imprezy: "Dane finansowe zaimportowane" + notatka `finance.notes` (opis kalkulacji) + pigułka `SZACUNEK` gdy dane są szacowane
+- State `financeMeta` czytany z `ev.finance` (backend już zwraca)
+
+### Uprawnienia pracowników — checkboxy w modalu (Aug 2026)
+- W modalu edycji pracownika (`(tabs)/pracownicy.tsx`) dodana sekcja **UPRAWNIENIA PRACOWNIKA** z 5 przełącznikami:
+  - Mój grafik (widzi swój grafik pracy)
+  - Obecność (start/stop pracy, historia godzin)
+  - Checklisty (odhacza zadania na imprezie)
+  - Zakupy (widzi listę zakupów)
+  - Magazyn (widzi stan magazynu)
+- Zapisywane przez `api.staffCreateLogin(id, { permissions })` (już wspierane w backendzie od Fazy 3)
+- Przy edycji istniejącego loginu — checkboxy prehydratowane z istniejących uprawnień
+- Przycisk zmienia się na „Aktualizuj login + uprawnienia" gdy pracownik już ma konto
+
+### Status Panelu Pracownika (stan na Aug 2026)
+- **BACKEND**: 100% gotowe (3 role: admin/staff/partner, workspace isolation, endpoint login, permissions system)
+- **FRONTEND**: Panel pracownika ma 4 zakładki (Grafik, Obecność, Zadania, Zakupy) — pełny widok
+- **TAB-BAR**: Automatyczne przełączanie na inne taby dla staff vs admin (`_layout.tsx`)
+- **UPRAWNIENIA**: Można granularnie odbierać dostępy (od tej iteracji)
+- **BRAKI**: Panel staff wciąż używa starego stylu V1 (do przerobienia w Etapie 3), brak "Wyślij zaproszenie" mailem (właściciel wpisuje hasło ręcznie)

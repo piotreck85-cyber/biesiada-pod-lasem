@@ -63,6 +63,7 @@ export default function EventDetail() {
   const [extras, setExtras] = useState<Record<string, number>>({}); // extra_id -> qty (or amount for 'kwota')
   const [dinnerQty, setDinnerQty] = useState<Record<string, number>>({}); // dinner_item_id -> qty
   const [dinnerCost, setDinnerCost] = useState<string>(""); // user-entered wholesale cost for margin calc
+  const [financeMeta, setFinanceMeta] = useState<any>(null); // { is_revenue_estimated, is_cost_estimated, status, notes, import_batch_id, ... }
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [staffAll, setStaffAll] = useState<any[]>([]);
@@ -125,6 +126,8 @@ export default function EventDetail() {
             setDinnerQty(ev.dinner_items as Record<string, number>);
           }
           setDinnerCost(ev.dinner_cost ? String(ev.dinner_cost) : "");
+          // ---- Finance metadata (from import) ----
+          setFinanceMeta(ev.finance || null);
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -582,6 +585,22 @@ export default function EventDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
+          {/* Finance import banner */}
+          {financeMeta?.import_batch_id ? (
+            <View style={s.financeBanner}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Feather name="info" size={14} color={v2.color.warning} />
+                <Text style={s.financeBannerTitle}>Dane finansowe zaimportowane</Text>
+                {(financeMeta.is_revenue_estimated || financeMeta.is_cost_estimated) ? (
+                  <View style={s.estPill}><Text style={s.estPillText}>SZACUNEK</Text></View>
+                ) : null}
+              </View>
+              {!!financeMeta.notes && (
+                <Text style={s.financeBannerNotes}>{financeMeta.notes}</Text>
+              )}
+            </View>
+          ) : null}
+
           {/* Image */}
           <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
             {imageUrl ? (
@@ -1889,4 +1908,12 @@ const s = StyleSheet.create({
   },
   checklistLabel: { color: v2.color.text, fontSize: 15, fontWeight: "800" },
   checklistSub: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
+  financeBanner: {
+    padding: 12, marginBottom: 14, borderRadius: v2.radius.md,
+    backgroundColor: v2.color.warningBg, borderLeftWidth: 4, borderLeftColor: v2.color.warning,
+  },
+  financeBannerTitle: { color: v2.color.warning, fontSize: 12, fontWeight: "800", letterSpacing: 0.3 },
+  financeBannerNotes: { color: v2.color.text, fontSize: 12, marginTop: 6, lineHeight: 17 },
+  estPill: { backgroundColor: v2.color.warning, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 },
+  estPillText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 });

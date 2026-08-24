@@ -1,0 +1,312 @@
+{
+  "stats": {
+    "total_in_import": 504,
+    "UPDATE_FINANCE": 425,
+    "REVIEW_ONLY": 53,
+    "NO_FINANCE_DATA": 26,
+    "exact_uid_match": 423,
+    "unmatched_uid": 2,
+    "duplicate_matches": 0,
+    "would_update_events": 423,
+    "conflicts": 0,
+    "protected_actual": 0,
+    "fields_would_write": 5900
+  },
+  "conflicts": [],
+  "unmatched_sample": [
+    {
+      "uid": "bc8c68242fe9452988432166f78b3fdc",
+      "date": "20.03.2021",
+      "title": "Impreza 7 osób 50 zł bez kasy za domek",
+      "reason": "no_match_in_db"
+    },
+    {
+      "uid": "6aa19ca83bf74108aa22a9d53d5b23a9",
+      "date": "07.08.2021",
+      "title": "Rocznica",
+      "reason": "no_match_in_db"
+    }
+  ],
+  "sample_changes": [
+    {
+      "date": "2021-08-10",
+      "name": "Wyjazd rodzinny",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1000.0,
+        "cost": 270.0,
+        "profit": 730.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-12",
+      "name": "Impreza znajomych",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 630.0,
+        "cost": 180.0,
+        "profit": 450.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-13",
+      "name": "Kawalerski",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 700.0,
+        "cost": 187.0,
+        "profit": 513.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-14",
+      "name": "Panieński",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 910.0,
+        "cost": 238.0,
+        "profit": 672.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-15",
+      "name": "Impreza Kaska z Borowej",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1020.0,
+        "cost": 284.0,
+        "profit": 736.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-19",
+      "name": "Wieczór kawalerski",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1050.0,
+        "cost": 306.0,
+        "profit": 744.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-21",
+      "name": "Kawalerski",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 900.0,
+        "cost": 248.0,
+        "profit": 652.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-22",
+      "name": "Poprawiny",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1100.0,
+        "cost": 297.0,
+        "profit": 803.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-28",
+      "name": "Panieński",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 600.0,
+        "cost": 161.0,
+        "profit": 439.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-29",
+      "name": "Baby shower",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 550.0,
+        "cost": 139.0,
+        "profit": 411.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-08-30",
+      "name": "Impreza 18tka",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1080.0,
+        "cost": 300.0,
+        "profit": 780.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-09-04",
+      "name": "Impreza urodzinowa",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 800.0,
+        "cost": 208.0,
+        "profit": 592.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-09-11",
+      "name": "Panieński",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 700.0,
+        "cost": 186.0,
+        "profit": 514.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-09-17",
+      "name": "Impreza urodzinowa",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 300.0,
+        "cost": 82.0,
+        "profit": 218.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-09-21",
+      "name": "Wieczor panienski",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1040.0,
+        "cost": 260.0,
+        "profit": 780.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-09-25",
+      "name": "Impreza urodziny",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 550.0,
+        "cost": 156.0,
+        "profit": 394.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-10-02",
+      "name": "Impreza 18tka",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 950.0,
+        "cost": 268.0,
+        "profit": 682.0
+      },
+      "src": "TIMETREE_DERIVED/ESTIMATED"
+    },
+    {
+      "date": "2021-10-03",
+      "name": "Ognisko",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 960.0,
+        "cost": 276.0,
+        "profit": 684.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2021-10-30",
+      "name": "Impreza kawalerski",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1080.0,
+        "cost": 271.0,
+        "profit": 809.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    },
+    {
+      "date": "2022-01-23",
+      "name": "Strojny158@wp.pl",
+      "old": {
+        "rev": 0.0,
+        "cost": null
+      },
+      "new": {
+        "rev": 1000.0,
+        "cost": 259.0,
+        "profit": 741.0
+      },
+      "src": "ESTIMATED/ESTIMATED"
+    }
+  ]
+}

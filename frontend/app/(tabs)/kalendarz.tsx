@@ -396,7 +396,15 @@ export default function Kalendarz() {
                           {ev.time_start || "—"}{ev.time_end ? ` – ${ev.time_end}` : ""} · {ev.guests || 0} os. · {ev.category || "—"}
                         </Text>
                         <View style={s.eventFooter}>
-                          <View style={{ flex: 1 }}><Text style={s.footerLabel}>Cena</Text><Text style={s.footerValue}>{price > 0 ? formatPLN(price) : "Brak"}</Text></View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={s.footerLabel}>Cena</Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                              <Text style={s.footerValue}>{price > 0 ? formatPLN(price) : "Brak"}</Text>
+                              {ev.finance?.is_revenue_estimated ? (
+                                <View style={s.estPill}><Text style={s.estPillText}>SZAC.</Text></View>
+                              ) : null}
+                            </View>
+                          </View>
                           <View style={{ flex: 1 }}><Text style={s.footerLabel}>Zaliczka</Text><Text style={[s.footerValue, { color: noDeposit ? v2.color.error : v2.color.success }]}>{noDeposit ? "❌ brak" : formatPLN(dep)}</Text></View>
                           <View style={{ flex: 1 }}><Text style={s.footerLabel}>Obsada</Text><Text style={[s.footerValue, { color: (ev.shifts || []).length === 0 ? v2.color.error : v2.color.text }]}>{(ev.shifts || []).length || "brak"}</Text></View>
                         </View>
@@ -489,7 +497,12 @@ export default function Kalendarz() {
                           <Text style={s.dayEventMeta}>{ev.guests || 0} os. · {ev.category || "—"}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
-                          <Text style={s.dayEventPrice}>{price > 0 ? formatPLN(price) : "—"}</Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                            <Text style={s.dayEventPrice}>{price > 0 ? formatPLN(price) : "—"}</Text>
+                            {ev.finance?.is_revenue_estimated ? (
+                              <View style={s.estPill}><Text style={s.estPillText}>SZAC.</Text></View>
+                            ) : null}
+                          </View>
                           {noDeposit ? <Text style={s.dayEventBrak}>brak zaliczki</Text> : null}
                         </View>
                       </Pressable>
@@ -639,6 +652,9 @@ const s = StyleSheet.create({
   dayEventMeta: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
   dayEventPrice: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
   dayEventBrak: { color: v2.color.error, fontSize: 10, fontWeight: "800", marginTop: 2 },
+
+  estPill: { backgroundColor: v2.color.warningBg, borderColor: v2.color.warning, borderWidth: 1, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 999 },
+  estPillText: { color: v2.color.warning, fontSize: 8, fontWeight: "800", letterSpacing: 0.4 },
 
   progressBg: { height: 6, borderRadius: 3, backgroundColor: v2.color.divider, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 3 },

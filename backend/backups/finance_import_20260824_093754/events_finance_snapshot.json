@@ -1,0 +1,5242 @@
+[
+ {
+  "id": "0684e70b-86f8-4099-b144-dbd2f4ef6398",
+  "imported_uid": null,
+  "date": "2026-05-15",
+  "name": "Wesele",
+  "revenue": 10000.0,
+  "price_total": 10000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0fd888da-93b9-447e-8e77-1fb49e0b6640",
+  "imported_uid": null,
+  "date": "2026-08-07",
+  "name": "Firmowa",
+  "revenue": 2400.0,
+  "price_total": 2400.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "86e60216-60f9-4d0e-adca-77d79271aa63",
+  "imported_uid": null,
+  "date": "2026-06-15",
+  "name": "Party 22:00",
+  "revenue": 15762.5,
+  "price_total": 15762.5,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "76c79d95-0205-4347-b83d-f329df76c21a",
+  "imported_uid": "d0c42db273d144ca9c42d09889d4a074",
+  "date": "2026-06-30",
+  "name": "Odwołana",
+  "revenue": 700.0,
+  "price_total": 700.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "28432263-9cec-4054-88bc-bccc24d6a1ca",
+  "imported_uid": "6aa12f6cbd084fbea82eddebad912786",
+  "date": "2026-06-29",
+  "name": "Gady",
+  "revenue": 3160.0,
+  "price_total": 3160.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "66bc3ab8-7d94-4ebc-9187-fb140a4ab3a1",
+  "imported_uid": "95952250e46040d4ac3280c9472a4689",
+  "date": "2026-06-28",
+  "name": "Standard",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9d015793-35c4-4abe-a4ef-f19df90130ce",
+  "imported_uid": "7e53de85fc0e4d6093b453771876cbf9",
+  "date": "2026-06-25",
+  "name": "Urodzinki 14",
+  "revenue": 1860.0,
+  "price_total": 1860.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "690113d8-094d-47d0-be52-cff867174408",
+  "imported_uid": "7c33e999bcd64ca0b20a986afc0cce22",
+  "date": "2026-06-25",
+  "name": "Warsztaty",
+  "revenue": 1610.0,
+  "price_total": 1610.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0e0f0a92-d4dc-4e15-9eb9-ad931cc6efb7",
+  "imported_uid": "24105769c7b44cfbac28b03098a95baf",
+  "date": "2026-06-23",
+  "name": "Standard norbi",
+  "revenue": 810.0,
+  "price_total": 810.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b125e8a1-cf14-4b0e-be32-c51c2758b397",
+  "imported_uid": "f1e8be9621b54ffd95cf5d80ddbe6872",
+  "date": "2026-06-21",
+  "name": "Konie",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4d861b31-9329-4938-884f-e8abc2904971",
+  "imported_uid": "c98ae8ca07fe44269f2bc145ab80d2a4",
+  "date": "2026-06-20",
+  "name": "Wycieczka z rodzicami",
+  "revenue": 2925.0,
+  "price_total": 2925.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "93cf0ff1-ed63-4dc7-b729-28c6a7dd2bb8",
+  "imported_uid": "de182ef09b544da29e6f603acbb74160",
+  "date": "2026-06-19",
+  "name": "Wycieczka z rodzicami",
+  "revenue": 2050.0,
+  "price_total": 2050.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6505f882-9644-4586-8f50-2a40b5a3a0d1",
+  "imported_uid": "680906e2800542ef99b670148fff3706",
+  "date": "2026-06-18",
+  "name": "Warsztaty",
+  "revenue": 2050.0,
+  "price_total": 2050.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b4a2cd01-47a1-451b-9417-ada4cfbebffa",
+  "imported_uid": "a37aaff578e641e9afb2e98955228b4b",
+  "date": "2026-06-13",
+  "name": "Harry Potter",
+  "revenue": 3960.0,
+  "price_total": 3960.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ce85abf7-b51e-447d-ab15-b23c9c51fdf3",
+  "imported_uid": "56fac0bcf0544dd9807e4ae97126e2ef",
+  "date": "2026-06-14",
+  "name": "Standard",
+  "revenue": 2650.0,
+  "price_total": 2650.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2562ccb5-ad8a-4d35-be55-a9497a489423",
+  "imported_uid": "55fef0091629493488ab33a010b8309f",
+  "date": "2026-06-13",
+  "name": "rocznica matury",
+  "revenue": 800.0,
+  "price_total": 800.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cc268d1e-a91a-4244-b569-a4d775b09f0f",
+  "imported_uid": "ed79f629141d4249b48d55f78c2eb706",
+  "date": "2026-06-07",
+  "name": "Warsztaty",
+  "revenue": 2500.0,
+  "price_total": 2500.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5262d6b9-a4b1-452f-b769-d7885ce68a23",
+  "imported_uid": "e0eec0ca821246ddaafb83991cccfc5d",
+  "date": "2026-06-05",
+  "name": "Dziki zachód",
+  "revenue": 2350.0,
+  "price_total": 2350.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "557b3617-c666-4c49-9616-d18bded7a3d0",
+  "imported_uid": "dbe9979d2c9c4a79b5d55b30eb2292b1",
+  "date": "2026-05-30",
+  "name": "Standard",
+  "revenue": 1850.0,
+  "price_total": 1850.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4e765dfd-9262-42d6-94ae-36a714a36bd3",
+  "imported_uid": "c94168944d2d4a16abac05ff1f3908c3",
+  "date": "2026-05-28",
+  "name": "Wycieczka",
+  "revenue": 600.0,
+  "price_total": 600.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "03843f78-5ae0-4f6b-a7f1-6a27158ca7dc",
+  "imported_uid": "7fc0ef3715154167acb49136c534914c",
+  "date": "2026-05-24",
+  "name": "Dziki zachód",
+  "revenue": 2500.0,
+  "price_total": 2500.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fe96706f-df67-4237-b5a1-b9755c37e164",
+  "imported_uid": "67e8de25e0b746f2b63d666bc1c0ef35",
+  "date": "2026-05-23",
+  "name": "Standard",
+  "revenue": 1730.0,
+  "price_total": 1730.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2bbe3a1b-58ec-4314-90c3-d71ca5f7330c",
+  "imported_uid": "bcef83984c1e4f2086779b9ff7023755",
+  "date": "2026-05-23",
+  "name": "Firmowa Renault",
+  "revenue": 3000.0,
+  "price_total": 3000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "50189408-1b12-4405-94b1-aed8654bed96",
+  "imported_uid": "9741b43630d74550842fb75cb2a30add",
+  "date": "2026-05-22",
+  "name": "Szkolna z rodzicami",
+  "revenue": 1260.0,
+  "price_total": 1260.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5d1962ee-5fa1-464b-adb5-11b721891e7b",
+  "imported_uid": "f7a04f727b614af596911d5fee17ec6f",
+  "date": "2026-05-21",
+  "name": "Średniowiecze",
+  "revenue": 1610.0,
+  "price_total": 1610.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "368ce850-f606-48bf-b824-bb6437989e40",
+  "imported_uid": "dd26a29285804599b0b5b6604e619088",
+  "date": "2026-05-17",
+  "name": "Urodziny 18",
+  "revenue": 1200.0,
+  "price_total": 1200.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "22624c64-b32b-4536-840c-cbebdcaf1da2",
+  "imported_uid": "d99a1f0935c443fc9544a2126df09484",
+  "date": "2026-05-15",
+  "name": "Firmowa Ekobox",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c62c7dc9-09f7-4652-8f08-52a96dcc857e",
+  "imported_uid": "d3b055970c954a7db31cab53e34c82c3",
+  "date": "2026-05-10",
+  "name": "Konie",
+  "revenue": 7100.0,
+  "price_total": 7100.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9483fddd-226d-471c-bcce-1328818b5477",
+  "imported_uid": "2c24d4a0402d4663a9decdda5f83e235",
+  "date": "2026-05-09",
+  "name": "Urodziny 40",
+  "revenue": 3000.0,
+  "price_total": 3000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e615dde6-84fa-4748-b4b7-7415d870d627",
+  "imported_uid": "80e22d63230845adb12255f5b604d592",
+  "date": "2026-05-02",
+  "name": "Roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a00d2638-557a-4461-abfb-d9f5cccae113",
+  "imported_uid": "a9e9af62c0544908b93661d9ac6bacdc",
+  "date": "2026-05-01",
+  "name": "Rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "69f7f448-fe33-4b11-859f-2cdceab7d0a7",
+  "imported_uid": "d26859c8ca21483888675e22f67c8f79",
+  "date": "2026-04-17",
+  "name": "Firmowa Defro",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2b41ffdd-8365-4f6d-9f20-2408243e868d",
+  "imported_uid": "4b51e49eab5c40b1ad7edfd049add9dc",
+  "date": "2026-09-11",
+  "name": "Wstepna rezerwacja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "50067bc8-581a-4ab1-a7ed-0a025f410071",
+  "imported_uid": "d7a5f6713d6044c68e5d492ccdd0ffd7",
+  "date": "2026-08-24",
+  "name": "Ur gady",
+  "revenue": 0.0,
+  "price_total": 0.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3d5f00b2-2f10-4a68-a269-71043b3e90c0",
+  "imported_uid": "c4a7f177f54342bc9902601d3469233a",
+  "date": "2026-07-18",
+  "name": "Standard",
+  "revenue": 1570.0,
+  "price_total": 1570.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "44e51dc3-577e-4716-b3f3-344cf28fa930",
+  "imported_uid": "32961db05231457d80b8e18a1fdc123c",
+  "date": "2026-08-08",
+  "name": "dziki zachod",
+  "revenue": 1750.0,
+  "price_total": 1750.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4762c8bc-a7ce-4df5-abc9-f60fa6406e59",
+  "imported_uid": "5ec81880880a4df393057a27975ac194",
+  "date": "2026-07-30",
+  "name": "Dla maluszka",
+  "revenue": 1650.0,
+  "price_total": 1650.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "68af8986-f004-47e5-b9a1-0229ef2c9ef4",
+  "imported_uid": "e59b961e0a684b8aa45eb033d3b4bd05",
+  "date": "2026-07-12",
+  "name": "Konie",
+  "revenue": 740.0,
+  "price_total": 740.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b62cc73d-3340-4aa9-9b6b-6a99bbaf6276",
+  "imported_uid": "21132c4b6e0f49089508f7c02d3d9b09",
+  "date": "2026-07-13",
+  "name": "Spotkanie",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5ca1d58c-5b92-4efd-8e1c-0f9f5c237ba5",
+  "imported_uid": "82c5018410b94082bfd0ae1e2520e96f",
+  "date": "2026-07-12",
+  "name": "Roczek",
+  "revenue": 1600.0,
+  "price_total": 1600.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b7aebe94-1d70-4c5f-8dc8-6216a8c71963",
+  "imported_uid": "b3d9e97aaab5426cb9a187e90ac02a75",
+  "date": "2026-07-11",
+  "name": "Przyjęcie weselne",
+  "revenue": 6800.0,
+  "price_total": 6800.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "87ff5761-fc22-488a-9a63-6e4850445cde",
+  "imported_uid": "02c0ce63971746219b679946db3b64f3",
+  "date": "2026-07-13",
+  "name": "Standard",
+  "revenue": 1035.0,
+  "price_total": 1035.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "81325971-4a77-470f-880e-d585b210f595",
+  "imported_uid": "22e194829e5445139400e2216d61b89a",
+  "date": "2026-08-31",
+  "name": "Standard 16:30 -20:30urodzinki wstępna rezerwacja Łukasz Gocał",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ea96157a-4b59-4cbf-b740-e07efec47a70",
+  "imported_uid": "d3483c8b670446eba94ec3bebaf86dc7",
+  "date": "2026-07-26",
+  "name": "Ur konie i alpaki",
+  "revenue": 3300.0,
+  "price_total": 3300.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2f1a66e7-c8ee-4629-841a-96971ba7fa9a",
+  "imported_uid": "27617761a5a64297bc2b3299bd2ee9b8",
+  "date": "2026-07-08",
+  "name": "Resovia",
+  "revenue": 4000.0,
+  "price_total": 4000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0bfd200b-1925-4f6a-8b40-8a45dda10fdf",
+  "imported_uid": "7a4284d6337a41d09bf2acba95a132ed",
+  "date": "2026-07-25",
+  "name": "Ur dorosli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8b878797-e4a4-478a-b72f-46892943a96d",
+  "imported_uid": "7558298db34c4c3392f9d93cd9f43459",
+  "date": "2026-07-29",
+  "name": "Harry Potter",
+  "revenue": 2710.0,
+  "price_total": 2710.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c6e0363e-4223-48d7-89c3-de15a3ebcdbb",
+  "imported_uid": "b4029729fe704f87b47245afe64ec5d1",
+  "date": "2026-07-28",
+  "name": "Konie",
+  "revenue": 1710.0,
+  "price_total": 1710.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "796251ba-1a16-426a-bf29-91ace8c289dd",
+  "imported_uid": "584520920996477eb7621047c887a161",
+  "date": "2026-07-24",
+  "name": "Dziki zachód",
+  "revenue": 2860.0,
+  "price_total": 2860.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "93fa6378-2df9-4091-ab58-eb74512414d9",
+  "imported_uid": "79786b182fbf4fd5949cf07cfc13f22c",
+  "date": "2026-07-19",
+  "name": "Standard",
+  "revenue": 1450.0,
+  "price_total": 1450.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "13875edd-9ca1-4969-ba1e-6c0f88a8d2ed",
+  "imported_uid": "3813ca7bb07941ce938050b2faa7f0bb",
+  "date": "2026-07-16",
+  "name": "Konie",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ae4e4cfa-3214-47c5-ae49-10a2e3255a74",
+  "imported_uid": "1e28d01c147242ec8e0829cdb92a9756",
+  "date": "2026-07-04",
+  "name": "Dziki zachód",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "be69558a-94a7-4837-a18d-ff2533ede707",
+  "imported_uid": "f166ab68f5244fefbdbca49ddd290d66",
+  "date": "2026-07-05",
+  "name": "Gady",
+  "revenue": 3936.0,
+  "price_total": 3936.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e54d529d-5b57-4989-bee6-42f5b3d4517a",
+  "imported_uid": "4f0a43655baa46188a18e5b07ca6475f",
+  "date": "2026-08-30",
+  "name": "50 ta rocznica ślubu Łukasz żółtak kontakt Piotrek",
+  "revenue": 4000.0,
+  "price_total": 4000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1852fb21-0b8e-4bc5-9b81-ae7be2d562ba",
+  "imported_uid": "5d332c41747e4f0c8df578e2fbbd9bde",
+  "date": "2026-09-12",
+  "name": "Urodziny 45",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "513e4dd7-c64c-40c9-ba6c-2b548f077a6f",
+  "imported_uid": "66c142d1f156480f8e57fbb116ea9ced",
+  "date": "2026-08-27",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "747029c8-0506-4926-bf05-d537f0ca2866",
+  "imported_uid": "4f0712fd38af44818af854393b564998",
+  "date": "2026-08-01",
+  "name": "Impreza rodzinna",
+  "revenue": 1950.0,
+  "price_total": 1950.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4e0e429c-a673-45fc-a642-efdc22c19ea1",
+  "imported_uid": "3cb356f3e1ba4981b9c1252e9c2790bd",
+  "date": "2026-08-08",
+  "name": "Standard",
+  "revenue": 1450.0,
+  "price_total": 1450.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "547cb906-d66b-4655-a392-20869c4fb5bb",
+  "imported_uid": "46e0f024d52e4e6baae0d0c52149bb6b",
+  "date": "2026-07-05",
+  "name": "Szkola wstepna rez",
+  "revenue": 3400.0,
+  "price_total": 3400.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1f354024-49cd-4715-8622-09965c60f2d4",
+  "imported_uid": "bb7303df2a05463ba744698ade82ae34",
+  "date": "2026-09-05",
+  "name": "Urodzinki wstepne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2d75bc5d-061e-4d5e-893a-0b221106b379",
+  "imported_uid": "1c9b4fbe3e234367b1043ff57e3f46ab",
+  "date": "2026-06-27",
+  "name": "Impreza szkolna",
+  "revenue": 2200.0,
+  "price_total": 2200.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b66eb076-c930-46cd-aaa9-97d659caeb69",
+  "imported_uid": "afe2cbe0ee09422597aa1ea141c347cd",
+  "date": "2026-08-09",
+  "name": "Konie",
+  "revenue": 2150.0,
+  "price_total": 2150.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5a4f414d-6e2c-4c14-9365-e2b4d8706704",
+  "imported_uid": "15c3e4490ccc4f53a614c2f896017a53",
+  "date": "2026-06-28",
+  "name": "Impreza rodzinna rocznica",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "35c3412f-04f0-4856-9bf6-c7fea55157da",
+  "imported_uid": "422b20864dd84567b124f3c3e657a9f8",
+  "date": "2026-06-24",
+  "name": "Szkola",
+  "revenue": 2490.0,
+  "price_total": 2490.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fff304e5-0aea-4f9c-8e26-b6a226de0e62",
+  "imported_uid": "c8cb7a0d476f4e27b42a4077be6eef4e",
+  "date": "2026-06-26",
+  "name": "Zeromszczacy",
+  "revenue": 1440.0,
+  "price_total": 1440.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "dd0a1f6f-e2f8-4dcc-bcdb-1a6f634890fc",
+  "imported_uid": "3c9f357199934c7c9fd4f80774fd5181",
+  "date": "2026-07-04",
+  "name": "Impreza firmowa",
+  "revenue": 202.0,
+  "price_total": 202.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "893685da-ab9d-4aa9-bf1e-4cffde047960",
+  "imported_uid": "d1f60a1ad8da4b1ab39bc962932b8144",
+  "date": "2026-06-29",
+  "name": "Zuza 16 -22",
+  "revenue": 2747.0,
+  "price_total": 2747.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1def1353-28fb-4425-8c62-60e29d80a399",
+  "imported_uid": "5044d573a0d24787a15bf67f320b60a5",
+  "date": "2026-06-28",
+  "name": "Patrycja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "67b75450-8edb-4427-a57f-617d9b17eaee",
+  "imported_uid": "ce0799b1012c4932ab774c6d79254f14",
+  "date": "2026-06-24",
+  "name": "Patrycja",
+  "revenue": 1800.0,
+  "price_total": 1800.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7011820d-6027-47f2-95ef-697975145073",
+  "imported_uid": "e06138858f70420299ca91313d694103",
+  "date": "2026-06-23",
+  "name": "Kaśka",
+  "revenue": 1000.0,
+  "price_total": 1000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8768f912-3194-46d1-b9e4-142601847427",
+  "imported_uid": "f66c424eb8c14b73900ecde67b05055b",
+  "date": "2026-06-15",
+  "name": "Wycieczka szkolna",
+  "revenue": 1570.0,
+  "price_total": 1570.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "80ec32da-57b6-427d-947a-6cadee952e74",
+  "imported_uid": "33c6cc36c12f4843a5e39209a0fe0631",
+  "date": "2027-05-08",
+  "name": "Komunia Ewelina sikora",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b6fa4f44-e33c-492b-bdf5-4b1267f92324",
+  "imported_uid": "5f73d3c7ccf041878f06fd0f95788137",
+  "date": "2026-07-06",
+  "name": "Ola 16-20",
+  "revenue": 1500.0,
+  "price_total": 1500.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "960379d7-9cb2-4ce6-8cb0-194451e03cea",
+  "imported_uid": "7fcdc31a58fe4508915315ee8affdc3e",
+  "date": "2026-07-26",
+  "name": "Przedszkole",
+  "revenue": 3340.0,
+  "price_total": 3340.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bc6bf1ac-060d-4ce2-81a6-8deb2d37402b",
+  "imported_uid": "7b987518e7544fbc9a2c5a55c13de892",
+  "date": "2026-06-12",
+  "name": "Wycieczka sp39 Angelika G.",
+  "revenue": 1120.0,
+  "price_total": 1120.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2fbbe370-0f5c-4c8a-8392-181f936c6daa",
+  "imported_uid": "8cf44bdc36e349549327f710b84eada0",
+  "date": "2026-06-27",
+  "name": "Urodzinki roczek",
+  "revenue": 6450.0,
+  "price_total": 6450.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5ccd81be-f186-4060-b7af-767bcab52410",
+  "imported_uid": "9e7bf1295f2946bf9c7d7193f4d050a4",
+  "date": "2026-06-22",
+  "name": "Urodziny 16",
+  "revenue": 2950.0,
+  "price_total": 2950.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7d9c1b8f-e434-4da0-bdf0-446074454dcf",
+  "imported_uid": "0f510a4e01eb49a5a508910f04a56d2e",
+  "date": "2026-06-09",
+  "name": "Wycieczka szkola",
+  "revenue": 300.0,
+  "price_total": 300.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f0b7381f-80e9-4587-88e8-43869f901bf3",
+  "imported_uid": "18c09eba02c742a29257fc4da33fe332",
+  "date": "2026-08-29",
+  "name": "Slub",
+  "revenue": 11098.0,
+  "price_total": 11098.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d7cee133-e0e1-4d13-acad-0a5d5ea42c46",
+  "imported_uid": "7d5c3dc621b34beda931f4f1090cec20",
+  "date": "2026-08-22",
+  "name": "Slub",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8943cd52-9171-4009-aa57-33445657cd52",
+  "imported_uid": "3a6f1e6141474cbcb9ad5bf3b2c1ed92",
+  "date": "2026-08-21",
+  "name": "Slub zak",
+  "revenue": 4950.0,
+  "price_total": 4950.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7a453b21-28e4-4c4c-82b6-d8bceb0e3f89",
+  "imported_uid": "f51459a86064471baa63f0438e4de3b0",
+  "date": "2026-08-15",
+  "name": "firmowa superfharmacy",
+  "revenue": 2229.0,
+  "price_total": 2229.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a87aeec5-50b1-49e3-8490-a01c84171023",
+  "imported_uid": "e453246d7413411fa6d9f71b1d04bb63",
+  "date": "2026-07-25",
+  "name": "Spotkanie rocznica matury",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "406ed481-42c8-4475-9d16-517d2ff0b5a8",
+  "imported_uid": "4648971fc18348789e6eb91f112cef7b",
+  "date": "2026-06-12",
+  "name": "Wycieczka klasowa",
+  "revenue": 4200.0,
+  "price_total": 4200.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c57f1a38-a8f1-4861-9e5e-4b5e47f52839",
+  "imported_uid": "5148547b39e84fdd940123de684b39d2",
+  "date": "2026-08-02",
+  "name": "Chrzciny",
+  "revenue": 4540.0,
+  "price_total": 4540.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1b967d6c-41f1-414c-bbb6-d0c489b760be",
+  "imported_uid": "5b03a0f964d74f5db9b3f82049121c71",
+  "date": "2026-06-03",
+  "name": "Wycieczka szkolna",
+  "revenue": 1950.0,
+  "price_total": 1950.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7c044114-cc98-496b-b2cd-7bce73d55304",
+  "imported_uid": "6c67d2081d114ee9b1c84cc8353cf7d0",
+  "date": "2026-05-29",
+  "name": "Nie odbyła się Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0ccd8ede-ec4a-4208-93f2-764573a13e77",
+  "imported_uid": "2221eca7b8ac456dae6a26ce5c836616",
+  "date": "2026-05-29",
+  "name": "Nie odbyła sie Przedszkole",
+  "revenue": 1665.0,
+  "price_total": 1665.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2a265357-e55e-4151-9f18-3f6854f7e699",
+  "imported_uid": "9c969ed101f2411aa08b6d086a5ecb18",
+  "date": "2026-09-30",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "32f520ea-a85f-47dc-a551-e6c4107b23fe",
+  "imported_uid": "a0477a61cbf64d7a92bdd69bb20b7514",
+  "date": "2027-05-08",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e5925b88-053f-4050-8171-8a6428adba77",
+  "imported_uid": "4ab55e25bbe04a879bf36e5970424853",
+  "date": "2026-05-26",
+  "name": "Warsztaty przedszkole",
+  "revenue": 2350.0,
+  "price_total": 2350.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1d5028a2-e8bf-4b1b-8361-1b484e9fe768",
+  "imported_uid": "f0dadb8ea75e4cbe867753da002b0f38",
+  "date": "2026-05-27",
+  "name": "Warsztaty przrdszkole",
+  "revenue": 3520.0,
+  "price_total": 3520.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9b2be94e-4e3f-4038-ad35-1632886a0151",
+  "imported_uid": "bd2443b2c4794baba44ff25fcfce73e4",
+  "date": "2026-08-28",
+  "name": "Impreza szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "64c720a0-2c8a-403a-8599-8552502c93e8",
+  "imported_uid": "f763162ce018432f8962dd174e5ac4ff",
+  "date": "2026-09-06",
+  "name": "Poprawiny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "234f629c-fa7b-4444-875f-ccfdd4f9d1f8",
+  "imported_uid": "9b5ad4adaa504ef3b337232e249a9ee7",
+  "date": "2026-05-20",
+  "name": "Wycieczka Pani smolinska podchody zrobić",
+  "revenue": 1050.0,
+  "price_total": 1050.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e42f620f-7f29-4d04-806f-9ea854f8c6a6",
+  "imported_uid": "7d86e6b07ebc467e8d13052d28ffd8e4",
+  "date": "2026-05-22",
+  "name": "Wycieczka przedszkole konkurs",
+  "revenue": 1680.0,
+  "price_total": 1680.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6bd34a57-f34e-480e-9360-2dc4d8649c4b",
+  "imported_uid": "67df90409ebd4ceab8a76716397d84f4",
+  "date": "2026-05-14",
+  "name": "Wycieczka przedszkole konkurs",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ade3ba97-2eef-4870-b22a-d5756cdf8a79",
+  "imported_uid": "033fa34e30814c978953375abd769ead",
+  "date": "2027-05-15",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1c9e6d4f-6309-4470-9b8b-26397c7da4ae",
+  "imported_uid": "41ab63c7b6734c8dbdc5a6193a9f6c28",
+  "date": "2027-05-22",
+  "name": "Komunia bieniek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0de19389-84e5-4154-a623-7c73fa7d114e",
+  "imported_uid": "0b39abde19544a2daa0bdd4bb419e181",
+  "date": "2026-05-24",
+  "name": "Impreza 18 stka rodzinna Łukasz zultak",
+  "revenue": 2700.0,
+  "price_total": 2700.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "953715ee-69cc-42ad-a2da-c82da707a7db",
+  "imported_uid": "6a417712a59a4e988cb0eba6b063062c",
+  "date": "2026-05-16",
+  "name": "Komunia Marty koleżanka Monika szyszka",
+  "revenue": 7800.0,
+  "price_total": 7800.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2a8d781e-61ce-4cdc-a1d8-4715bf4eff2a",
+  "imported_uid": "426db95dd82a46a19553fc24d7fb4e9c",
+  "date": "2025-12-06",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2fb7b234-bc6d-46c0-9af8-536658a33054",
+  "imported_uid": "ef76db7f2eba4cc39ebbdefc4ccdd2a7",
+  "date": "2025-10-25",
+  "name": "Urodzinki 2\\,5 roku",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d612c624-d4f2-4b46-bf0a-baf937e2666b",
+  "imported_uid": "ac0f6a2de36a4b608e261b1d643b73e9",
+  "date": "2025-10-10",
+  "name": "Prokuratura",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "de3114a2-f8b8-4ae8-bd03-0f238b824d89",
+  "imported_uid": "41903f30138b48b5b8fff10b35b10b62",
+  "date": "2025-10-03",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "53290cb8-000a-42d4-8854-e29bbccedfb9",
+  "imported_uid": "9966fc5c733744fdba6828cc76cc5176",
+  "date": "2025-10-17",
+  "name": "Ekoenergia firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "84ebc2dc-8c24-40ab-a460-afd532055ede",
+  "imported_uid": "53e53f400c38432098cc1ba61e7d5816",
+  "date": "2025-10-02",
+  "name": "Qubus",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1172506a-c0c5-401e-aa7d-c5c365ab8ae9",
+  "imported_uid": "454e13e3467a42fcad0ed37505b8f2b8",
+  "date": "2025-10-09",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0609f5eb-8caf-4946-b2ee-a360a1b453a2",
+  "imported_uid": "e8c737e3b6094bbea0938ebf682d8a98",
+  "date": "2025-09-27",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9a78e3d0-51b7-46bf-abcf-026f8e5ba620",
+  "imported_uid": "eee356f756704298a6555a9ae59ed488",
+  "date": "2025-09-22",
+  "name": "2 klasa sniadek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "942174fa-eb12-4cd1-8db7-e804983569fb",
+  "imported_uid": "527893d7e48b438abd7efcc6bc8d6348",
+  "date": "2025-09-30",
+  "name": "Oli Schmeidel klasa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "251f0942-e77a-4f4b-93d4-d159495512de",
+  "imported_uid": "621ff5df0dc64cea9b1c907727229043",
+  "date": "2025-09-21",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "95ca0551-d0d7-4dc2-945a-ed1ff03e65e8",
+  "imported_uid": "b7c8da1a374a49ab8eddec16df2702ca",
+  "date": "2025-09-20",
+  "name": "Urodzinki 8 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "29cd8bcd-a387-476d-8947-b37948f87bd1",
+  "imported_uid": "4bf66003233441bb8709c2922da493ab",
+  "date": "2025-09-28",
+  "name": "Impreza szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1dd03b2e-bc26-4891-b894-21ef46fa66d4",
+  "imported_uid": "837ec11662ba48df9af24114d6ade978",
+  "date": "2025-09-25",
+  "name": "Warsztaty z rodzicami Marlena słoń patrz e-mail",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5a687e65-2733-4006-bbd8-e25c2f786115",
+  "imported_uid": "9efb3a003f534bd995de3ab1e448f146",
+  "date": "2025-09-13",
+  "name": "Urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c745a5f9-88dc-4242-a6a1-4587a79c5e12",
+  "imported_uid": "aaf97081310846a3927c894b663869d4",
+  "date": "2025-09-12",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4adc1f40-6452-42dc-86ba-71997cfbad74",
+  "imported_uid": "01f27823bd2f42999bc47163c835294e",
+  "date": "2025-09-06",
+  "name": "Renata jaskółka urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b0d403b7-5f18-4d8f-a730-b8d7e176a372",
+  "imported_uid": "306ab5f7d88e40cebef29444e096a486",
+  "date": "2025-09-07",
+  "name": "Impreza super pharm",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e6f3392d-c6da-4e4d-a965-895be27dfd4b",
+  "imported_uid": "7ab1006ebc01443d99187a4817424b88",
+  "date": "2025-09-29",
+  "name": "Wycieczka 7 klasa Pani Smolińska",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7839141d-a406-4afd-bc62-1e2fdb3a731a",
+  "imported_uid": "de791fc9746645bc8e1083986c5cd792",
+  "date": "2025-09-12",
+  "name": "Warsztaty las w szkle 9-14 godz 9-14",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3f4a90f3-d044-4f72-a2b9-646cd73aef7d",
+  "imported_uid": "ec107d9e427b41ac92f3ef862add3f45",
+  "date": "2025-09-01",
+  "name": "Spotkanie klasowe z urodzinami",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5ef211d0-3bec-43c5-8f26-c47992dc1d6b",
+  "imported_uid": "b7f7036e3def45f6a29bdb83e18eb9a0",
+  "date": "2025-08-30",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "717a978f-21ed-4ec2-8453-6c8c099347c5",
+  "imported_uid": "1248d362dbea401e99b84507aa64ee36",
+  "date": "2025-08-23",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "391a73b7-17d2-432b-9497-4a1cd1f14823",
+  "imported_uid": "c565dee0e211490ea0b406f9a4fb0e60",
+  "date": "2025-08-21",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e71e9a98-26e4-4601-8def-49bbda562a56",
+  "imported_uid": "45c8fa4737254784a9b8c01b976089a5",
+  "date": "2025-08-22",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c43ada8c-8347-4355-942b-570b575a8f3a",
+  "imported_uid": "4f27734afda44b16affe2a0fa2489ec7",
+  "date": "2025-08-15",
+  "name": "Sylwia CK oferta",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bf7620fd-810c-4915-b834-f9c921555ae5",
+  "imported_uid": "149af73a60664f4483f23f36bb687c3c",
+  "date": "2025-08-31",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "48ca8289-6669-4a11-8430-8bb535c9c7cf",
+  "imported_uid": "33dab319cd734f58a0495c5d10d46dee",
+  "date": "2025-08-27",
+  "name": "Urodzinki dziewczynka 5 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ecc2e661-5075-44ec-92b4-fccff053f6cc",
+  "imported_uid": "5800d585a4f24b4dbdef5c6a046ec4bf",
+  "date": "2025-08-08",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7a01e4e7-054d-4af3-af7a-18dd282164f2",
+  "imported_uid": "9f2d8561652b46aaa04845db88330eba",
+  "date": "2025-08-09",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "96623882-8299-4e51-8de2-fa0adf54e55a",
+  "imported_uid": "143e3fbc1f8b41f5baba50cc250a5628",
+  "date": "2025-08-09",
+  "name": "18 rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0c1405f2-377c-4841-84eb-9622d97f269b",
+  "imported_uid": "81e8819cf06f473d8d8403c441b24b24",
+  "date": "2025-08-10",
+  "name": "Urodzinki 2 dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f6c725cb-f505-4c81-b4f5-9afe2a3e7932",
+  "imported_uid": "3b75760c70cb47cdb8b67f38cfc37b75",
+  "date": "2025-08-02",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b005c5be-3cd5-476f-a9b3-269a80432ac5",
+  "imported_uid": "5ec5e239889741e7a5c5853a70192a40",
+  "date": "2025-08-03",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "21943e75-d67f-4703-b825-d0843161ed26",
+  "imported_uid": "f7568924ba074064b135fda1dd817b89",
+  "date": "2025-09-05",
+  "name": "Urodzinki 1",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d8ba6687-8e6b-4ebe-9768-64aa836dfc9d",
+  "imported_uid": "41445f3fd85543668206be6e99f3cc0d",
+  "date": "2025-07-24",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "802ed227-7369-48fd-aad5-05c8de4fc089",
+  "imported_uid": "9461b25ac3a54190a08fce7eb33c6a17",
+  "date": "2025-07-12",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "01b10793-19b0-42ea-947f-8539ca543353",
+  "imported_uid": "f85f38bdf4224aec85590dbaa4cfc530",
+  "date": "2025-07-11",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0f6ee2d9-40e2-400c-b60b-ce28284623df",
+  "imported_uid": "ac202e6ff0c54afcb83af0afac89543a",
+  "date": "2025-07-05",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c7e0b434-efa0-43b4-9844-a3c2c61966a1",
+  "imported_uid": "285df91592c14abca2e6af36f808783e",
+  "date": "2025-07-20",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7388166d-cb65-4a8a-b76d-91a9c86c61b4",
+  "imported_uid": "146a13150a21465382a40ce4d98a2817",
+  "date": "2025-07-05",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4f2170f5-6afd-4416-af76-93a93051b662",
+  "imported_uid": "942e69898e1548c2a2a45962cb84c722",
+  "date": "2025-07-18",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e023e096-39bb-465c-a554-6466716befbd",
+  "imported_uid": "e91d9fe64bce44f2ba4e6ffd4b5c2aa1",
+  "date": "2025-06-28",
+  "name": "Ślub cywilny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f7a9383b-1cd6-485a-8d5b-63a55e592f2c",
+  "imported_uid": "6008310e6c6d4ff29be47b975a68a9ed",
+  "date": "2025-06-29",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "13fde5ec-843d-4b9e-b9d8-c19401286d05",
+  "imported_uid": "0b1b5912643c47689daeaf038a850c15",
+  "date": "2025-06-26",
+  "name": "ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "231900b4-1ee9-4538-b9a1-b08fafaa7c16",
+  "imported_uid": "eb74cc0487bc49ba83cb049f056fd738",
+  "date": "2025-07-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f94d92ee-a5c6-466d-b023-e354e5f43f95",
+  "imported_uid": "d74d9fecb3644b95842bf5e45aea035d",
+  "date": "2025-07-01",
+  "name": "Urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f5d8a779-9447-4235-8a28-f6a36d19c8ce",
+  "imported_uid": "3ce9f2cf22494b8694977701957f745b",
+  "date": "2025-07-13",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d56b7f69-3fd8-4faa-b27d-d8ac149a07ba",
+  "imported_uid": "7b0d472541a049bfb0d29a1b43b96db2",
+  "date": "2025-06-22",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "50ba35fd-3d20-4934-af3c-1a73904f13c0",
+  "imported_uid": "a385c0481e9d4ee0a46e560c2c648dfc",
+  "date": "2025-07-06",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "824ad624-b94b-4782-b867-8e6edf4fc0f8",
+  "imported_uid": "dd0ba27e3c56480ba190928efbec2608",
+  "date": "2025-06-22",
+  "name": "Impreza przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1ad11e7b-b08b-4dea-93be-25ee4d124633",
+  "imported_uid": "c46223ddddcd4b99bf7b03bd7eda3d1c",
+  "date": "2025-06-18",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "426e9cf2-367d-4b19-9ee6-6d4587180e59",
+  "imported_uid": "3b30c5303d534bae814a6abfd805aa80",
+  "date": "2025-07-20",
+  "name": "Rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1e8a2aae-0f80-41a3-a628-9f38a45f55e5",
+  "imported_uid": "3e864c6777874194baa41e0604a7e272",
+  "date": "2025-06-16",
+  "name": "Ognisko walek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "78fbc5da-c0f4-4f7d-81c8-7be9a95b3c96",
+  "imported_uid": "1f1bf05840e3473a9c8b757d4e68a1d1",
+  "date": "2025-06-18",
+  "name": "Impreza przedszkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6919401b-9353-45b4-b106-df6540631f3c",
+  "imported_uid": "0b8da7a8672340a4a81958ae661443ae",
+  "date": "2025-06-14",
+  "name": "Urodzinki 2 dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d8afbe61-0a18-4ba1-a517-7b7c782616d1",
+  "imported_uid": "80ce5d9f65c8440e9086516a272bd91f",
+  "date": "2025-06-15",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ef0699b0-bc90-46d3-ba79-c10553073212",
+  "imported_uid": "1368545cb7f045dab2dce069d252e76c",
+  "date": "2025-06-24",
+  "name": "Paweł Sikora 16-17 animatorka Ewka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "03757a14-3c0f-492c-944c-06fa4c30d8c6",
+  "imported_uid": "1b1942b898ce443f88767bbeb35e20ac",
+  "date": "2025-06-15",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a1d58904-006c-400e-bf7e-52a95d5497c2",
+  "imported_uid": "8e68be5850c74315b858a56bd281cbee",
+  "date": "2025-06-14",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a13c5f05-faf8-413d-9d7d-c2fbf4cc3576",
+  "imported_uid": "51a0d5f25a1e4874b85fadad015fbaa1",
+  "date": "2025-08-23",
+  "name": "Firmowa eurosteel",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b03a9f5e-f8f2-453e-a43d-62cd422e048e",
+  "imported_uid": "b01df4eac3b5464aa0055ec06a1ef5b8",
+  "date": "2025-08-07",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6bc2d015-464b-412c-908b-0910c7ce7884",
+  "imported_uid": "0e759f99580842378966704b491bd445",
+  "date": "2025-06-27",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0f4b8be6-36fb-4dff-af42-52ff0ec018b4",
+  "imported_uid": "49122bfd36b34133835fa9deb88e3c2d",
+  "date": "2025-06-08",
+  "name": "Urodzinki wojciechowscy",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bcd26949-9ce3-4364-92bd-44464ee7dc81",
+  "imported_uid": "4583ce9f51044ff8b4e0e4d2fb19be7c",
+  "date": "2025-07-06",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fd47bfc2-53b6-45ba-b1c7-c470dac23743",
+  "imported_uid": "81fa7edff1984cbfab9a2cce0cba0102",
+  "date": "2025-06-13",
+  "name": "Kia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ba955ec6-33a5-4fdf-b58f-fc6452f525e2",
+  "imported_uid": "380b370e3e574f6d89215bbb258005c6",
+  "date": "2025-11-29",
+  "name": "Rezerwacja urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8166b640-245c-4b33-a4d4-83c0258d17a1",
+  "imported_uid": "057bf0dc39b3499d8c2dad9e3d0b41bb",
+  "date": "2025-07-04",
+  "name": "Haarslev",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7908c9be-8e9c-4339-b2ec-50d2799e7305",
+  "imported_uid": "def1d90f0da64b69a5228ccf80c8fad7",
+  "date": "2025-06-23",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f172b5ff-0137-442e-aae6-253b27c566fc",
+  "imported_uid": "8b58e1b52d8b4be493c928379aa61833",
+  "date": "2025-06-13",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4eb5a56d-ba6f-4e07-9def-a58a00c0e0dc",
+  "imported_uid": "76ae98263f424e6593d42cc1fce5982e",
+  "date": "2025-07-31",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3981dc1a-c3ea-43b4-814e-4b6e4c48f64e",
+  "imported_uid": "2a79a251dd25443a8d5584a199716bf4",
+  "date": "2025-08-02",
+  "name": "Spotkanie klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7b67b214-a298-4d7f-9742-68416a60f8a5",
+  "imported_uid": "d719d1681f16442290787946d48b135b",
+  "date": "2025-08-30",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "84bac02b-6b3a-43bf-bbd6-8b1f52174552",
+  "imported_uid": "1db85026225e49a8a025ff252b72b940",
+  "date": "2025-06-16",
+  "name": "Ognisko szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "108a260a-0f81-403e-b73c-5b881b643cac",
+  "imported_uid": "083b4ce3840b42e0a18ba77381f0f6e4",
+  "date": "2025-06-06",
+  "name": "Spotkanie z konkursu",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "277a802c-8b21-4b41-8bbd-d053185b6f59",
+  "imported_uid": "44bb1cea348a459fa41b05f3b6edd0b1",
+  "date": "2025-06-10",
+  "name": "Sp 13 2 klasa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cb769230-6543-4787-a23e-02934b6a4316",
+  "imported_uid": "eb80b48a4eb447b5bf60a1ff72739827",
+  "date": "2025-05-29",
+  "name": "Warsztaty",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2cb1d217-f194-4576-8872-bd8e9be7e942",
+  "imported_uid": "70aa445f06cf43c09cc7edea95eff77d",
+  "date": "2025-05-28",
+  "name": "Spotkanie przedszkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "be2c1073-ba29-4dda-9025-7a3d73b525f6",
+  "imported_uid": "c4eac87c302742369fe7e29c7d6c9a18",
+  "date": "2025-05-31",
+  "name": "Wstępna rezerwacja Pani Milena",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "abb067a6-23b6-4f4f-9865-26c1d756a2c0",
+  "imported_uid": "e94a4f4432a841ffbbe10e15daf4bb61",
+  "date": "2025-06-25",
+  "name": "Chrabąszcz urodzinki godzina 16 do uzgodnszczegóły",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e56137a6-c54f-482c-b7f4-96be14b04576",
+  "imported_uid": "9ab6cc5a760c4ce2b84879c6cc1b5ed5",
+  "date": "2025-05-25",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "50e6c4e1-5638-44f9-b6df-8a07ef807141",
+  "imported_uid": "f89e76164f3041099bc92827896e5a98",
+  "date": "2025-05-27",
+  "name": "Warsztaty szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "53150a82-d1ea-49b3-99a8-31c572d7a70c",
+  "imported_uid": "9fcc7a2b635c4a0f956b7080e6bc68a2",
+  "date": "2025-06-21",
+  "name": "Impreza szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4cbdd240-9b07-4203-8435-8cfa26864e1e",
+  "imported_uid": "6544a040e8cc41e59121d949a76735f6",
+  "date": "2025-05-25",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "33e964f4-37f2-426a-b011-958341bf0fa5",
+  "imported_uid": "3e09dac8af634645bbc54321f19396da",
+  "date": "2025-08-15",
+  "name": "Urodzinki 5 lat Wojas Andrzej 10-14",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "800bb5de-2479-4474-a537-a86d48e880c8",
+  "imported_uid": "4045c902134147ff827512d41b48beb2",
+  "date": "2025-06-19",
+  "name": "Impreza Michała klasy",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ddfc0dac-b6e0-4801-aed9-6f88d98ada26",
+  "imported_uid": "c1b28c7d44e54fc79a307fed57853f17",
+  "date": "2025-06-05",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7943a7c7-be47-41b3-9516-cb3fc3c39148",
+  "imported_uid": "f2daa474019148ddb0392f19059d2009",
+  "date": "2025-05-21",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bd0f8438-f5cd-4421-a9d0-ad97d8d02b20",
+  "imported_uid": "dfe52b07d8ba4cda9f898831ab1739aa",
+  "date": "2025-05-24",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ae44aa86-ef17-45bc-bad0-ff3cc4a90aef",
+  "imported_uid": "d4b8527d10914f339da040711f3950c8",
+  "date": "2025-05-28",
+  "name": "Pielęgniarki z zeszłego roku",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2e7c861d-5a24-4718-8948-d75704c038b5",
+  "imported_uid": "3d25a8b52c584f70b48f4e125c55b509",
+  "date": "2025-06-01",
+  "name": "Poprawiny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c3ad482d-8824-44d7-9107-16e157a627eb",
+  "imported_uid": "b9f2151443ec4d48835ad0b0081014d9",
+  "date": "2025-06-01",
+  "name": "Andrzej Wijas",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c3a6bac4-7714-41cb-a093-a68fdf10a099",
+  "imported_uid": "2b7053ae5ffe489eacdaa0f5a8b0ce82",
+  "date": "2025-06-07",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0b4154e3-e142-4b42-9a82-160e9e4cb022",
+  "imported_uid": "d2cbc74319284a11aefbbe37e165ee69",
+  "date": "2025-05-11",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fc1f9462-89de-479b-9972-850686fc32fc",
+  "imported_uid": "96188256ee884e3a810a45ae5c07920a",
+  "date": "2025-04-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5a397e71-6aa3-4f5d-ba08-02a7920c446e",
+  "imported_uid": "35cb6042aa8849bb86d527e684dd5512",
+  "date": "2025-04-26",
+  "name": "Urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "23bf95cf-6e17-49ca-9741-035a71fa675f",
+  "imported_uid": "9e29fca948e4469bb12e2abcc8323102",
+  "date": "2025-05-17",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "49b23e8b-b0d3-45a3-9420-7e1200ba65bd",
+  "imported_uid": "ca66cc4b6574471390d09d870aceae78",
+  "date": "2025-06-08",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "32cccc48-485a-449c-bd7c-f623d4e1d9cc",
+  "imported_uid": "5c57b63863454047b2140c1ae435b463",
+  "date": "2025-09-06",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c5ee428d-aafe-472f-8524-591a7e579458",
+  "imported_uid": "919b6338c0674d129cf5116c3e169366",
+  "date": "2025-05-22",
+  "name": "Impreza firmowa britenet",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f08b30a1-279b-46df-9c09-4748d6371ae2",
+  "imported_uid": "b52a813c78d8483c8569c6cfff6e7662",
+  "date": "2025-04-23",
+  "name": "Warsztaty szkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "25adc9b5-dde9-4108-8ef8-dbe96801e854",
+  "imported_uid": "b970697dd7444803b6d618d04c9f09ad",
+  "date": "2025-06-02",
+  "name": "Agnieszka kojąc 8 klasa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a1ade524-639b-42a2-814d-3e058675c561",
+  "imported_uid": "63b75bc8a16c46b4a6420ae54cf9b2f0",
+  "date": "2025-06-03",
+  "name": "Angelika giełdoń impreza klasowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "675d1486-04dd-405b-83c3-f640e7be54b4",
+  "imported_uid": "b819317381d841c180a9135e2241fd38",
+  "date": "2025-04-12",
+  "name": "Urodzinki 2 latki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "204d2b86-cfa5-44f4-acd1-a05e40cc5667",
+  "imported_uid": "f554daf2be1c4933a621b2bc2176091e",
+  "date": "2025-05-03",
+  "name": "Urodzinki plus urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7e663c5b-0d09-474b-98e1-15fde66346da",
+  "imported_uid": "59f2f87037ee419eb9d7ff17b4d2b037",
+  "date": "2025-04-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "569822ad-38b2-416f-9592-778edc745803",
+  "imported_uid": "26004171192e4334a9d63af17ede9ffa",
+  "date": "2025-06-29",
+  "name": "Paweł laskowski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "092209db-1a9a-4e65-83a2-1697e6e8295d",
+  "imported_uid": "cd940fd6e1514f98bae98bb1fa538ff8",
+  "date": "2025-05-09",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "46024790-e34c-4939-831e-4aee4bf66610",
+  "imported_uid": "3e8026995c464c71839b994d14183dfc",
+  "date": "2024-10-30",
+  "name": "Sp15 wycieczka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a5da8625-a9fd-4594-a0e3-cfd97d39e8e6",
+  "imported_uid": "122516aeeca148babcd40de8774d4823",
+  "date": "2024-10-13",
+  "name": "Urodzinki 5 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1349fef2-302d-4b69-ade5-c1e17fb39595",
+  "imported_uid": "483b71bc6f5d4563be040704e0690c4d",
+  "date": "2024-10-12",
+  "name": "Szkoła podstawowa nr 2",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f48e1070-8348-49b0-a95a-350fad50d5cf",
+  "imported_uid": "bf68c959f4db456b9acbb2b7af96675e",
+  "date": "2024-10-19",
+  "name": "Impreza firmowa zasadaauto",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "10eac7f7-41ea-45ac-8271-05e2ff92381e",
+  "imported_uid": "5893213fc2084dacaac61834f219c88c",
+  "date": "2024-10-11",
+  "name": "Rezerwacja monika.krecisz@gmail.com",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7e5e77b7-6aa4-4403-a9b5-35221d31de74",
+  "imported_uid": "3a0d292712de47df83ab2123bfcf6ad4",
+  "date": "2024-10-06",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "45627b93-33d7-4b49-a20e-5bcf1bab320d",
+  "imported_uid": "f2eae0e9b2ae45ca9c480ca5b501188c",
+  "date": "2024-10-06",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8d2a04ef-c794-465c-bc09-49d49b8cd5f6",
+  "imported_uid": "36aa734df2ca4babadcda2c45a71754e",
+  "date": "2024-09-29",
+  "name": "Rezerwacja Siadul 11-15",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ca73363b-c8ed-4058-8622-01d41fcc857f",
+  "imported_uid": "8783d10deb9a4d94a0ac503bd9a7ecd3",
+  "date": "2024-10-05",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8b37ded3-931f-4acf-a564-247d4308febf",
+  "imported_uid": "4ea6e9277298498d88bc6148a1bd555d",
+  "date": "2024-10-04",
+  "name": "Warsztaty skarby przyrody",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8a1c4fb7-bd9a-4ea1-ae25-e8eed54ecea7",
+  "imported_uid": "7933ebb28ead4291907bb6e1b8ab99f1",
+  "date": "2024-10-26",
+  "name": "Szkoła Varnea",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "36fad768-ebcb-4441-a3a1-bda54de0e2ba",
+  "imported_uid": "78f3f6669d5246d7aae2086ec36d518f",
+  "date": "2024-10-13",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8bd045dd-f386-4a81-b56c-b0d3366e2267",
+  "imported_uid": "43819e45c4124b44acfb771a59cc3fe8",
+  "date": "2024-09-21",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "19244987-3e3d-41f1-8e72-0cc1c573a8e3",
+  "imported_uid": "53c018642b584aca94bb4eb32113d4f0",
+  "date": "2024-09-20",
+  "name": "Rezerwacja firmowa info załącznik",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8e89d564-e1e9-4ff3-a769-8c1234553bbb",
+  "imported_uid": "336f51b6c23f4418be73908ec71a59aa",
+  "date": "2024-09-21",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "88d626f4-2c47-430b-8cf2-a8f3e7e75c71",
+  "imported_uid": "9eecf9d66e3f42cb9bea078a552f1c19",
+  "date": "2024-09-17",
+  "name": "Szkoła 39",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "08aafbec-1b49-4feb-9af6-d59f8275aada",
+  "imported_uid": "07f3ac35d4784a00904ea0ab09add0f8",
+  "date": "2024-09-20",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5a1cdc2d-0769-4ec9-907f-61e2b18bc694",
+  "imported_uid": "a8cb3f314bcf48e79a746003f61e164e",
+  "date": "2024-09-18",
+  "name": "warsztaty",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "eee5885d-5fc8-4ee9-aa97-cb94365631df",
+  "imported_uid": "8989abefa46e422fa65b9d52aa49b5fa",
+  "date": "2024-10-20",
+  "name": "Urodzonki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "71674340-a9c3-4281-8cde-6abafbbb67ae",
+  "imported_uid": "a15b28da243b436f978e98f2b984fff6",
+  "date": "2024-09-26",
+  "name": "Rezerwacja 3b sp 39",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "283018ba-6620-4c6a-af3b-464287d13ab3",
+  "imported_uid": "f4843ccf5c054af28a580f26daa7c607",
+  "date": "2024-09-19",
+  "name": "Przedszkole aqq",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c9ce2be6-a0e2-498e-b7d6-fc4c1471caed",
+  "imported_uid": "6c3d6541052a4cecb984f6dc2cb4ab63",
+  "date": "2024-10-12",
+  "name": "Literaci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3c420ad9-03be-42b4-88e0-9e2e20550be7",
+  "imported_uid": "b6220160d11345099fb7c2af43e11de8",
+  "date": "2024-09-28",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b2c70c24-1507-4c32-b396-87b3933b0939",
+  "imported_uid": "e28f9fecd30f4b9e9a45a337d815a316",
+  "date": "2024-09-07",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1f4dcd4a-d229-4f74-84e3-2b37d81dbe8a",
+  "imported_uid": "4d55b206d110440f82b88fd7e42ae876",
+  "date": "2024-09-11",
+  "name": "Wycieczka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fa70dc7c-1e7b-4670-9bbe-95c115f7dfe7",
+  "imported_uid": "6dd52072a9d74b4da66b2c877373f124",
+  "date": "2024-09-09",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "377b654b-fcc2-45f7-bfc3-98583cc78115",
+  "imported_uid": "a8b30fb675d741cdab497664b4b88981",
+  "date": "2024-09-15",
+  "name": "piknik rodzinny Paulina Laciak",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "913c16d8-c3a7-4c34-8cb4-3abca660f832",
+  "imported_uid": "01bb04dc97c94004b63c9798a56b16cf",
+  "date": "2024-09-24",
+  "name": "Dzień piecz ziemniaka 731391709",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2d546db0-74ae-4273-991d-22c030970f65",
+  "imported_uid": "632b3f5df9ce466a97bc4ef72614cdd3",
+  "date": "2024-09-08",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "48210323-1417-4a99-a48e-d7c722ddbc7c",
+  "imported_uid": "b75684cc06604e46beffa0f0aa0a2ad2",
+  "date": "2024-09-06",
+  "name": "Zakończenie pracy",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7aee6beb-b8a4-4c4d-9a06-c09a1a3d7057",
+  "imported_uid": "887e8bc9832d40eab07599b7c04f3f48",
+  "date": "2024-09-01",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fe56fa34-216f-4288-8bc9-84ce176f8f1d",
+  "imported_uid": "7c9b48b13b3e44578022731d28a8b9bf",
+  "date": "2024-08-31",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b0fe0c3a-6c29-4e33-a898-e674d205c99a",
+  "imported_uid": "2cb7057f6d054fddb31fb7dac7e3657c",
+  "date": "2024-08-31",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2b6d0b6b-9705-4c13-880a-48fa0af34a36",
+  "imported_uid": "fcb57d82ddc647dda6c29667de3dfd28",
+  "date": "2024-09-01",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "14c2e39c-7e61-42d3-bb96-cb9a7dac18f7",
+  "imported_uid": "30aa3a01f4b646ebb94c9527a509cced",
+  "date": "2024-09-14",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "112f95bf-feda-4b27-856a-569e82c47124",
+  "imported_uid": "cfc8bb371fdd467bb99f05d7490097bb",
+  "date": "2024-09-02",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "00619727-9cac-45a2-9164-77dbc6fc01df",
+  "imported_uid": "f56e1e8f1d6d4bd6b0328f3b15435003",
+  "date": "2024-09-08",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "eb9dd5a2-a453-4a83-ac88-704ea7a263ed",
+  "imported_uid": "4c042f65449f4ea097fe9267ba96a663",
+  "date": "2024-08-29",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "114d8fb1-5e64-4183-a42e-a04147e4e0ba",
+  "imported_uid": "96514b72e4a64120973fe2099c1ec1dc",
+  "date": "2024-08-25",
+  "name": "Urodzinki  roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f99e0f2f-a943-470a-aec0-ee5931441450",
+  "imported_uid": "1ff5bc4876254ad09994477a4f38cd64",
+  "date": "2024-08-24",
+  "name": "Impreza urodzinowa dziecka Paulina Czechowicz",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "29485a48-c936-4462-96c2-7b8b47e55a8a",
+  "imported_uid": "d8acba2d14df4ca891dcd31c072ce2b9",
+  "date": "2024-08-25",
+  "name": "Ognisko przedszkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0ec8a816-6987-4fc1-a2f2-d5dfecd74d69",
+  "imported_uid": "5ce5034c056b48b6859341218535d507",
+  "date": "2024-08-15",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fa840270-5ffe-4b8e-8e64-727ca82db253",
+  "imported_uid": "1d9bccecba9643a5b9ada3765d06e3e6",
+  "date": "2024-08-23",
+  "name": "Rezerwacja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ccd043fa-22d1-4a1f-8194-531f6bb45dcc",
+  "imported_uid": "3b79f58ad8974d5c80640a1ca4782983",
+  "date": "2024-08-10",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7e333fa5-b831-4e8f-8bd1-b46c95777c1b",
+  "imported_uid": "ea38b84ef14947848911317ef32fa5c8",
+  "date": "2024-08-14",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a531697b-9e96-435d-a4e5-4ac977047809",
+  "imported_uid": "30ca1480af7f4fbdb80dff69ec2aca47",
+  "date": "2024-08-03",
+  "name": "Impreza firmowa Cezary Kucharczyk",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f9beecbb-fb13-44bc-983a-8b553de6172b",
+  "imported_uid": "b472304d441d4367b3a316f8c155ee18",
+  "date": "2024-07-20",
+  "name": "Spotkanie architekci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "319d9061-b199-431a-9a5b-d48f7f640d3a",
+  "imported_uid": "a8ca6bb975a2458585f2276d5466c8a2",
+  "date": "2024-08-17",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "77b1245e-2278-44ef-ab11-dacc2d0aefa7",
+  "imported_uid": "a788e5e6e1724295a7271700ba8c3c2a",
+  "date": "2024-07-19",
+  "name": "Wycieczka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "985d9d11-d290-4b92-b846-3c1f92bd96bf",
+  "imported_uid": "4b7f3cd5112541c2a6e48386f9d3e7a7",
+  "date": "2024-07-18",
+  "name": "Rezerwacja 18stka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "03ec7cd3-5124-4d4b-a917-d32cbf7033c8",
+  "imported_uid": "0a1e4becd49a424584b20d5af33d847d",
+  "date": "2024-07-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "95321f9e-3998-4def-9dba-b5d905b6edba",
+  "imported_uid": "b28aba0befe1464882d666bdccffd142",
+  "date": "2024-07-21",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0ea2477c-3bbe-44e4-996d-8e02ff502265",
+  "imported_uid": "c4427d83341a48b1a851ef81d04f0d09",
+  "date": "2024-07-26",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "76993808-dafc-4c10-93ad-3c1677d7ee73",
+  "imported_uid": "d6317ec5e7b24862a097040f2a9324ce",
+  "date": "2024-07-14",
+  "name": "Urodzinki roczek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "929929eb-4a57-430e-af3b-3b2d8f17c6af",
+  "imported_uid": "8e7618f5b764478995dd8f14151d7e77",
+  "date": "2024-07-07",
+  "name": "Wycieczka przedszkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c22c95cf-0341-4bc6-b40c-6fac9a9e5eb2",
+  "imported_uid": "ff5c9159c6ae4c509223307bf3a9bacb",
+  "date": "2024-07-07",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a1e7426c-a341-448d-b4cd-6d8f42679f0d",
+  "imported_uid": "e28c3a15564244f7af893f1ddfca5bd3",
+  "date": "2024-07-12",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "20772adc-c3fc-43c3-9f73-9be2b5dc3309",
+  "imported_uid": "fc658fb23ab5478e9771f7e26f50a881",
+  "date": "2024-06-29",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7c88de4c-577f-4845-a9f8-938fec81c5e3",
+  "imported_uid": "ae0e494de49445ed9cc67849b365c9ff",
+  "date": "2024-07-05",
+  "name": "Impreza firmowa haarslev",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cedb345f-3392-4ad7-b916-5e4a190ad153",
+  "imported_uid": "59d3b4b9c52e469b8cff3518cedf7fa7",
+  "date": "2024-06-28",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4ab40ca3-4051-41bc-86c1-177b78e586fb",
+  "imported_uid": "798af0a9aaa648d0a76b6db48183b61a",
+  "date": "2024-06-30",
+  "name": "Wycieczka z rodzicami",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4ef4a5ae-7b36-4ef0-befe-49ccec388480",
+  "imported_uid": "98a391f9821340ce9a8a18be7ed6a6ce",
+  "date": "2024-06-25",
+  "name": "Urodzinki Antka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "83c1b4f3-5f36-4eec-94d3-7fa9f4ae8275",
+  "imported_uid": "6a54b93238084929928af6c8767c9bce",
+  "date": "2024-07-06",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ff6de260-9cc3-47d2-abb6-06f515527402",
+  "imported_uid": "69083d6263104deaac6e6dbe6ec40a9b",
+  "date": "2024-07-06",
+  "name": "Urodzinki Leonard 4 latka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "26a831ea-9200-4bbb-96e6-b84105d3ca01",
+  "imported_uid": "2e090c32f50f4296af2fc1a5d7956698",
+  "date": "2024-06-20",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b7ae6661-a18a-48d0-b6b3-1bf7c9fc4214",
+  "imported_uid": "cf06e5e50bd041129014ab589c0588a6",
+  "date": "2024-06-18",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "69ae066c-62b7-434c-b0d6-3028e9e117c6",
+  "imported_uid": "b5a1569941544ec8920350cead7c1444",
+  "date": "2024-06-14",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1587681b-853e-420e-b1b6-181371b82485",
+  "imported_uid": "8e97ffd0f56447c7b56b125e338cf902",
+  "date": "2024-06-19",
+  "name": "Klasowa Andrzej Karas",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cb7d5583-2407-4f58-b2d6-bf770ef136f9",
+  "imported_uid": "3c4ea01e90ef45bf9cea8c22b7e43c8d",
+  "date": "2024-06-12",
+  "name": "Wycieczka okrzei",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "283666fd-1041-4251-b1bc-18c9cdd2ac1b",
+  "imported_uid": "32097c5d840f4d86800f961b1b66053e",
+  "date": "2024-06-11",
+  "name": "Wycieczka przedszkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e9c4e107-78af-4173-afed-1d89900339e4",
+  "imported_uid": "02fbc258d2c9405991709254189ff3d4",
+  "date": "2024-06-15",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "98fe1861-fbb7-4dde-87a2-5dedb03c70a8",
+  "imported_uid": "7f7f6f9adb4a4297a088fb38c0047ac6",
+  "date": "2024-06-15",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "521bac17-fda3-4412-a731-051870ec8923",
+  "imported_uid": "57f3a89680fc4f108dbf0d457d5f4f6e",
+  "date": "2024-06-17",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ac7df79e-9902-4712-931b-39cfb4d65000",
+  "imported_uid": "1fb05feef13b4ebf9d33779d1187738b",
+  "date": "2024-06-11",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "67ad015e-d1dc-4461-96e9-44000b5f2343",
+  "imported_uid": "cc51075a88e042eaaff3c7d78847dd99",
+  "date": "2024-06-16",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "474ba789-a63f-4d85-991d-8eae5e26dd31",
+  "imported_uid": "9953576cd66045adab586d88d959456f",
+  "date": "2024-07-20",
+  "name": "Piotrek może w tym dniu do 16",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bd6b211f-2652-4616-8eef-ee3666851c18",
+  "imported_uid": "36f6c30c97fb43e2b4d76aa7732be615",
+  "date": "2024-06-17",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "aa4a915f-ad82-4900-9e37-f0e65faacab3",
+  "imported_uid": "6b38f94248a74f14b19dcedf8398a631",
+  "date": "2024-06-12",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8999ff20-299f-4454-8c53-5e4d82fa184d",
+  "imported_uid": "bad5b495810a457996d8bc13c5617b83",
+  "date": "2024-06-27",
+  "name": "Kontrola środowisko 10",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d7c1bfb8-9949-4048-9036-58214ad4cd6f",
+  "imported_uid": "4b5e09c090484ffba98372399596b641",
+  "date": "2024-06-08",
+  "name": "Spotkanie klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e79c53fe-38c5-41dd-941a-26016e8a0379",
+  "imported_uid": "367918a068b6442e933cee6b96def7e0",
+  "date": "2024-06-08",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0ded3996-11d9-464d-ab1c-a814ad563912",
+  "imported_uid": "05a9280a36164dcaa213a34cc2078288",
+  "date": "2024-06-14",
+  "name": "Kolda od Marty",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f376eeb1-0d55-4072-9155-e5fdf30017e4",
+  "imported_uid": "19feb8b501044aa49c019d6026445d4f",
+  "date": "2024-06-07",
+  "name": "Szkoła montesorri",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8edb351c-d250-4625-be73-1de86ddaba2f",
+  "imported_uid": "7aa1d8706bd44b4e9a4fd634863ce5a3",
+  "date": "2024-06-09",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "86e72394-d955-45bc-a3c6-3cf7df1bd50e",
+  "imported_uid": "e0a9c4946b7249469664234b314b1827",
+  "date": "2024-06-22",
+  "name": "Szkola",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "058862df-9c01-445b-a350-2cfd5d95cef9",
+  "imported_uid": "f70159fae5da4b09ae7b2e7d63d99793",
+  "date": "2024-06-21",
+  "name": "Zakończenie roku",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fd293951-99e4-41f9-a263-7a9ee49d2ffc",
+  "imported_uid": "0334e58fc4334cf2a765a0daef36ea67",
+  "date": "2024-06-26",
+  "name": "Urodzinki 2 dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b8a58762-0e08-4114-84e5-cabfc9971286",
+  "imported_uid": "423bf1b0045a4746b873e3f1c4be6ca7",
+  "date": "2024-06-02",
+  "name": "Urodzinki 4 latka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d09cac18-44b5-4637-ac13-c8d77dad1381",
+  "imported_uid": "62047ef8e1bf4df4a230e8c827c1cbc7",
+  "date": "2024-05-31",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ee4cdcb1-fde9-4d93-a4fe-a7f1aa6a2e68",
+  "imported_uid": "c18f3d1a684b4af59d69cafe6c137db1",
+  "date": "2024-06-01",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "86e3242e-0892-46c0-bf91-c6dfce803ab6",
+  "imported_uid": "c7c3aa98452840d88c87e2b2e800c17b",
+  "date": "2024-06-05",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "45dd8478-358b-4224-9869-4e6d602663db",
+  "imported_uid": "218be0eb508943c7b85239b9f7d36c3a",
+  "date": "2024-05-26",
+  "name": "Szkoła konkurs",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "25aecb56-ca51-4648-85b5-91ab0c107e64",
+  "imported_uid": "603a353afb244f7bb1f2086e576e5c00",
+  "date": "2024-06-06",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8fb8d883-26ae-4d8f-b9f3-431ade9b6d5a",
+  "imported_uid": "be270df6a4cb480aa237e056a1fcc9fd",
+  "date": "2024-05-28",
+  "name": "Przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "497c12cc-08e4-4b4e-8d45-890c7cb09260",
+  "imported_uid": "1083c522f5c54a34b50c4b049fdb1d04",
+  "date": "2024-05-22",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0d445677-f486-4b72-beac-b63927e052ee",
+  "imported_uid": "924f41f97ae14fc5a7bd1557a2765300",
+  "date": "2024-05-30",
+  "name": "Day off Nie robimy imprezy",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5c6a35bf-799c-4682-966d-23a48f63b557",
+  "imported_uid": "c2228918fb384c4c86bfb50d06fab8c6",
+  "date": "2024-05-29",
+  "name": "Przedszkole nr 14 Kamila chtabaszcz",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9e614337-0dc4-4d82-8432-db6b56aa59e7",
+  "imported_uid": "8b6bc968a64a4ed38ffede9d48123407",
+  "date": "2024-06-03",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8f593686-a206-49b6-b26f-95eeba6c934c",
+  "imported_uid": "1a4cc75a68e6498a8eb724a9bb0441be",
+  "date": "2024-06-03",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1c72d0d8-66b3-432e-b203-3fc79d645d2e",
+  "imported_uid": "7605ae1cabd44f449b31c99a2a256754",
+  "date": "2024-05-12",
+  "name": "Pielegniarki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5ff46ef4-6689-4123-8da1-a18455bb6111",
+  "imported_uid": "e2eec96a7b92475f872941d019035e72",
+  "date": "2024-05-10",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "685c4e3b-c82d-4270-9b20-0804e23c732d",
+  "imported_uid": "c99cad2a2971420a9b3291191043c074",
+  "date": "2024-05-05",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1641955e-1f18-4533-82cc-b120f35fef31",
+  "imported_uid": "a370fc21928846f893af825d7a9ff7e5",
+  "date": "2024-05-17",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2b7ae70c-c298-493f-9420-c8803206114c",
+  "imported_uid": "cca6ccf60aa446a78881278bf006bb1f",
+  "date": "2024-05-11",
+  "name": "Rezerwacja Ewelina Sikora",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "03a4f48d-d757-4019-a3a0-f7c1585d4d11",
+  "imported_uid": "b30e1b036b754284bf89c190f5481b1d",
+  "date": "2024-05-21",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8c30f5da-2b65-4b27-b9b4-6e6fff35ece1",
+  "imported_uid": "1256fe3afcc943faba81d669ee90cd0e",
+  "date": "2024-06-16",
+  "name": "Kasia Polańska Marta oczkowska ognisko",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "14223311-4d2d-4db5-bca3-839ad1844bcd",
+  "imported_uid": "1d5e1742c535479196d5912ccdab32d2",
+  "date": "2024-05-24",
+  "name": "Ognisko klasowe Alicja sołtys sp39 1c od 16 do ust",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7fd0b9f3-34f0-4b88-8bbd-374d06524a33",
+  "imported_uid": "2f89751863ee49f294cd7cad0821cf5d",
+  "date": "2024-06-23",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9c3d811f-0362-48d2-a5a4-cc5c03732c7e",
+  "imported_uid": "a9d1c5647bb540e3822cb2eea4af10d1",
+  "date": "2024-05-20",
+  "name": "Przedszkole zerowka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "786a029c-24b5-4777-b371-e0c3561b9d09",
+  "imported_uid": "ea11171fb49a40e998cd358da7c2d6f9",
+  "date": "2024-04-20",
+  "name": "Impreza Piotrka - ludzie bemaru",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1722b651-dfc3-4afd-8d01-da92dc3f05ab",
+  "imported_uid": "6ca0705a213d401db4f99e8bd3c7cfe9",
+  "date": "2024-07-13",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "50bde50c-5782-4b34-ada0-e3047e0dc339",
+  "imported_uid": "9fa6e417260440b29acc686933f868de",
+  "date": "2024-03-27",
+  "name": "2 liceum",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "394a13a1-0326-47ea-8e1f-0c521323e112",
+  "imported_uid": "f6940029e2dd4039a6354af52b11d8e0",
+  "date": "2023-11-10",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "11e3b25f-636e-46cd-be50-ec18d7c9da32",
+  "imported_uid": "73d512896f364ba5b848fb9316db10d7",
+  "date": "2023-10-24",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "80b10043-fead-4a77-a9e6-1f87b68ef125",
+  "imported_uid": "5a990321c7c341f2b1256f87a8bcd565",
+  "date": "2023-10-21",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "010d1de7-7b70-4dc2-a91e-f74de524a8db",
+  "imported_uid": "a6d46e156b4e48a68e83cd8bc258576d",
+  "date": "2023-10-06",
+  "name": "Impreza firmowa audi",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "740c15a4-7af2-4f63-9b86-90cb533a746b",
+  "imported_uid": "07e27f4de6da45aba9f8785527850f5b",
+  "date": "2023-10-08",
+  "name": "Ognisko szkolne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e02c1c07-2f88-4f58-83e3-e7d6c967e0b1",
+  "imported_uid": "2344075c5cc544b9be1d82c2c81cc3de",
+  "date": "2023-10-15",
+  "name": "Ognisko oli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f3c70d7d-98fa-4f08-87a4-ad9312459c71",
+  "imported_uid": "eff8049082704d04a46c85aed9d9e07b",
+  "date": "2023-10-21",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "87efd138-bdcd-4eb5-b7a1-c4252bf28b1f",
+  "imported_uid": "93d173f42bd94601983c49973d7d22d5",
+  "date": "2023-10-12",
+  "name": "Klasa Michala",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6d8283c6-1c3f-4a21-af96-59555d7b20ff",
+  "imported_uid": "4a2408821ca14604a405138d5b331b56",
+  "date": "2023-10-08",
+  "name": "Wygrane przedszkole",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a6f8b514-e630-4715-88dd-345e169cc7f3",
+  "imported_uid": "d0a6cc5a53e84c92966377e4ec92660c",
+  "date": "2023-10-07",
+  "name": "Urodzinki 2 dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d4b910e5-4531-4124-a4a8-93c15056d5e7",
+  "imported_uid": "deb5f95268fd47b0b4a6f3d96bdade35",
+  "date": "2023-09-30",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fa8bfceb-46ce-4b15-a4ca-42c825eb6a24",
+  "imported_uid": "4a6846f609204254b47fd01729840b55",
+  "date": "2023-09-22",
+  "name": "Spotkanie klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6ed270e8-a688-4bad-81e8-163f8038248c",
+  "imported_uid": "f79ccd5f733645fd98513f6051ff08ef",
+  "date": "2023-10-10",
+  "name": "Rajd sp39",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "058ffff4-7a69-4abe-81e3-6ea0e77174bb",
+  "imported_uid": "273a7b3479864110ba08c1b308f53041",
+  "date": "2023-09-28",
+  "name": "Rezerwacja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fd313af9-d3ae-4d2b-9b0b-72b8b9cd3ec3",
+  "imported_uid": "b0d3329fbcdb42ef8e045f419f4b9145",
+  "date": "2023-09-27",
+  "name": "Rezerwacja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "38b7d704-0bac-48ee-a98c-58d7a399594e",
+  "imported_uid": "1d4b8b9464d643beaa2ed1025f4c5573",
+  "date": "2023-10-14",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ac4bfe45-3a57-4f59-885e-972c4879e05f",
+  "imported_uid": "96250e5a711e4ddfbf8386982be3e81d",
+  "date": "2023-09-23",
+  "name": "Urozinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "69503fa1-2465-491c-a3c1-502c44ec31ba",
+  "imported_uid": "281f24bb2b6449079e26e195581b0c38",
+  "date": "2023-09-21",
+  "name": "Środowisko dom samop",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5e5ad354-4874-4172-a12f-f4e4698ff2ab",
+  "imported_uid": "5c1728f8972e464abffc774cd6ac2ce2",
+  "date": "2023-09-17",
+  "name": "Impreza dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "28dc7019-65d1-49c7-8d18-748b2e0dddd1",
+  "imported_uid": "b8d662974c2149cd88a613c64601ecf7",
+  "date": "2023-09-23",
+  "name": "Urodziny Pani oraz corki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2d8dc35c-3098-4407-9c29-8640831eedc2",
+  "imported_uid": "cbb7794236df4447a11398d0c619b65d",
+  "date": "2023-09-11",
+  "name": "Impreza przedszkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b31286ec-bff8-49d8-813d-65f331079393",
+  "imported_uid": "c23222e8d115422a9836dc0c086afac7",
+  "date": "2023-09-10",
+  "name": "Impreza klasowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "71cda54f-07fb-4ec1-a4ce-bdac2b4f4200",
+  "imported_uid": "faa74ad50b5848e0809742824cdbf954",
+  "date": "2023-09-09",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6614ba49-917c-457d-bdc8-a0bf2d1fa6a4",
+  "imported_uid": "ec26e1ce58d74f06849e49f250b3471f",
+  "date": "2023-09-08",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f47a77ed-9727-4fcd-9b1c-bff8f95898f3",
+  "imported_uid": "17a625b53c004618a40f74b5924912be",
+  "date": "2023-09-15",
+  "name": "Urodzinki dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ff744aa7-a269-491e-9648-02acf2a78358",
+  "imported_uid": "d3386ed5134e4199bbae9306713db8d8",
+  "date": "2023-09-04",
+  "name": "Spotkanie bebny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8ba1fd95-4c9c-4adb-bd17-f3ee1c6d717f",
+  "imported_uid": "3684dc51891546adbba3a3d7947c93b6",
+  "date": "2023-09-05",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e475ac0e-220e-4bb5-b709-87175300b946",
+  "imported_uid": "8076b5651210486882d7e4569ed8f442",
+  "date": "2023-09-10",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "04e89e49-8d1f-451a-808f-bb0b52c2e190",
+  "imported_uid": "5d855368b8404319b77cc45655349ecc",
+  "date": "2023-09-02",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "99f5b2d9-ff39-44b6-8a84-b3878c700bb3",
+  "imported_uid": "57778c50d46644c6b29c4dccfc9c740e",
+  "date": "2023-08-26",
+  "name": "Urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fc8be5be-7dd2-41a1-aa41-0c8f0c0beff7",
+  "imported_uid": "27bea1c84db149638650a3a49f4facaa",
+  "date": "2023-08-25",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "714b970b-58dd-4083-97e1-ad57dcfb7474",
+  "imported_uid": "510233f9a5f946a0b4285ccd8c37d80a",
+  "date": "2023-08-26",
+  "name": "Urodzinki 8 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a51e06b2-fcfe-41ed-b602-28712a92eccc",
+  "imported_uid": "90bf211d364a4e23aa27dfb040d39d6d",
+  "date": "2023-08-27",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f02a8779-3172-406d-ba3c-2d5d167a6562",
+  "imported_uid": "42c6e1571056459c8cc250fc019f0a9e",
+  "date": "2023-08-18",
+  "name": "Nawara spotkanie klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7a241631-42bc-4d46-8d53-ceb99cf4c40a",
+  "imported_uid": "9a57ac5bb0904bd2af9853f6dac8bb38",
+  "date": "2023-08-19",
+  "name": "Impreza 50 tka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d625310a-39fe-4e7c-ad72-d73bc9c3784e",
+  "imported_uid": "a726842306294dfb87b33aa128731552",
+  "date": "2023-08-27",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ff66465f-994f-42c7-9a32-3c225b47945f",
+  "imported_uid": "63b1c638d81f477d8c35e8800605d5e2",
+  "date": "2023-08-12",
+  "name": "Urodzinki dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b751693a-d4c2-4cac-9be4-805731a5463b",
+  "imported_uid": "5e3953a8135b4d749cb6c1c3158bdfda",
+  "date": "2023-08-13",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "259e6112-880d-4a77-a175-83c4d6ad45f4",
+  "imported_uid": "4dcf8cdc91c94e7493f5245732e4b63d",
+  "date": "2023-09-03",
+  "name": "Urodzinki Ola Kobryñ",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3a8309fc-15f8-4e5b-8af4-6c734ded0a6e",
+  "imported_uid": "d40444e4739a46aa85bad13b7f103eb8",
+  "date": "2023-07-29",
+  "name": "Chrzciny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3abaa4cb-18ed-41f9-83da-bd5fdf55c502",
+  "imported_uid": "52d1331f2d154ff3841ea6c794a71c33",
+  "date": "2023-08-07",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a762d3fa-1ba0-446a-94db-e7ceab4b0b60",
+  "imported_uid": "da9d43b6f3624ddba285003a9f896a55",
+  "date": "2023-07-23",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0628d6e6-1ecb-49c0-9c89-dd7bef75f998",
+  "imported_uid": "8734d7a3d3b141f3b48b2c1808bd940a",
+  "date": "2023-07-08",
+  "name": "Urodzinki plus dzieci i rodzice",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "470462ea-f3ef-4f82-8df8-e366813474e4",
+  "imported_uid": "89ba2a62a2864bc4b50b51eb469be9a2",
+  "date": "2023-07-03",
+  "name": "Impreza expograf",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a01d87e1-ff99-43a4-bb39-63542270ff0a",
+  "imported_uid": "e117d9ccd4d14da4ac5c2972a3e9e58a",
+  "date": "2023-07-14",
+  "name": "Poprawiny info mail",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "911dac3e-0d5c-4ef5-830c-c1ec37eba2e8",
+  "imported_uid": "06bee0daac0449968f5fa580fcd35624",
+  "date": "2023-07-09",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ce08e09b-9697-4c87-ba43-ac3c3265c52c",
+  "imported_uid": "535bc822689d4887be06d3beebf52e6e",
+  "date": "2023-06-30",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "89ad11a1-8c2f-4589-88f4-d12cfc8dbc1b",
+  "imported_uid": "44e0263e678f444f989de65532bb51d1",
+  "date": "2023-08-05",
+  "name": "Impreza firmowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ac26074d-9024-41e0-8807-329bb5546002",
+  "imported_uid": "b1b69c332376421086157c43f0bd95f3",
+  "date": "2023-06-22",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "59dcb298-50a1-433c-99e3-f800b3ad64c1",
+  "imported_uid": "c5b5257f5ecf4ae799774a5fde571a80",
+  "date": "2023-06-18",
+  "name": "Urodzinki corki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b85d6e63-7e03-41a5-a2d3-d388c658ae87",
+  "imported_uid": "b23b86f909f94f80a4a57acf5acaff60",
+  "date": "2023-06-14",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9f1d42b5-1ad8-418e-abbf-451450118227",
+  "imported_uid": "83c289123d584d5587c695c89e94dfd0",
+  "date": "2023-06-19",
+  "name": "Rajd Antka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8d031e45-a8b4-47a4-bddc-55a26fd47185",
+  "imported_uid": "e34bf2f22dd347cbab26dae0397639cf",
+  "date": "2025-05-10",
+  "name": "Komunia Hani",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "dff4e68f-fe12-4376-be8c-a7915efcf7cf",
+  "imported_uid": "13887224f8b24a1a98b6579796e1108e",
+  "date": "2024-05-18",
+  "name": "Komunia zagnansk",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "eb08190e-26aa-4ee3-ad76-9fa5b5063d40",
+  "imported_uid": "f01a2cd1bf2a41e48e5a4d8a30b3fa97",
+  "date": "2023-06-23",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f473208d-15a9-4ae9-bf3a-0ff94c883117",
+  "imported_uid": "dcd661cca8e844928aea2486c209f826",
+  "date": "2023-06-02",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b542d10b-1722-401a-aac9-11841334629d",
+  "imported_uid": "bc771025b1af42b396ab68d7e2d98de6",
+  "date": "2023-06-25",
+  "name": "Urodzinki dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d3d75c81-d6c5-46db-a70b-a530c73aa930",
+  "imported_uid": "c6c41fff5bc244afaae718bf9836ca33",
+  "date": "2023-06-24",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "60291243-9a74-4579-8bc4-5f1734629705",
+  "imported_uid": "85293dbd4862475ab43a39a1ba809b39",
+  "date": "2023-06-10",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cbb7c404-7ceb-4d7e-9389-c8849525964c",
+  "imported_uid": "3499b5cf912b49e18e44e3accd7695b9",
+  "date": "2023-06-07",
+  "name": "Impreza urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0b741ebf-9887-4cba-aeab-12d7bf06f0e2",
+  "imported_uid": "b6ea668eb1924ef88ce0435f6e7fdcc4",
+  "date": "2023-06-24",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b6d19138-6321-48ca-acf1-1eaac1672572",
+  "imported_uid": "3d68aa40909b4c86adfb387ab53f8cdc",
+  "date": "2023-06-13",
+  "name": "Wycieczka przedszkola",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ddeb5698-8bf4-4314-8f1f-ce9f19b0590b",
+  "imported_uid": "aefc1a11462440ff8a226f66edbf3fc4",
+  "date": "2023-06-20",
+  "name": "Urodziny Ady Sikory  godz 17. Animatorka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "44feb8c0-c2e3-44e4-9ab2-724fe333fefb",
+  "imported_uid": "67abc2415c7b45628d1e05cc2b3f79cc",
+  "date": "2023-06-21",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e5237ab3-4a60-4017-90d0-d926d7fc2d89",
+  "imported_uid": "c7828a129eba48ee902c7d94f658e9b6",
+  "date": "2023-07-15",
+  "name": "Urodzinki dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ff2574ab-b58e-404c-9164-abcff29a4a40",
+  "imported_uid": "eafe9305c5c647ed80941f9cdd683707",
+  "date": "2024-05-18",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2304ab02-fd5c-4627-be55-c45dd9ed8c4a",
+  "imported_uid": "105f6cda0f944a74b08bfe9c75591030",
+  "date": "2023-06-17",
+  "name": "Urodzinki dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "72daa12b-9d09-487b-9cde-be669a1d1607",
+  "imported_uid": "6ebc07f246a5434b9847002cb368cd7d",
+  "date": "2023-06-09",
+  "name": "Wycieczka szkolna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0683e758-a930-4e46-828b-b124c5a1e504",
+  "imported_uid": "290cdebee8274717a7c0b5748ca90007",
+  "date": "2023-06-11",
+  "name": "Oze",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0aba618d-b84b-4a44-a683-63786fc7dc75",
+  "imported_uid": "5b984e5eb2454a5ea697d59c303459ae",
+  "date": "2023-05-14",
+  "name": "Urodziny dzieci",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "955bdc6b-73c6-4dd6-948b-11358bd63fe3",
+  "imported_uid": "0136183b60424528b571b612c60612ca",
+  "date": "2023-05-30",
+  "name": "Przedszkole nr 13",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "153f8898-c127-4473-840e-56a53ca6c21a",
+  "imported_uid": "76c7e44bd4b44731889652eec59dc78a",
+  "date": "2023-05-26",
+  "name": "4eco",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "575e451e-b7a9-4ebb-a7e9-0eb8d01391ff",
+  "imported_uid": "5704671ba2ea455c97426410e8d001ea",
+  "date": "2023-05-28",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d16f9004-fc55-471f-ae05-c2eea08edd8d",
+  "imported_uid": "92b19bb42b6e4979b9bcbc7fde942b3f",
+  "date": "2023-06-16",
+  "name": "Rezerwacja onvelo",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "354e8daf-45cb-4e09-bb42-57ca6bf83f7f",
+  "imported_uid": "df28b76e303a4823b333d633686c5fcb",
+  "date": "2023-05-20",
+  "name": "Rezerwacja Kasia Polańska ognisko dzieci z rodzica",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "541d2025-7d0b-4aa8-969b-a5e7ab0d5aca",
+  "imported_uid": "d8c0a16310b44f31a637e9d7c5efaf21",
+  "date": "2023-04-29",
+  "name": "Urodziny 30",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9c146a4c-f75f-4150-a029-784100e5a5c6",
+  "imported_uid": "63cdb8a1a8284b06a75191776435e906",
+  "date": "2023-06-03",
+  "name": "Urodziny Zimny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "586e27c1-23db-46d4-ab44-c17b35bb29bf",
+  "imported_uid": "ff547ea2a2d24954b17c6571051771c8",
+  "date": "2023-05-13",
+  "name": "Komunia Oli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a9ad50d2-07ff-44ce-be80-842aea7a095f",
+  "imported_uid": "ba78400fbf0c4def940c1175c93790f0",
+  "date": "2023-06-04",
+  "name": "Wycieczka klasowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4f257a58-7718-48ec-b6f2-9d180a0cedf3",
+  "imported_uid": "bf92fea838b240559767671027929368",
+  "date": "2023-04-30",
+  "name": "10lecie matury",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "18ee38ed-2029-496e-a991-8377ed0587d5",
+  "imported_uid": "66e358b684634bc084b1bac18e7565c3",
+  "date": "2023-01-18",
+  "name": "Nocleg targi sadownictwa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fea2c1c3-0baa-4000-81b6-1837491aa99e",
+  "imported_uid": "e140d16241eb46c3b8f7dd71e236a791",
+  "date": "2022-11-26",
+  "name": "Wieczór panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "023bd9c4-3a1a-4333-b8a5-fc194bcbdf1d",
+  "imported_uid": "2b3e288ab5fe4c318ea5eac9a2a79f78",
+  "date": "2022-11-18",
+  "name": "Wieczór kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d9de0af3-c92b-4703-960d-a47c5b25e62e",
+  "imported_uid": "9b254e2272064fefbf69a024815d2581",
+  "date": "2022-11-19",
+  "name": "Booking",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "df66c9fe-c6aa-4de2-974d-091f75a2560d",
+  "imported_uid": "7c7e3cf56b0e41aca915a72f2c74dca7",
+  "date": "2022-10-22",
+  "name": "Ognisko klasowe Agnieszka Krol",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5530c308-9dce-4a06-af2c-e7954e85a93b",
+  "imported_uid": "e23d6f85f31547579b563fb47afcae22",
+  "date": "2022-10-01",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ead1b0a8-07ac-412e-9ba9-cc664b288bf9",
+  "imported_uid": "ac8a312533ae48bd82d0389c6b2e609b",
+  "date": "2022-09-22",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "eba0da1e-a182-41ff-b47f-b2a7fb393518",
+  "imported_uid": "71d452e15699446ea5f6cbb922b67ccd",
+  "date": "2022-09-22",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f11842f0-3777-469a-9bb4-3e8d60301ab3",
+  "imported_uid": "ea3f6825fa10411ba7ee963bd4afbff2",
+  "date": "2022-09-24",
+  "name": "Ognisko klasowe Aleksandra Więckowska 607 736 639",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bc40083e-6961-4281-942f-adf597ef8627",
+  "imported_uid": "c62eb76fbf624d408b806409ceec1ea8",
+  "date": "2022-09-18",
+  "name": "Ognisko 6b Sylwia sitarska",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6a553c78-4f36-401e-be08-8267a6d19112",
+  "imported_uid": "0d48245d84294bbeb5494cd49ebf1ea8",
+  "date": "2023-06-17",
+  "name": "Kinga czaja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "48adef38-145f-407e-87ad-9fe6a284b265",
+  "imported_uid": "5f235dbf673c4452b23e8792d7d6325d",
+  "date": "2022-09-04",
+  "name": "Impreza ognisko 500840581",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "826de0c5-8de0-498c-aefe-ebb4410ec30a",
+  "imported_uid": "75ea450f87334ed6954fc39edcadb712",
+  "date": "2022-09-11",
+  "name": "Urodzinki 570222705",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7c4fdf54-272d-498e-a4d9-cdbead662a74",
+  "imported_uid": "1e49bca4215d49c2985458afa0379276",
+  "date": "2022-08-31",
+  "name": "Prezes 40 osób",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cc3ee3fb-5a00-4533-aed3-b7997ae245fb",
+  "imported_uid": "10a53a8eb402439880669f9fe5ecb85d",
+  "date": "2022-09-30",
+  "name": "Urodzinki 781944267",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "dfc31b12-e469-47a7-9e58-8eea12264eee",
+  "imported_uid": "3132eb4032f54a50bc3fada68a3fcddc",
+  "date": "2022-09-17",
+  "name": "Urodzinki 663277397",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4d70988c-b73e-4149-93d0-063e4605fea6",
+  "imported_uid": "6f885b6d512643bab582deb626bc74ca",
+  "date": "2022-09-02",
+  "name": "4eco",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5dd30534-7250-4b18-a787-a44af5ad753f",
+  "imported_uid": "c28c82f5cbbb4e03a3f4a090d81a7738",
+  "date": "2022-09-06",
+  "name": "RBNB flavien nocleg",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "093c369d-266f-4ab3-9c1b-52805df4dacc",
+  "imported_uid": "d1684936b2694dea9cccf3ffcf6adcf9",
+  "date": "2022-08-21",
+  "name": "Urodzinki Antosia 6 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c013ca33-db1c-4ab8-aab4-7c2c0251ab29",
+  "imported_uid": "691391f4b11c4e91993a24c7a6d8595b",
+  "date": "2022-09-03",
+  "name": "Urodzinki 504483208",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8bcce545-7d7a-4633-8c0a-96dbb0915e75",
+  "imported_uid": "3c3b85f6b5d14e27b15b7917314aac0c",
+  "date": "2022-08-20",
+  "name": "Urodzinki 539876443",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1514c869-6079-4c47-9364-b89faccef0bd",
+  "imported_uid": "c1cbd54b90384e7185cb021532aaffa1",
+  "date": "2022-09-25",
+  "name": "Urodziny sasiadki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2eaa024c-0b44-454b-a846-52286a6bdc06",
+  "imported_uid": "231fbb18d6ea4128ab5e5f7171513e62",
+  "date": "2022-09-10",
+  "name": "Kawalerski tel. 661599732",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "55730889-e8e0-4e71-8fbb-8a722b99ea2f",
+  "imported_uid": "2daf7e9653cc43cebe01e90a2086f793",
+  "date": "2022-08-13",
+  "name": "Urodzinki 12.00",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1a4882b9-e549-47d2-9725-589754415f9f",
+  "imported_uid": "fae307be8e9b45f88c11feac82a50b6c",
+  "date": "2022-08-06",
+  "name": "Wieczor kawalerski 697875198",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5cb1bd1f-0870-4995-a35c-e6953c2a2776",
+  "imported_uid": "4f599050e64049b3b133fbd721487f96",
+  "date": "2022-08-26",
+  "name": "Impreza rodzinna",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c0e87d7a-d8e7-4c66-a22d-045a5d4513cc",
+  "imported_uid": "787b6d4199fd4e1e8625f18941c1d244",
+  "date": "2022-09-10",
+  "name": "Urodziny 530755687",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0f54d1bb-d69e-4e58-b1ce-a74a5bd15111",
+  "imported_uid": "382341edc3e748859dca48137414be9b",
+  "date": "2022-08-27",
+  "name": "Impreza GLS 793063073",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c4ddc867-ccc3-4903-bdd5-e72e0b058fd3",
+  "imported_uid": "41605cbb0030441db2e09d9b30c7546c",
+  "date": "2022-07-23",
+  "name": "Urodzinki 8 lat . Joanna Borek 725600851",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8e61f295-7180-44ab-8140-21b8e134bffd",
+  "imported_uid": "de9061879303479f9b937fc5ad9b8a55",
+  "date": "2022-08-27",
+  "name": "Urodziny 3 latki 883093785",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e5d0d601-d2b5-4de0-b838-7b85ef5bef3d",
+  "imported_uid": "72055a1013ed43ff969d2a45db644b3c",
+  "date": "2022-07-22",
+  "name": "Wieczor panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a44e2113-420a-4099-b0bb-722bf6045478",
+  "imported_uid": "ebdb5c397777420a829dc4640849129a",
+  "date": "2022-09-24",
+  "name": "Impreza Kawalerski panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "698a5d58-8a68-42c0-9543-e9885afba542",
+  "imported_uid": "d3e52579bff040efb392e6bc7c2dedf5",
+  "date": "2022-08-14",
+  "name": "Justyna koleżanka Basi",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f528af4e-3543-48d9-be11-61f5042b7e36",
+  "imported_uid": "214e8dca89814e699fdf945423501e57",
+  "date": "2022-08-12",
+  "name": "Piotrek 18 stka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "972924d1-2e66-42e4-bbe5-bcf8ad3732cc",
+  "imported_uid": "b641c43fab8a434499f1a8224969083a",
+  "date": "2022-07-16",
+  "name": "Urodzinki Liliany 7 lat",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4da58581-bab6-4f0e-8ea7-7d137800d8f7",
+  "imported_uid": "e90c7c67a70249058eb9a770cfdb05c6",
+  "date": "2022-07-29",
+  "name": "Impreza firmowa Jarek Redko",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8d47c26b-eba4-4822-9139-0133cfd04610",
+  "imported_uid": "18d2d97497ff49af83c4fa85b42e15e7",
+  "date": "2022-07-17",
+  "name": "Urodziny córki izabela Nowak 509990876. Bez potwie",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2cc4fb9d-c669-4a84-af62-17b6dcab0306",
+  "imported_uid": "f6eccf7da4c54f56857c91e02e70d686",
+  "date": "2022-07-15",
+  "name": "Impreza firmowa Milena Stepien",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d7edb996-c293-42fb-88a0-236088e016b3",
+  "imported_uid": "2560061f5ad64ee7921359eaf079a2c3",
+  "date": "2022-07-30",
+  "name": "Wieczor kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bfa006db-e678-459b-942c-70e40453fe70",
+  "imported_uid": "84b1707766eb4511adad732f3badcd25",
+  "date": "2022-06-23",
+  "name": "Ognisko",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7eb5b166-9322-4ad7-8c54-9a90f8ec8a0a",
+  "imported_uid": "99205c9f33f44e0e85f9fc066a213d15",
+  "date": "2023-05-27",
+  "name": "Komunia",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3f6a96f5-6113-40f7-90aa-c32af41b246a",
+  "imported_uid": "379555befb3b460dbe2c1687a23b1e72",
+  "date": "2022-06-18",
+  "name": "Impreza poprawiny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5e486226-3973-49cf-b050-1236abda7765",
+  "imported_uid": "fedbcfa163794d1ca7d1b6be41eb27d4",
+  "date": "2022-06-17",
+  "name": "Impreza panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d05f3cbf-830b-4c79-bf83-264b5c1b768e",
+  "imported_uid": "bdf4d04852994451a5d6e1027a44f245",
+  "date": "2022-06-30",
+  "name": "Urodziny dziecka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e2306bec-22cb-46bf-8636-772a5f089c08",
+  "imported_uid": "39a220839f9c45548af3390a2769b961",
+  "date": "2022-06-19",
+  "name": "Urodziny dzieci Magdalena Goldon",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "7cc79056-2d07-40b7-8f45-cf602ad63acb",
+  "imported_uid": "0a22c79ade3b459083a411710574a228",
+  "date": "2022-07-07",
+  "name": "Urodziny Oli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cc4d9dbb-74ab-472e-9d09-2d88a41aacae",
+  "imported_uid": "ff41fe5a3322424da51ef0a29930e45b",
+  "date": "2022-06-21",
+  "name": "Przedszkole wycieczka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "023f38d9-29fe-40de-b219-dda4e36a66a7",
+  "imported_uid": "0b185a88cd544ecdacb9e23280509584",
+  "date": "2022-06-12",
+  "name": "Urodzinki Ewa wojciechowska",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "14615cbb-5f6b-4349-bc08-4b7a333b0e48",
+  "imported_uid": "1adfd60b33ec4e75926d58158ce40016",
+  "date": "2022-06-12",
+  "name": "Ognisko szkolne Łukasz zultak",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9293ab89-b27e-4738-9852-f85ddb978bb3",
+  "imported_uid": "4602d02adc504f1a8638ca1507d9b578",
+  "date": "2022-06-26",
+  "name": "Urodziny corki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4dd928ee-b203-4da4-b52e-c0ed60128fc1",
+  "imported_uid": "8a6e5e43c095454e87c28d7a1fb1f16c",
+  "date": "2022-07-23",
+  "name": "Kawalerski Piotr z obi do decyzji",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fcee9b2b-44db-49af-b266-79e10015c34c",
+  "imported_uid": "10914c15c6d34f20902d5a682a1793e7",
+  "date": "2022-06-19",
+  "name": "Ognisko Ola",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f4b0a6d0-d653-46bd-9c71-70886527b8da",
+  "imported_uid": "4e9616636be142af84ef5266ed5a3ae6",
+  "date": "2022-07-03",
+  "name": "Urodziny  dziecka Leon Lucjan 4 i 6",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b51fc3ca-7aac-4055-b2ce-0c0a04af713a",
+  "imported_uid": "03de6da368ab4774bd1acff45e7ac69b",
+  "date": "2022-06-24",
+  "name": "Ognisko klasowe",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f14874df-208d-4274-af30-4903ee162df3",
+  "imported_uid": "edd96f12f9a74fb180a60ca9921e21cb",
+  "date": "2022-08-13",
+  "name": "Wieczor Panieński 534 363 686",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "908502e3-98c3-4848-98aa-b11ec452dede",
+  "imported_uid": "27b4d7451fd84e9c8da7ab955a2e07c7",
+  "date": "2022-06-22",
+  "name": "Urodziny Ada Sikora",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f3afd8c7-d80b-4d94-af8b-dea17fbaaa37",
+  "imported_uid": "86d73da8b5bd4d25b0aa77c10b62211f",
+  "date": "2022-07-09",
+  "name": "Impreza panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fd30913e-2370-4a8c-861e-55506f2363d0",
+  "imported_uid": "ee6474f2de46447da0c59f1a85209f78",
+  "date": "2022-07-01",
+  "name": "Przyjęcie weselne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8449f43e-80de-4d79-8532-9461760c4ff0",
+  "imported_uid": "7d8dd8237e1f428caa04a4bd4eb9b121",
+  "date": "2022-06-25",
+  "name": "Wieczor kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0ac3dfad-4032-4850-b4d6-769c21698b4f",
+  "imported_uid": "e8e9520ae0e3426fac768120ea432adb",
+  "date": "2022-06-10",
+  "name": "Impreza urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cb331672-1c55-4b68-acd9-4bbc80accd0a",
+  "imported_uid": "f60aa7a2f4024f22a4dcb32db8bf0f72",
+  "date": "2022-05-25",
+  "name": "Impreza Kubuś chyba 19stka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "48d8e92a-b7de-406a-9743-eff2dd122acc",
+  "imported_uid": "64de3c8c852249928b1fc9e61ba3a7b7",
+  "date": "2022-06-05",
+  "name": "Ognisko Antka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "97d4f9e4-8bbe-411c-8bae-8775e58f2858",
+  "imported_uid": "a26e09a1e37e4e589a1305af1dbdc4bb",
+  "date": "2022-06-04",
+  "name": "Impreza urodziny 40",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5c187d68-6a94-4c8b-a247-6fa2b391b42d",
+  "imported_uid": "cf6ae652ae6e4063a7816448febfb7a7",
+  "date": "2022-05-22",
+  "name": "Urodziny Norbi",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2bb69dd1-04a7-4a5b-b4df-3e9a95ec0e5a",
+  "imported_uid": "37eae525e707424c91e3be28aac39f66",
+  "date": "2022-05-27",
+  "name": "Wieczor kawalerski 15 osob",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ec98adf3-1396-475b-b002-ab2b00d20c38",
+  "imported_uid": "1188f48f797241a6bca3c46dc5b17572",
+  "date": "2022-07-10",
+  "name": "Chrzciny Magda",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "9d7c1977-4113-4878-9d6e-cd4b3114ddc0",
+  "imported_uid": "93b15930cecb4ab6a5033388b826e74a",
+  "date": "2022-07-16",
+  "name": "Urodziny Jarek",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4a671a6a-002e-406d-884a-99a9171a046e",
+  "imported_uid": "011ddbe49a444c628ce9288d047dced9",
+  "date": "2022-05-14",
+  "name": "Komunia antka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8331f9a2-edc5-4e23-8788-c201420bd594",
+  "imported_uid": "5d4b4f9f4e2440feaf0c26c3b8ab04fa",
+  "date": "2022-06-11",
+  "name": "Impreza Gosia Nawara",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1ef83e50-1fa8-46c3-a31d-84c59032be71",
+  "imported_uid": "0b238d0dc4524a61ad29fbe5d8a408c6",
+  "date": "2022-05-21",
+  "name": "Impreza 20 urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ef7b366a-1248-486b-9333-e7162ab31a47",
+  "imported_uid": "c14a8e463ac742cbb32352c594e53338",
+  "date": "2022-05-07",
+  "name": "Wieczor panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f63a9921-f7e2-4afb-a761-fa0056921203",
+  "imported_uid": "d886dbc92d124f42a4dacb11672e674e",
+  "date": "2022-07-02",
+  "name": "Wieczor panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a52aa0b8-8e4c-4e6b-8eb4-64290da43f81",
+  "imported_uid": "da9dbee532414d4cb930f7ed771e03f7",
+  "date": "2022-05-28",
+  "name": "Impreza wieczor panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f1685af8-8a8f-44df-81a8-06b9d7ba13f0",
+  "imported_uid": "6ef5441bbefb40a9ae4472a7c491e3f9",
+  "date": "2022-01-23",
+  "name": "Strojny158@wp.pl",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ea970d6c-b02f-48ff-a0f6-5309f0edc247",
+  "imported_uid": "346ba06294fd4c73908de9f87ab90a0e",
+  "date": "2021-10-30",
+  "name": "Impreza kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3566389c-bac5-4214-9b26-a871c9733c07",
+  "imported_uid": "8cbc27030b3841c388f90d6ff4448cc4",
+  "date": "2021-10-18",
+  "name": "Booking 2 osoby",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f0bf9655-e220-4bdf-a951-56b3a5069431",
+  "imported_uid": "03805f9de1f747bf94a934d1c302acb1",
+  "date": "2021-10-03",
+  "name": "Ognisko",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "41851c4d-ce04-4fed-bec7-eb6e8344c2d6",
+  "imported_uid": "201c78d7652d47d6a74aec6c83553e55",
+  "date": "2021-09-21",
+  "name": "Wieczor panienski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "85682128-be60-48bf-a9f4-a17fb6ebd621",
+  "imported_uid": "569c0e89159a4c1f8f0271821fc7853c",
+  "date": "2021-09-09",
+  "name": "Booking P Remik 2 osoby",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "102fb88e-22fe-4465-bb99-bf5cd0772832",
+  "imported_uid": "58d48fff3fce49a5852507e85c1b51b8",
+  "date": "2021-09-04",
+  "name": "Impreza urodzinowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "44cf482f-9902-4366-8962-16d800cc4e91",
+  "imported_uid": "e992bb7f41ac4d98aca0bad3f686f29f",
+  "date": "2021-09-25",
+  "name": "Impreza urodziny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d7256823-f6eb-4db2-8fe1-88cc4577ba2b",
+  "imported_uid": "ae25a4fc6e214f55ad526cb4a2d0edb4",
+  "date": "2021-09-17",
+  "name": "Impreza urodzinowa",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0aff02b0-284f-41cb-84e7-1cb89857bb25",
+  "imported_uid": "682d072da2e246a6beae9a8c8b69d1fb",
+  "date": "2021-10-02",
+  "name": "Impreza 18tka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "1b883902-8999-4a33-8457-364ef52506bb",
+  "imported_uid": "f63156bc1cc94ebc8cc390435698739c",
+  "date": "2021-08-28",
+  "name": "Panieński",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b0d3a1a5-a7b7-47c7-9742-7011bc10839f",
+  "imported_uid": "17eb20309ab049399c47e7c0d8c7a465",
+  "date": "2021-09-08",
+  "name": "Booking Łukasz Komendera",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fda5f0eb-ec07-4566-8e40-bf0f40b5f647",
+  "imported_uid": "b7ae90f909394ca3b8e9528454c10da5",
+  "date": "2021-08-21",
+  "name": "Kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a0859e13-8846-420a-b58e-520afeb85e1c",
+  "imported_uid": "b0e0550a66744449811a249047841cf6",
+  "date": "2021-08-22",
+  "name": "Poprawiny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "14c8aa02-e63e-4494-8215-f6c59fc06a8b",
+  "imported_uid": "bbfa89b3a5844d0886e18c43688c9cb8",
+  "date": "2021-08-18",
+  "name": "Spotkanie w spr imprezy",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8ec096fe-8d90-4e76-b442-4aee7b29f8ad",
+  "imported_uid": "024a9809ea144f70b7190eb93b666633",
+  "date": "2021-08-10",
+  "name": "Wyjazd rodzinny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "57e2429e-a1a2-4034-a9b9-e37d8e2569c2",
+  "imported_uid": "e960220aa9f148439e7c1423879514c9",
+  "date": "2021-08-18",
+  "name": "Spotkanie godz 18",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "35285fb4-1d51-468b-b812-a3476185d421",
+  "imported_uid": "c6de237ce56d4c2398c0743e7cba981d",
+  "date": "2021-08-15",
+  "name": "Impreza Kaska z Borowej",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "ab0db521-a61c-4de4-8da5-f8910dc312ba",
+  "imported_uid": "cc6deb9783a9495e9cd6bd2d823228ec",
+  "date": "2021-08-19",
+  "name": "Wieczór kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "23fcb73e-2e24-4239-be11-b6a06f00fa0e",
+  "imported_uid": "6669af7d39864f2995fa61af31a95278",
+  "date": "2021-09-11",
+  "name": "Panieński",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b3686383-b767-4f14-9530-ac08c6a9e2d7",
+  "imported_uid": "8770e561f97d4fcdb155875c3fb9eda4",
+  "date": "2021-08-29",
+  "name": "Baby shower",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "fb32dd61-7a04-46a9-89b7-10a760b25b37",
+  "imported_uid": "c01edc489dff43148f6d41b68e32bbed",
+  "date": "2021-08-30",
+  "name": "Impreza 18tka",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "64ab6008-4e2a-4f36-bf6b-53b79361dfa6",
+  "imported_uid": "9691f000a4e14e378cb8745282ca3ec3",
+  "date": "2021-08-14",
+  "name": "Panieński",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "8001d501-8867-4773-b9b3-1b5f5ad10ae2",
+  "imported_uid": "bc6bd96292fd4fcfb1fe98f70af80054",
+  "date": "2021-08-13",
+  "name": "Kawalerski",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3f8a2bf1-0b6d-44e2-a553-95ef1bcdd499",
+  "imported_uid": "33264ed73f5a4b2d948f746cf076abf4",
+  "date": "2021-08-12",
+  "name": "Impreza znajomych",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f197e2c0-0686-482d-abd6-bf04bc0d69e9",
+  "imported_uid": "evt-1@test",
+  "date": "2026-06-10",
+  "name": "Wesele Nowaków",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f50ff1fb-1b46-4629-8ef0-c7f26b34d70f",
+  "imported_uid": "evt-2@test",
+  "date": "2024-01-01",
+  "name": "Impreza rok temu",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5c101af9-8889-4ddb-a61a-91d3fe7813c9",
+  "imported_uid": null,
+  "date": "2026-08-12",
+  "name": "Impreza firmowa · Zestaw nr 2",
+  "revenue": 8000.0,
+  "price_total": 8000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "b6aff0d4-071e-44ea-8dfb-b9aa2a1465d2",
+  "imported_uid": "f34e4a7230ea4a579084965cce9acd92",
+  "date": "2026-07-21",
+  "name": "Firmowa mirbud rezerwacja",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "2836004c-3e07-411f-a658-b80105ecd0c6",
+  "imported_uid": "6a02cf224c724d10a3a5925b2fa7552f",
+  "date": "2026-08-12",
+  "name": "Standard",
+  "revenue": 1150.0,
+  "price_total": 1150.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "724a8968-33d8-48a4-a615-e320daeaf19f",
+  "imported_uid": "8de054ea24cc4311898d62b29f871c37",
+  "date": "2026-09-12",
+  "name": "Tematyczne",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "c92997e6-8e3c-4e2c-bfff-b4479430ad94",
+  "imported_uid": "c73f03367d034fbc8c668c8d00673a29",
+  "date": "2026-08-26",
+  "name": "Standard",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5127aeee-075a-473f-8ad7-ab17b577b321",
+  "imported_uid": "abc0ba76a610462685825d3516a84c5e",
+  "date": "2026-08-28",
+  "name": "Impreza firmowa Pani Paulina morawiak",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "4577e147-daf0-436a-ba6f-c62a51f36119",
+  "imported_uid": "ab84a046f4fb42b1b342df56eab65eca",
+  "date": "2026-08-06",
+  "name": "Spotkanie w sprawie inprezy piatkowej godz 15",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "bc6c8615-ba24-4516-bf9c-fc8ae7be5c68",
+  "imported_uid": "1a4611c721b54907b48b1bfdbf430527",
+  "date": "2026-08-09",
+  "name": "Spotkanie w sprawie slubu 21.08 godz 15:30",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "f65ce875-c594-4e41-bfe0-8a62b6affc99",
+  "imported_uid": "e0fbad46f0a747f59d311962b58e2ca8",
+  "date": "2026-09-15",
+  "name": "Tematyczny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "37be3aa3-1308-4e48-83f1-d0eb331855b5",
+  "imported_uid": "fabd2d28b2954f3fb1a83cd5739fdb14",
+  "date": "2027-06-20",
+  "name": "Poprawiny",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "072cdc82-e034-41aa-93c2-b6a624a2e73a",
+  "imported_uid": null,
+  "date": "2026-08-05",
+  "name": "Mirbud",
+  "revenue": 13755.0,
+  "price_total": 13755.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "cd8c2032-63dc-4c1e-920a-02d5cb3679f3",
+  "imported_uid": null,
+  "date": "2026-08-23",
+  "name": "Konie",
+  "revenue": 2550.0,
+  "price_total": 2550.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "353433a6-845a-41d6-9337-496e567628e6",
+  "imported_uid": null,
+  "date": "2026-08-13",
+  "name": "Test",
+  "revenue": 0,
+  "price_total": 0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "e8dd333f-8dd0-4b9a-a7cf-5bb747c611da",
+  "imported_uid": null,
+  "date": "2026-08-07",
+  "name": "Urodziny",
+  "revenue": 2500,
+  "price_total": 2500.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "5e81f805-80af-4652-9e25-9ab48d7fbdfc",
+  "imported_uid": "63c5025ec2b146b8b66af955844bcbb3",
+  "date": "2026-09-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "64edb7d5-6f7a-470b-8e18-ca6e348b4b9c",
+  "imported_uid": "db79a8715e5143928e63e8c4591391ce",
+  "date": "2026-08-07",
+  "name": "Imprezs dorosli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "6bf06753-9953-43ed-81ac-d50276051fe0",
+  "imported_uid": "63c5025ec2b146b8b66af955844bcbb3",
+  "date": "2026-09-19",
+  "name": "Urodzinki",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "0a5816d3-979d-4187-8060-9547fd84568f",
+  "imported_uid": null,
+  "date": "2026-06-15",
+  "name": "Party 22:00",
+  "revenue": 15762.5,
+  "price_total": 15762.5,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "d94ef97e-878f-49b8-b1dc-f1170b199054",
+  "imported_uid": "evt-1@test",
+  "date": "2026-06-10",
+  "name": "Wesele Nowaków",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "3d1d8222-bb0a-4085-995a-9ee66599d83a",
+  "imported_uid": null,
+  "date": "2026-05-15",
+  "name": "Wesele",
+  "revenue": 10000.0,
+  "price_total": 10000.0,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "a93ffaee-5d3f-447d-8335-687461bd2914",
+  "imported_uid": "evt-2@test",
+  "date": "2024-01-01",
+  "name": "Impreza rok temu",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "48ab0e55-fb9f-4b2f-be9c-bbb23dbd1c66",
+  "imported_uid": "db79a8715e5143928e63e8c4591391ce",
+  "date": "2026-08-07",
+  "name": "Imprezs dorosli",
+  "revenue": 0.0,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ },
+ {
+  "id": "907d1db9-d740-4b03-958e-52188aa2da64",
+  "imported_uid": null,
+  "date": "2027-05-25",
+  "name": "[TEST] Override test",
+  "revenue": null,
+  "price_total": null,
+  "cost_total": null,
+  "finance": null
+ }
+]
