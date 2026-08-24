@@ -1,12 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
-  TextInput, ActivityIndicator, Alert, Platform, Modal, KeyboardAvoidingView,
+  TextInput, ActivityIndicator, Alert, Platform, Modal, KeyboardAvoidingView, StatusBar,
 } from "react-native";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { theme, formatPLN } from "@/src/theme";
+import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import MagazynView from "@/src/components/MagazynView";
 import { printShoppingList } from "@/src/printShopping";
@@ -244,27 +245,26 @@ export default function Zakupy() {
 
   const [view, setView] = useState<"buy" | "stock">("buy");
 
-  if (loading) return <View style={s.rootLoading}><ActivityIndicator color={theme.color.brand} /></View>;
+  if (loading) return <View style={s.rootLoading}><ActivityIndicator color={v2.color.forest} /></View>;
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <View style={{ flex: 1, backgroundColor: v2.color.bg }}>
+      <StatusBar barStyle="light-content" />
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <View>
-            <Text style={s.brand}>Zakupy</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.brand}>ZAKUPY</Text>
             <Text style={s.title}>{view === "buy" ? "Automatyczna lista" : "Magazyn"}</Text>
           </View>
           {view === "buy" ? (
             <View style={{ flexDirection: "row", gap: 6 }}>
               <Pressable
                 onPress={() => printShoppingList(gen || {}, items, dateFrom, dateTo)}
-                style={s.recipesBtn} hitSlop={8}>
-                <Feather name="printer" size={14} color={theme.color.brand} />
-                <Text style={s.recipesBtnText}>Drukuj</Text>
+                style={s.headerBtn} hitSlop={8}>
+                <Feather name="printer" size={16} color="#fff" />
               </Pressable>
-              <Pressable onPress={openRecipes} style={s.recipesBtn} hitSlop={8}>
-                <Feather name="book-open" size={14} color={theme.color.brand} />
-                <Text style={s.recipesBtnText}>Przepisy</Text>
+              <Pressable onPress={openRecipes} style={s.headerBtn} hitSlop={8}>
+                <Feather name="book-open" size={16} color="#fff" />
               </Pressable>
             </View>
           ) : null}
@@ -272,11 +272,11 @@ export default function Zakupy() {
         {/* Segment switch */}
         <View style={s.segRow}>
           <Pressable onPress={() => setView("buy")} style={[s.segBtn, view === "buy" && s.segBtnActive]}>
-            <Feather name="shopping-cart" size={14} color={view === "buy" ? theme.color.onBrand : theme.color.onSurface} />
+            <Feather name="shopping-cart" size={14} color={view === "buy" ? v2.color.forest : "#fff"} />
             <Text style={[s.segBtnTxt, view === "buy" && s.segBtnTxtActive]}>Do kupienia</Text>
           </Pressable>
           <Pressable onPress={() => setView("stock")} style={[s.segBtn, view === "stock" && s.segBtnActive]}>
-            <Feather name="archive" size={14} color={view === "stock" ? theme.color.onBrand : theme.color.onSurface} />
+            <Feather name="archive" size={14} color={view === "stock" ? v2.color.forest : "#fff"} />
             <Text style={[s.segBtnTxt, view === "stock" && s.segBtnTxtActive]}>Magazyn</Text>
           </Pressable>
         </View>
@@ -629,63 +629,64 @@ export default function Zakupy() {
 }
 
 const s = StyleSheet.create({
-  rootLoading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.surface },
-  header: { paddingHorizontal: 20, paddingBottom: 8 },
-  brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
-  recipesBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
-  recipesBtnText: { color: theme.color.brand, fontWeight: "700", fontSize: 12 },
-  segRow: { flexDirection: "row", gap: 6, marginTop: 10, backgroundColor: theme.color.border, borderRadius: 12, padding: 3 },
-  segBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, borderRadius: 10 },
-  segBtnActive: { backgroundColor: theme.color.brand },
-  segBtnTxt: { color: theme.color.onSurface, fontWeight: "700", fontSize: 12 },
-  segBtnTxtActive: { color: theme.color.onBrand },
+  rootLoading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: v2.color.bg },
+  header: { paddingHorizontal: 20, paddingBottom: 14, backgroundColor: v2.color.forestDeep },
+  brand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800", marginBottom: 4 },
+  title: { color: v2.color.onDark, fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
+  headerBtn: { width: 38, height: 38, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  recipesBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: v2.color.forest, backgroundColor: v2.color.forest + "12" },
+  recipesBtnText: { color: v2.color.forest, fontWeight: "700", fontSize: 12 },
+  segRow: { flexDirection: "row", gap: 6, marginTop: 12, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: v2.radius.md, padding: 3 },
+  segBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 9, borderRadius: v2.radius.sm },
+  segBtnActive: { backgroundColor: v2.color.card },
+  segBtnTxt: { color: "#fff", fontWeight: "800", fontSize: 12 },
+  segBtnTxtActive: { color: v2.color.forest },
   quickRow: { flexDirection: "row", gap: 6, flexWrap: "wrap" },
-  qBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
-  qText: { color: theme.color.brand, fontSize: 12, fontWeight: "700" },
-  input: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface, color: theme.color.onSurface, fontSize: 13 },
+  qBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: v2.color.forest + "44", backgroundColor: v2.color.mint },
+  qText: { color: v2.color.forest, fontSize: 12, fontWeight: "700" },
+  input: { paddingHorizontal: 10, paddingVertical: 9, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.card, color: v2.color.text, fontSize: 13 },
   toggleRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
-  toggleText: { color: theme.color.onSurface, fontSize: 13 },
-  hero: { marginTop: 6, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.brand + "44", backgroundColor: theme.color.brand + "0A" },
-  heroLabel: { color: theme.color.onSurfaceSecondary, letterSpacing: 1, fontSize: 10, fontWeight: "700" },
-  k: { color: theme.color.onSurfaceSecondary, fontSize: 10 },
-  v: { fontSize: 18, fontWeight: "800" },
+  toggleText: { color: v2.color.text, fontSize: 13 },
+  hero: { marginTop: 8, borderRadius: v2.radius.xl, padding: 14, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm },
+  heroLabel: { color: v2.color.textSubtle, letterSpacing: 1, fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+  k: { color: v2.color.textSubtle, fontSize: 10, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase" },
+  v: { fontSize: 18, fontWeight: "800", marginTop: 2, color: v2.color.text },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 10 },
   chip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
   chipDot: { width: 6, height: 6, borderRadius: 999 },
   chipTxt: { fontSize: 11, fontWeight: "700" },
-  chipCnt: { fontSize: 10, color: theme.color.onSurfaceSecondary },
-  sectionTitle: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },
-  card: { marginTop: 12, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
+  chipCnt: { fontSize: 10, color: v2.color.textMuted },
+  sectionTitle: { color: v2.color.text, fontSize: 16, fontWeight: "800" },
+  card: { marginTop: 12, borderRadius: v2.radius.lg, padding: 14, borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.card, ...v2.shadow.sm },
   rowBet: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 },
-  section: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
-  subSection: { color: theme.color.onSurfaceSecondary, fontSize: 11, fontWeight: "700", letterSpacing: 1, textTransform: "uppercase" },
-  accBtn: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: theme.color.brand },
-  accBtnText: { color: theme.color.onBrand, fontWeight: "700", fontSize: 11 },
-  sugRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6, borderBottomWidth: 0.5, borderBottomColor: theme.color.divider },
+  section: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  subSection: { color: v2.color.textSubtle, fontSize: 11, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  accBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: v2.color.forest },
+  accBtnText: { color: "#fff", fontWeight: "800", fontSize: 11 },
+  sugRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: v2.color.divider },
   catDot: { width: 8, height: 8, borderRadius: 999 },
-  sugName: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
-  sugMeta: { color: theme.color.onSurfaceSecondary, fontSize: 11 },
-  sugEv: { color: theme.color.onSurfaceSecondary, fontSize: 10, fontStyle: "italic", marginTop: 2 },
-  addBtn: { width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: theme.color.brand, backgroundColor: theme.color.brand + "12" },
+  sugName: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
+  sugMeta: { color: v2.color.textMuted, fontSize: 11 },
+  sugEv: { color: v2.color.textSubtle, fontSize: 10, fontStyle: "italic", marginTop: 2 },
+  addBtn: { width: 32, height: 32, borderRadius: 999, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: v2.color.forest, backgroundColor: v2.color.mint },
   itemRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 6 },
   checkbox: { padding: 2 },
-  itName: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
-  itMeta: { color: theme.color.onSurfaceSecondary, fontSize: 11 },
+  itName: { color: v2.color.text, fontSize: 13, fontWeight: "700" },
+  itMeta: { color: v2.color.textMuted, fontSize: 11 },
   // Recipes editor
-  closeBtn: { width: 36, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: theme.color.border },
-  recipeRow: { flexDirection: "row", alignItems: "center", padding: 12, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
-  recipeName: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
-  recipeMeta: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
-  editRow: { position: "relative", padding: 8, marginBottom: 6, borderRadius: 12, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surface },
+  closeBtn: { width: 36, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: v2.color.cardMuted },
+  recipeRow: { flexDirection: "row", alignItems: "center", padding: 12, marginBottom: 6, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.card },
+  recipeName: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  recipeMeta: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
+  editRow: { position: "relative", padding: 8, marginBottom: 6, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.card },
   miniBtn: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginRight: 4 },
-  miniBtnActive: { backgroundColor: theme.color.brand + "22" },
-  miniBtnTxt: { fontSize: 11, color: theme.color.onSurfaceSecondary, fontWeight: "600" },
-  miniBtnTxtActive: { color: theme.color.brand },
+  miniBtnActive: { backgroundColor: v2.color.forest + "22" },
+  miniBtnTxt: { fontSize: 11, color: v2.color.textMuted, fontWeight: "600" },
+  miniBtnTxtActive: { color: v2.color.forest },
   catChip: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, borderWidth: 1, marginRight: 4 },
   catChipTxt: { fontSize: 10, fontWeight: "700" },
-  saveBtn: { padding: 12, borderRadius: 12, backgroundColor: theme.color.brand, alignItems: "center" },
-  saveBtnTxt: { color: theme.color.onBrand, fontWeight: "700", fontSize: 14 },
-  resetBtn: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: theme.color.error, alignItems: "center", paddingHorizontal: 20 },
-  resetBtnTxt: { color: theme.color.error, fontWeight: "700", fontSize: 14 },
+  saveBtn: { padding: 12, borderRadius: v2.radius.md, backgroundColor: v2.color.forest, alignItems: "center" },
+  saveBtnTxt: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  resetBtn: { padding: 12, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.error, alignItems: "center", paddingHorizontal: 20 },
+  resetBtnTxt: { color: v2.color.error, fontWeight: "700", fontSize: 14 },
 });

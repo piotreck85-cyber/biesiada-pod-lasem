@@ -107,6 +107,7 @@ export default function Oferta() {
   const [emailNote, setEmailNote] = useState("");
   const [emailExtras, setEmailExtras] = useState<Record<string, { qty?: string; amount?: string }>>({});
   const [emailSending, setEmailSending] = useState(false);
+  const [emailDinnerExpanded, setEmailDinnerExpanded] = useState(false);
 
   const currentSet = adultSetsLive.find(x => x.id === emailSet);
   const emailPreviewTotal = useMemo(() => {
@@ -150,6 +151,7 @@ export default function Oferta() {
     setEmailNote("");
     setEmailExtras({});
     setEmailAtt("both");
+    setEmailDinnerExpanded(false);
     setEmailOpen(true);
   };
 
@@ -709,7 +711,41 @@ export default function Oferta() {
                     </View>
                   ))}
 
-                  {(["Zupa", "Danie główne", "Dodatek"] as const).map(section => (
+                  {/* Menu obiadowe — collapsible (rarely needed at pricing stage) */}
+                  {(() => {
+                    const dinnerCount = Object.values(emailExtras).reduce((sum, v) => {
+                      const q = Number(v?.qty || 0);
+                      return sum + (isNaN(q) ? 0 : q);
+                    }, 0);
+                    const dinnerIds = new Set(DINNER_EXTRAS.map(d => d.id));
+                    const dinnerActive = Object.entries(emailExtras).filter(([id, v]) => dinnerIds.has(id) && Number(v?.qty || 0) > 0).length;
+                    return (
+                      <Pressable
+                        testID="offer-dinner-toggle"
+                        onPress={() => setEmailDinnerExpanded(v => !v)}
+                        style={{
+                          flexDirection: "row", alignItems: "center", gap: 10,
+                          marginTop: 20, padding: 12, borderRadius: 12,
+                          backgroundColor: dinnerActive > 0 ? theme.color.brand + "18" : theme.color.surfaceSecondary,
+                          borderWidth: 1, borderColor: dinnerActive > 0 ? theme.color.brand + "55" : theme.color.border,
+                        }}
+                      >
+                        <Feather name="coffee" size={16} color={theme.color.brand} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "800" }}>
+                            Menu obiadowe {dinnerActive > 0 ? `· ${dinnerActive} poz. · ${dinnerCount} porcji` : "(opcjonalnie)"}
+                          </Text>
+                          {!emailDinnerExpanded && dinnerActive === 0 && (
+                            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>
+                              Kliknij, żeby rozwinąć zupy, dania główne i dodatki
+                            </Text>
+                          )}
+                        </View>
+                        <Feather name={emailDinnerExpanded ? "chevron-up" : "chevron-down"} size={18} color={theme.color.onSurfaceSecondary} />
+                      </Pressable>
+                    );
+                  })()}
+                  {emailDinnerExpanded && (["Zupa", "Danie główne", "Dodatek"] as const).map(section => (
                     <View key={section}>
                       <Text style={[s.fieldLabel, { marginTop: 16 }]}>Menu obiadowe · {section}</Text>
                       {DINNER_EXTRAS.filter(d => d.section === section).map(di => (

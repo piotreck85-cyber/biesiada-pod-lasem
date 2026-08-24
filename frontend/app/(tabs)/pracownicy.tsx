@@ -222,7 +222,7 @@ export default function Pracownicy() {
   useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]));
 
   // Reload wages when year/month changes while in wages mode
-  useMemo(() => { if (mode === "wages") { loadWages(); } }, [wagesYear, wagesMonth]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (mode === "wages") { loadWages(); } }, [wagesYear, wagesMonth, mode, loadWages]);
 
   const openNew = () => {
     setEditing(null); setName(""); setRole(""); setRate("");
@@ -230,7 +230,7 @@ export default function Pracownicy() {
     setLoginPerms({ schedule: true, attendance: true, checklist: true, shopping: true, stock: true });
     setModalOpen(true);
   };
-  const openEdit = (it: any) => {
+  const openEdit = useCallback((it: any) => {
     setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || ""));
     setLoginEmail(it.login_email || ""); setLoginPassword("");
     // Merge existing permissions with defaults
@@ -243,7 +243,7 @@ export default function Pracownicy() {
       stock:      p.stock      !== false,
     });
     setModalOpen(true);
-  };
+  }, []);
 
   const save = async () => {
     if (!name.trim()) return;
@@ -257,10 +257,49 @@ export default function Pracownicy() {
     } catch {} finally { setSaving(false); }
   };
 
-  const remove = async (id: string) => {
+  const remove = useCallback(async (id: string) => {
     await api.deleteStaff(id);
     await load();
-  };
+  }, [load]);
+
+  // Memoized renderers for FlatLists (perf: avoid recreating fns on every render)
+  const renderStaffItem = useCallback(({ item }: { item: any }) => {
+    const col = roleColor(item.role || "");
+    const isPartner = item.staff_type === "partner";
+    return (
+      <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
+        <View style={[s.avatar, { backgroundColor: isPartner ? theme.color.brand + "22" : col.bg }]}>
+          <Text style={[s.avatarText, { color: isPartner ? theme.color.brand : col.fg }]}>{initials(item.name)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            <Text style={s.rowName}>{item.name}</Text>
+            {isPartner && (
+              <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.color.brand + "22" }}>
+                <Text style={{ color: theme.color.brand, fontSize: 9, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" }}>Wspólnik</Text>
+              </View>
+            )}
+          </View>
+          {item.role ? (
+            <View style={[s.roleBadge, { backgroundColor: col.bg, marginTop: 3 }]}>
+              <Text style={[s.roleBadgeText, { color: col.fg }]}>{item.role}</Text>
+            </View>
+          ) : (
+            <Text style={s.rowRole}>Bez stanowiska</Text>
+          )}
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={s.rowRate}>{formatPLN(item.hourly_rate)}</Text>
+          <Text style={s.rowRateSub}>/godz.</Text>
+        </View>
+        <Pressable testID={`staff-delete-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 12 }}>
+          <Feather name="trash-2" size={18} color={theme.color.onSurfaceSecondary} />
+        </Pressable>
+      </Pressable>
+    );
+  }, [openEdit, remove]);
+
+  const staffKeyExtractor = useCallback((i: any) => i.id, []);
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="staff-screen">
@@ -383,6 +422,10 @@ export default function Pracownicy() {
                     data={wagesData?.staff || []}
                     keyExtractor={(w) => w.staff_id}
                     contentContainerStyle={{ paddingTop: 4, paddingBottom: 140 }}
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={8}
+                    windowSize={5}
+                    removeClippedSubviews
                     ListEmptyComponent={
                       <View style={s.emptyBox}>
                         <Feather name="clock" size={40} color={theme.color.onSurfaceSecondary} />
@@ -507,8 +550,12 @@ export default function Pracownicy() {
 
           <FlatList
             data={visibleItems}
-            keyExtractor={(i) => i.id}
+            keyExtractor={staffKeyExtractor}
             contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 120 }}
+            initialNumToRender={12}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+            removeClippedSubviews
             ListEmptyComponent={
               <View style={s.emptyBox}>
                 <Feather name="users" size={40} color={theme.color.onSurfaceSecondary} />
@@ -520,41 +567,7 @@ export default function Pracownicy() {
                 </Text>
               </View>
             }
-            renderItem={({ item }) => {
-              const col = roleColor(item.role || "");
-              const isPartner = item.staff_type === "partner";
-              return (
-                <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
-                  <View style={[s.avatar, { backgroundColor: isPartner ? theme.color.brand + "22" : col.bg }]}>
-                    <Text style={[s.avatarText, { color: isPartner ? theme.color.brand : col.fg }]}>{initials(item.name)}</Text>
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-                      <Text style={s.rowName}>{item.name}</Text>
-                      {isPartner && (
-                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.color.brand + "22" }}>
-                          <Text style={{ color: theme.color.brand, fontSize: 9, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" }}>Wspólnik</Text>
-                        </View>
-                      )}
-                    </View>
-                    {item.role ? (
-                      <View style={[s.roleBadge, { backgroundColor: col.bg, marginTop: 3 }]}>
-                        <Text style={[s.roleBadgeText, { color: col.fg }]}>{item.role}</Text>
-                      </View>
-                    ) : (
-                      <Text style={s.rowRole}>Bez stanowiska</Text>
-                    )}
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={s.rowRate}>{formatPLN(item.hourly_rate)}</Text>
-                    <Text style={s.rowRateSub}>/godz.</Text>
-                  </View>
-                  <Pressable testID={`staff-delete-${item.id}`} onPress={() => remove(item.id)} hitSlop={10} style={{ paddingLeft: 12 }}>
-                    <Feather name="trash-2" size={18} color={theme.color.onSurfaceSecondary} />
-                  </Pressable>
-                </Pressable>
-              );
-            }}
+            renderItem={renderStaffItem}
           />
           </>
           )}

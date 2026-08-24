@@ -235,3 +235,32 @@ Polish mobile app for event organizers to manage:
 - Każdy pending revenue z multi-event dnia podzielony równo między imprezy tego dnia
 - Utworzono 18 nowych `event_payments` (18 płatności z 9 pending), zredukowano pending do 0
 - Wszystkie z `source: 'whatsapp_pending_split'` i opisem „WhatsApp import (auto-split): ..."
+
+### Etap 4/5 — Zakupy V2.0, Zwijalny catering, Perf pracowników — Aug 2026
+
+**1. Zakupy + Magazyn V2.0 (`/(tabs)/zakupy.tsx`):**
+- Dark forest header + brand `ZAKUPY` + tytuł (Automatyczna lista / Magazyn)
+- Białe przyciski akcji (drukuj, przepisy) na ciemnym headerze
+- Segmented switch „Do kupienia / Magazyn" na białym overlay na ciemnym tle (aktywna zakładka = białe pigułka)
+- Hero „ZAKUPY NA..." jako floating white card z shadow.sm + zaokrągleniami 16 (v2.radius.xl)
+- Wszystkie karty (Do kupienia + Moja lista) na v2.color.card z bordami v2.color.border
+- Logika/API bez zmian — używa `api.shoppingList/Generate/etc.`
+
+**2. Zwijalny catering (nie zawsze potrzebny do wyceny):**
+- `event/[id].tsx`: sekcja „Oferta obiadowa" zwinięta domyślnie
+  - Klikalny nagłówek z ikoną coffee, tytułem, chevron-down
+  - Auto-rozwija się jeśli event już ma zapisane porcje (edycja starej imprezy)
+  - Pokazuje licznik: „Oferta obiadowa · 3 poz. · 780 zł"
+  - Cały blok menu (Zupa/Danie główne/Dodatek) + „Wyślij do Yubari" ukryte, gdy zwinięte
+- `(tabs)/oferta.tsx`: sekcja „Menu obiadowe" w modalu wysyłki oferty zwinięta domyślnie
+  - Reset stanu przy każdym otwarciu modala
+  - Klikalny nagłówek z licznikiem porcji, chevron
+  - Zupy/Dania główne/Dodatki chowają się razem
+
+**3. Optymalizacja wydajności panelu pracowników:**
+- **BUG FIX**: `useMemo` używany jako side-effect w `pracownicy.tsx` linia 225 → zmienione na `useEffect`
+- `renderStaffItem` + `staffKeyExtractor` w useCallback (żeby FlatList nie tworzyła nowych funkcji przy każdym renderze)
+- `openEdit` i `remove` w useCallback (stabilne referencje)
+- FlatList props: `initialNumToRender=12`, `maxToRenderPerBatch=10`, `windowSize=7`, `removeClippedSubviews`
+- Ta sama optymalizacja dla wages FlatList (10/8/5)
+- `grafik.tsx`: `todayEvent` i `upcoming` opakowane w `useMemo`

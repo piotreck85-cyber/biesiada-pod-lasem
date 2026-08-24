@@ -47,8 +47,8 @@ export default function GrafikScreen() {
   useEffect(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const todayEvent = events.find(e => e.date === today);
-  const upcoming = events.filter(e => e.date > today).slice(0, 10);
+  const todayEvent = useMemo(() => events.find(e => e.date === today), [events, today]);
+  const upcoming = useMemo(() => events.filter(e => e.date > today).slice(0, 10), [events, today]);
 
   const clockIn = async () => {
     try {

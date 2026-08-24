@@ -63,6 +63,7 @@ export default function EventDetail() {
   const [extras, setExtras] = useState<Record<string, number>>({}); // extra_id -> qty (or amount for 'kwota')
   const [dinnerQty, setDinnerQty] = useState<Record<string, number>>({}); // dinner_item_id -> qty
   const [dinnerCost, setDinnerCost] = useState<string>(""); // user-entered wholesale cost for margin calc
+  const [dinnerExpanded, setDinnerExpanded] = useState<boolean>(false); // collapsed by default; auto-expand if items selected
   const [financeMeta, setFinanceMeta] = useState<any>(null); // { is_revenue_estimated, is_cost_estimated, status, notes, import_batch_id, ... }
   const [costs, setCosts] = useState<Cost[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -123,7 +124,10 @@ export default function EventDetail() {
           setDepositDate(ev.deposit_date || "");
           // ---- Dinner offer ----
           if (ev.dinner_items && typeof ev.dinner_items === "object") {
-            setDinnerQty(ev.dinner_items as Record<string, number>);
+            const items = ev.dinner_items as Record<string, number>;
+            setDinnerQty(items);
+            // Auto-expand catering section if event already has items selected
+            if (Object.values(items).some(q => (q || 0) > 0)) setDinnerExpanded(true);
           }
           setDinnerCost(ev.dinner_cost ? String(ev.dinner_cost) : "");
           // ---- Finance metadata (from import) ----
@@ -1140,12 +1144,42 @@ export default function EventDetail() {
               </View>
             )}
 
-            {/* Oferta obiadowa — quick picker with auto-margin */}
-            <View style={{ marginTop: 20, marginBottom: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Feather name="coffee" size={14} color={v2.color.forest} />
-              <Text style={[s.label, { marginTop: 0 }]}>Oferta obiadowa (opcjonalnie)</Text>
-            </View>
-            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8 }}>
+            {/* Oferta obiadowa — quick picker with auto-margin (collapsible — not always needed for pricing) */}
+            {(() => {
+              const dinnerCount = Object.values(dinnerQty).reduce((sum, q) => sum + (Number(q) || 0), 0);
+              const dinnerItemsCount = Object.values(dinnerQty).filter(q => (Number(q) || 0) > 0).length;
+              return (
+                <View style={{ marginTop: 20 }}>
+                  <Pressable
+                    testID="dinner-toggle"
+                    onPress={() => setDinnerExpanded(v => !v)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 10,
+                      paddingVertical: 12, paddingHorizontal: 14,
+                      backgroundColor: dinnerCount > 0 ? v2.color.mint : v2.color.cardMuted,
+                      borderRadius: 12,
+                      borderWidth: 1, borderColor: dinnerCount > 0 ? v2.color.forest + "44" : v2.color.border,
+                    }}
+                  >
+                    <Feather name="coffee" size={16} color={v2.color.forest} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "800" }}>
+                        Oferta obiadowa {dinnerCount > 0 ? `· ${dinnerItemsCount} poz. · ${dinnerRevenue.toFixed(0)} zł` : "(opcjonalnie)"}
+                      </Text>
+                      {!dinnerExpanded && dinnerCount === 0 && (
+                        <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>
+                          Kliknij, żeby rozwinąć menu i wybrać porcje
+                        </Text>
+                      )}
+                    </View>
+                    <Feather name={dinnerExpanded ? "chevron-up" : "chevron-down"} size={18} color={v2.color.textMuted} />
+                  </Pressable>
+                </View>
+              );
+            })()}
+            {dinnerExpanded && (
+              <>
+            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8, marginTop: 10 }}>
               Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
             </Text>
             {DINNER_SECTIONS.map(sec => {
@@ -1183,7 +1217,9 @@ export default function EventDetail() {
                 </View>
               );
             })}
-            {dinnerRevenue > 0 && (
+              </>
+            )}
+            {dinnerExpanded && dinnerRevenue > 0 && (
               <View style={{ marginTop: 12, backgroundColor: v2.color.forest + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: v2.color.forest + "44" }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
                   <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
@@ -1216,7 +1252,7 @@ export default function EventDetail() {
               </View>
             )}
             {/* Wyślij do cateringu (Yubari) */}
-            {Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
+            {dinnerExpanded && Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
               <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest + "18", borderWidth: 1, borderColor: v2.color.forest }}>
                 <Feather name="send" size={16} color={v2.color.forest} />
                 <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
