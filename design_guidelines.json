@@ -1,58 +1,48 @@
 {
-  "app_name": "Biesiada pod Lasem",
-  "personality": "1 iOS-Native Clean with Glass/Luxe elements",
-  "personality_one_liner": "A vibrant, light, and modern event operations hub combining iOS-native clarity with frosted glassmorphism and semantic color coding.",
+  "app_name": "Biesiada Pod Lasem",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "An elegant, highly legible, modern mobile ERP that breathes natural elegance through spacious cards and forest greens, eliminating dense tables in favor of actionable, touch-friendly modules.",
   "color": {
-    "surface": "#F2F2F7",
-    "onSurface": "#1C1C1E",
+    "surface": "#F9FBF9",
+    "onSurface": "#1A2E20",
     "surfaceSecondary": "#FFFFFF",
-    "onSurfaceSecondary": "#1C1C1E",
-    "surfaceTertiary": "#E5E5EA",
-    "onSurfaceTertiary": "#3A3A3C",
-    "surfaceInverse": "#1C1C1E",
+    "onSurfaceSecondary": "#1A2E20",
+    "surfaceTertiary": "#EBF2EC",
+    "onSurfaceTertiary": "#285338",
+    "surfaceInverse": "#1B3122",
     "onSurfaceInverse": "#FFFFFF",
-    "brand": "#10B981",
-    "brandPrimary": "#10B981",
+    "brand": "#285338",
+    "brandPrimary": "#285338",
     "onBrandPrimary": "#FFFFFF",
-    "brandSecondary": "#D1FAE5",
-    "onBrandSecondary": "#065F46",
-    "brandTertiary": "#A7F3D0",
-    "onBrandTertiary": "#047857",
-    "success": "#34C759",
+    "brandSecondary": "#437A56",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E2EFE7",
+    "onBrandTertiary": "#1B3122",
+    "success": "#16A34A",
     "onSuccess": "#FFFFFF",
-    "warning": "#FFCC00",
-    "onWarning": "#4D3D00",
-    "error": "#FF3B30",
+    "warning": "#D97706",
+    "onWarning": "#FFFFFF",
+    "error": "#DC2626",
     "onError": "#FFFFFF",
-    "info": "#32ADE6",
+    "info": "#0284C7",
     "onInfo": "#FFFFFF",
-    "border": "#D1D1D6",
-    "borderStrong": "#8E8E93",
-    "divider": "#C6C6C8",
-    "category_firmowe": "#007AFF",
-    "category_okolicznosciowe": "#FFB800",
-    "category_urodzinki": "#FF2D55",
-    "category_warsztaty": "#34C759",
-    "status_potwierdzona": "#34C759",
-    "status_wstepne": "#FFCC00",
-    "status_anulowana": "#FF3B30",
-    "overlay_dim": "rgba(0,0,0,0.4)"
+    "border": "#E5EBE5",
+    "borderStrong": "#C2D1C5",
+    "divider": "#EEF2EE"
   },
   "typography": {
     "displayFontFamily": "Plus Jakarta Sans",
     "textFontFamily": "Plus Jakarta Sans",
-    "monoFontFamily": "Space Grotesk",
     "scale": {
       "sm": 12,
       "base": 14,
       "lg": 16,
       "xl": 20,
-      "2xl": 24,
-      "3xl": 32
+      "2xl": 24
     }
   },
   "spacing": {
-    "rule": "Generous iOS-native rhythm. Ensure intentional whitespace around cards and inside heavy forms.",
+    "rule": "Avoid unnecessary spacing; apply structural padding inside cards and generous layout margins. Form labels stack above inputs.",
     "xs": 4,
     "sm": 8,
     "md": 12,
@@ -62,25 +52,22 @@
     "3xl": 48
   },
   "radius_tokens": {
-    "sm": 6,
+    "sm": 8,
     "md": 12,
     "lg": 20,
     "pill": 999
   },
   "shadow_tier": "1",
   "navigation": "bottom_tabs",
-  "icon_set": "Ionicons",
+  "icon_set": "Phosphor",
   "glassmorphism": {
     "enabled": "true",
     "do's": [
-      "Use expo-blur for the bottom tab bar",
-      "Use expo-blur for sticky headers over scrolling lists",
-      "Use frosted glass over the hero image on the login screen",
-      "Add a glass container behind the sticky CTA inside the event detail form"
+      "Use expo-blur (glass effect) for sticky headers over scrolling content, bottom tab bar, and Bottom-sheet headers.",
+      "Ensure text on glass is fully readable by adding a translucent tinted base underneath."
     ],
     "dont's": [
-      "Do not blur standard event cards in lists (use surfaceSecondary)",
-      "Do not use blur inside text inputs"
+      "Never apply glass to every button, list rows, form inputs, or body content."
     ]
   },
   "platform_libraries": {
@@ -97,104 +84,58 @@
   },
   "screens": [
     {
-      "name": "Login",
-      "purpose": "Authentication screen greeting the user with a premium brand feel.",
+      "name": "Owner Home (Centrum Dowodzenia)",
+      "purpose": "Provides the owner with a 5-second health check of the business, upcoming events, and actionable alerts.",
       "states": {
-        "loading": "Spinner in CTA button",
-        "empty": "N/A",
-        "error": "Standard alert or inline red text"
+        "loading": "Centered spinner with a faint brand logo.",
+        "empty": "No upcoming events illustration.",
+        "error": "Failed to load dashboard data. Retry button."
       },
-      "layout": "Hero background image covering the full screen. Add a top-to-bottom transparent to surfaceInverse gradient scrim (bottom 50% must be ≥70% opacity). Place the login form inside a glassmorphic card (expo-blur) pinned to the bottom third of the screen. Keep it clean and elegant."
+      "layout": "1. Top Header: 'Centrum Dowodzenia' + User Avatar.\n2. KPI Grid (2x2): Number of upcoming events, total guests, revenue, cost (Large numbers, pill backgrounds).\n3. Asystent Biesiady: Horizontal scroll of compact insight cards (Rule-based insights with a small 'sparkle' icon, e.g., 'Missing 1 worker for Saturday').\n4. Wymaga Uwagi (Alert Center): Vertical list of dismissible cards with left-colored severity borders (🔴 Red for missing deposit/worker, 🟡 Yellow for missing menu/low stock).\n5. Najbliższe Imprezy: Stacked event cards. Card hierarchy: Date/Time (top left), Status Pill (top right), Event Name/Type (prominent), Row of assigned employee avatars, and a 'View Event Center' CTA."
     },
     {
-      "name": "Kalendarz",
-      "purpose": "Primary view for checking daily events via a month grid.",
+      "name": "Event Center (Centrum Imprezy)",
+      "purpose": "A comprehensive, tabbed view of a single event containing everything from logistics to finances without overwhelming vertical scrolling.",
       "states": {
-        "loading": "Skeleton grid",
-        "empty": "Empty state illustration below the calendar grid",
-        "error": "Error message with retry button"
+        "loading": "Skeleton UI matching the tabbed layout.",
+        "empty": "N/A - Cannot be empty if an event exists.",
+        "error": "Failed to load event details. Retry button."
       },
-      "layout": "White background. Keep the bell icon top-right. Render a clean iOS-style month grid. Status dots (colored by status) remain under day numbers. Selected day uses a brandPrimary solid pill. Below the calendar, display a FlashList of events for the selected day using surfaceSecondary cards."
+      "layout": "1. Hero Banner: Blurred background photo of the event type (e.g., outdoor wedding or alpaca farm) with a gradient scrim. Overlay contains Event Name, Date, and a main Action Button.\n2. Horizontal Tab Bar (Sticky): 'Overview', 'Team & Tasks', 'Logistics', 'Finances'.\n- Overview Tab: Client details, Guest Count, Package type, Weather forecast card, Notes.\n- Team & Tasks Tab: Checklist progress (circular progress indicator), Assigned employees, Animators.\n- Logistics Tab: Menu confirmation status, Shopping list, Warehouse items required.\n- Finances Tab: Total Cost, Deposit paid, Remaining balance, Predicted Profit, Final Settlement CTA."
     },
     {
-      "name": "Imprezy (Ostatnie)",
-      "purpose": "List of recent/upcoming events with quick filtering.",
+      "name": "Employee Today (Dzisiaj)",
+      "purpose": "A hyper-focused, simplified view for employees showing only their immediate tasks and schedule without business financials.",
       "states": {
-        "loading": "Skeleton list",
-        "empty": "Empty state illustration + 'Brak imprez' text",
-        "error": "Toast or inline error message"
+        "loading": "Spinner.",
+        "empty": "Relax illustration: 'You have no events assigned for today.'",
+        "error": "Failed to load schedule. Retry button."
       },
-      "layout": "Use a horizontally scrolling row of filter chips at the top (pill radius, surfaceTertiary, active state uses Category color). Below, a FlashList of event cards. Each card must have lg radius, lg padding, Tier 1 shadow. Display Category color as a subtle tag or left-border strip, and Status color as a pulsing dot. Use Space Grotesk for dates/times."
-    },
-    {
-      "name": "Oferta",
-      "purpose": "Generate offer emails and PDFs.",
-      "states": {
-        "loading": "Generating PDF overlay",
-        "empty": "N/A",
-        "error": "Error toast"
-      },
-      "layout": "Single column form inside a large surfaceSecondary card. Use iOS-style segmented controls (with surfaceTertiary bg) to toggle between PDF/DOCX. Inputs have surfaceTertiary backgrounds. Sticky 'Wyślij' (Send) primary CTA button pinned at the bottom over a glassmorphic bar."
-    },
-    {
-      "name": "Koszty",
-      "purpose": "Manage company expenses.",
-      "states": {
-        "loading": "Skeleton rows",
-        "empty": "Empty desk illustration + 'Brak kosztów'",
-        "error": "Error toast"
-      },
-      "layout": "At the top, a large summary card showing total expenses in Space Grotesk (e.g., 32pt). Below it, a clean list of expense rows. Use an expo-blur Floating Action Button (FAB) positioned bottom-right to add new expenses."
-    },
-    {
-      "name": "Pracownicy",
-      "purpose": "Staff roster and rate management.",
-      "states": {
-        "loading": "Skeleton grid",
-        "empty": "Illustration + 'Brak pracowników'",
-        "error": "Error toast"
-      },
-      "layout": "2-column grid of staff cards. Each card contains an initials avatar inside a brandTertiary circle, the staff name, and their hourly rate clearly displayed in Space Grotesk."
-    },
-    {
-      "name": "Statystyki",
-      "purpose": "Revenue charts and calendar sync.",
-      "states": {
-        "loading": "Skeleton charts",
-        "empty": "N/A",
-        "error": "Error toast"
-      },
-      "layout": "Scrollable dashboard. Top sections contain colorful modern bar/line charts. Bottom section contains distinct integration cards (e.g., 'Google Calendar Sync', 'Eksport ICS') with relevant icons and subtle background gradients."
-    },
-    {
-      "name": "Event Detail [id]",
-      "purpose": "Massive form for editing a specific event.",
-      "states": {
-        "loading": "Skeleton form",
-        "empty": "N/A",
-        "error": "Error toast"
-      },
-      "layout": "Wrap the 30+ fields in visually distinct collapsible sections or grouped surfaceSecondary cards (e.g., 'Dane klienta', 'Płatność', 'Personel'). Use labels above inputs. Sticky 'Zapisz' (Save) CTA at the absolute bottom wrapped in a glassmorphic container to ensure it's always accessible without scrolling to the end."
+      "layout": "1. Top Header: 'Dzisiaj' + Date.\n2. Event Card: Where to be, Time, Event Type.\n3. Important Info Card: Pinned message from the owner (🔵 Info style).\n4. Checklist: Large, touch-friendly circles for marking tasks complete.\n5. Sticky Bottom Action: 'Zgłoś problem' (Report Problem) FAB leading to a form with a camera upload button."
     }
   ],
   "images": {
-    "login_hero": {
-      "url": "https://images.unsplash.com/photo-1758660186196-fdd8164c39da?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwxfHxyZXN0YXVyYW50JTIwb3V0ZG9vciUyMGRpbmluZyUyMGZvcmVzdCUyMHRhYmxlJTIwZGlubmVyJTIwcGFydHl8ZW58MHx8fHwxNzg2NjgzODUx&ixlib=rb-4.1.0&q=85",
-      "alt": "Table with vase of flowers in autumn forest"
+    "home_hero_bg": {
+      "url": "https://images.unsplash.com/photo-1785033154077-1b8d269488ba?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzN8MHwxfHNlYXJjaHwxfHxvdXRkb29yJTIwd2VkZGluZyUyMGZvcmVzdHxlbnwwfHx8fDE3ODc1MzQxMzJ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Outdoor wedding in a forest setting used for hero backgrounds"
     },
-    "empty_calendar": {
-      "url": "https://images.unsplash.com/photo-1493934558415-9d19f0b2b4d2?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwbW9kZXJuJTIwZW1wdHklMjBjYWxlbmRhciUyMGFnZW5kYSUyMGRlc2t8ZW58MHx8fHwxNzg2NjgzODQzfDA&ixlib=rb-4.1.0&q=85",
-      "alt": "Minimalist modern empty desk with calendar"
+    "event_cover_alpaca": {
+      "url": "https://images.unsplash.com/photo-1570858573759-ff5874f220ec?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwxfHxhbHBhY2ElMjBmYXJtfGVufDB8fHx8MTc4NzUzNDEzMnww&ixlib=rb-4.1.0&q=85",
+      "alt": "White alpaca outdoors for workshop event covers"
+    },
+    "event_cover_bbq": {
+      "url": "https://images.unsplash.com/photo-1586058584825-c1e87ed735b4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwzfHxvdXRkb29yJTIwY2F0ZXJpbmclMjBiYXJiZWN1ZXxlbnwwfHx8fDE3ODc1MzQxMzJ8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Outdoor barbecue catering photo for event covers"
     }
   },
   "instructions_to_main_agent": [
-    "Implement the 'iOS-Native Clean' personality utilizing a vibrant, lighter palette to replace the old dark forest green theme.",
-    "CRITICAL: Keep the Polish language for all labels and copy.",
-    "CRITICAL: Keep the 6 bottom tabs structure. Ensure the tab bar uses expo-blur for a modern transparent feel.",
-    "CRITICAL: Ensure category colors (firmowe=blue, okolicznosciowe=gold, urodzinki=pink, warsztaty=green) and status colors (potwierdzona=green, wstepne/rezerwacja=yellow, anulowana=red) are strictly mapped as specified in the color tokens.",
-    "CRITICAL: Retain the FlashList implementation for the Imprezy (Ostatnie) screen to guarantee performance with 500+ items.",
-    "Utilize 'Plus Jakarta Sans' for all general UI text and 'Space Grotesk' exclusively for dates, times, hourly rates, and metric numbers to inject a modern technical vibe.",
-    "Refactor the dense Event Detail screen (~30 fields) by grouping inputs into surfaceSecondary cards to prevent cognitive overload. Implement a sticky save button at the bottom over an expo-blur background.",
-    "Swap Feather icons for Ionicons. Use outlined variants for inactive states and filled variants for active states (especially in the tab bar)."
+    "Use '1 iOS-Native Clean' personality as the structural foundation: generous tap targets, readable Plus Jakarta Sans typography, and clear card separations, but integrate the 'Hand-Drawn' natural green palette requested by the user.",
+    "Implement the 5-tab bottom navigation for the Owner only: Start | Kalendarz | Zakupy | Zespół | Finanse. For the Employee, hide this bottom navigation entirely and replace it with a focused 'Dzisiaj' (Today) stack screen.",
+    "Design 'Centrum Imprezy' (Event Center) strictly with horizontal tabs to avoid the 'one long page' anti-pattern. Everything belongs to a tab: Overview, Team & Tasks, Logistics, Finances.",
+    "Alert Center ('Wymaga uwagi') must be highly actionable. Use cards with left border coloring mapping to severity (Red for urgent, Yellow for warning).",
+    "Biesiada Assistant should be implemented as a horizontal scrolling list of minimal insight cards placed directly under the top KPIs.",
+    "Strictly omit any financial data, profitability metrics, or rating systems from the Employee view.",
+    "Status indicators must visually map to the requested 🟢 ready, 🟡 needs attention, 🔴 problem, 🔵 info.",
+    "Mobile-first constraint: Maximize horizontal space usage. Do not use any wide data tables; convert all tabular data into stacked mobile cards (e.g., list of purchases -> list of purchase cards)."
   ]
 }
