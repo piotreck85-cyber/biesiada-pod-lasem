@@ -182,3 +182,19 @@ Polish mobile app for event organizers to manage:
   - Alert z rozkładem kategorii po zakończeniu
 - Test na piotreck85 workspace (333 kosztów → 100% skategoryzowane): rachunki 11, podatki 10, pensje 34, inwestycje 7, zakupy_spozywcze 75, ogolne_zaopatrzenie 196
 - **Kategoryzacja ręczna** działa od zawsze — klik na koszt → edytuj → wybierz kategorię z chip'ów w modalu
+
+### Import Zysków z WhatsApp 2026-03..2026-08 — Aug 2026
+- Źródło: „Czat WhatsApp z Zyski BPL 2026" (ZIP z ukrytym .txt)
+- Parser: identyczny jak dla kosztów (WhatsApp export format + extract_amount z pominięciem parenthes)
+- 71 zysków wyparsowanych, suma **188 498,50 zł**
+- **Backup** wszystkich imprez z revenue: `whatsapp_zyski_20260824_173354/events_revenue_before.json` (102 imprezy, 251 192 zł)
+- **Wyzerowano** revenue/price_total na 102 imprezach przed importem (zapobiega dublom)
+- **Rozkład:**
+  - 31 zysków przypisanych do 1-imprezowego dnia (auto-link)
+  - 7 przypisanych do multi-event dnia po dopasowaniu słów kluczowych (Komunia/18stka/Matura/Przedszkole)
+  - 33 imprezy zaktualizowane w sumie (114 322 zł)
+  - 26 zysków w kolekcji `pending_revenue_assignments` — do ręcznego wyboru która impreza (61 885 zł)
+  - 7 zysków w kolekcji `misc_revenues` — brak imprezy tego dnia (dmuchaniec, suszarka, ognisko, refundy) (12 292 zł)
+- **Kontrola sum:** 114 322 + 61 885 + 12 292 = **188 498,50 zł ✅ zgodne z plikiem źródłowym**
+- Metadane finance: `revenue_source_kind: "ACTUAL_OR_MATCHED"`, `is_revenue_estimated: false`, `revenue_source_text` (opis z WhatsApp)
+- Nowe kolekcje: `pending_revenue_assignments`, `misc_revenues`

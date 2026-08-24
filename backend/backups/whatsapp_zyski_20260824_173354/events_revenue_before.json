@@ -1,0 +1,1378 @@
+[
+ {
+  "id": "81325971-4a77-470f-880e-d585b210f595",
+  "name": "Standard 16:30 -20:30urodzinki wstępna rezerwacja Łukasz Gocał",
+  "date": "2026-08-31",
+  "revenue": 0.0
+ },
+ {
+  "id": "e54d529d-5b57-4989-bee6-42f5b3d4517a",
+  "name": "50 ta rocznica ślubu Łukasz żółtak kontakt Piotrek",
+  "date": "2026-08-30",
+  "revenue": 4000.0,
+  "price_total": 4000.0
+ },
+ {
+  "id": "f0b7381f-80e9-4587-88e8-43869f901bf3",
+  "name": "Slub",
+  "date": "2026-08-29",
+  "revenue": 11098.0,
+  "price_total": 11098.0
+ },
+ {
+  "id": "9b2be94e-4e3f-4038-ad35-1632886a0151",
+  "name": "Impreza szkolna",
+  "date": "2026-08-28",
+  "revenue": 0.0
+ },
+ {
+  "id": "5127aeee-075a-473f-8ad7-ab17b577b321",
+  "name": "Impreza firmowa Pani Paulina morawiak",
+  "date": "2026-08-28",
+  "revenue": 0.0
+ },
+ {
+  "id": "513e4dd7-c64c-40c9-ba6c-2b548f077a6f",
+  "name": "Urodzinki",
+  "date": "2026-08-27",
+  "revenue": 0.0
+ },
+ {
+  "id": "c92997e6-8e3c-4e2c-bfff-b4479430ad94",
+  "name": "Standard",
+  "date": "2026-08-26",
+  "revenue": 0.0
+ },
+ {
+  "id": "50067bc8-581a-4ab1-a7ed-0a025f410071",
+  "name": "Ur gady",
+  "date": "2026-08-24",
+  "revenue": 0.0,
+  "price_total": 0.0
+ },
+ {
+  "name": "Konie",
+  "date": "2026-08-23",
+  "revenue": 2550.0,
+  "id": "cd8c2032-63dc-4c1e-920a-02d5cb3679f3",
+  "price_total": 2550.0
+ },
+ {
+  "id": "d7cee133-e0e1-4d13-acad-0a5d5ea42c46",
+  "name": "Slub",
+  "date": "2026-08-22",
+  "revenue": 0.0
+ },
+ {
+  "id": "8943cd52-9171-4009-aa57-33445657cd52",
+  "name": "Slub zak",
+  "date": "2026-08-21",
+  "revenue": 4950.0,
+  "price_total": 4950.0
+ },
+ {
+  "id": "7a453b21-28e4-4c4c-82b6-d8bceb0e3f89",
+  "name": "firmowa superfharmacy",
+  "date": "2026-08-15",
+  "revenue": 2229.0,
+  "price_total": 2229.0
+ },
+ {
+  "id": "2836004c-3e07-411f-a658-b80105ecd0c6",
+  "name": "Standard",
+  "date": "2026-08-12",
+  "revenue": 1150.0,
+  "price_total": 1150.0
+ },
+ {
+  "id": "b66eb076-c930-46cd-aaa9-97d659caeb69",
+  "name": "Konie",
+  "date": "2026-08-09",
+  "revenue": 2150.0,
+  "price_total": 2150.0
+ },
+ {
+  "id": "bc6c8615-ba24-4516-bf9c-fc8ae7be5c68",
+  "name": "Spotkanie w sprawie slubu 21.08 godz 15:30",
+  "date": "2026-08-09",
+  "revenue": 0.0
+ },
+ {
+  "id": "44e51dc3-577e-4716-b3f3-344cf28fa930",
+  "name": "dziki zachod",
+  "date": "2026-08-08",
+  "revenue": 1750.0,
+  "price_total": 1750.0
+ },
+ {
+  "id": "4e0e429c-a673-45fc-a642-efdc22c19ea1",
+  "name": "Standard",
+  "date": "2026-08-08",
+  "revenue": 1450.0,
+  "price_total": 1450.0
+ },
+ {
+  "name": "Firmowa",
+  "date": "2026-08-07",
+  "revenue": 2400.0,
+  "id": "0fd888da-93b9-447e-8e77-1fb49e0b6640",
+  "price_total": 2400.0
+ },
+ {
+  "id": "48ab0e55-fb9f-4b2f-be9c-bbb23dbd1c66",
+  "name": "Imprezs dorosli",
+  "date": "2026-08-07",
+  "revenue": 0.0
+ },
+ {
+  "id": "4577e147-daf0-436a-ba6f-c62a51f36119",
+  "name": "Spotkanie w sprawie inprezy piatkowej godz 15",
+  "date": "2026-08-06",
+  "revenue": 0.0
+ },
+ {
+  "name": "Mirbud",
+  "date": "2026-08-05",
+  "revenue": 13755.0,
+  "id": "072cdc82-e034-41aa-93c2-b6a624a2e73a",
+  "price_total": 13755.0
+ },
+ {
+  "id": "c57f1a38-a8f1-4861-9e5e-4b5e47f52839",
+  "name": "Chrzciny",
+  "date": "2026-08-02",
+  "revenue": 4540.0,
+  "price_total": 4540.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: brak | Koszty: 31.07: Piwa bez alkoholowe 220 → 110.00 zł | 31.07: Zuza 240 zł → 120.00 zł | 31.07: Ewka 400 → 200.00 zł | 31.07: Antek 80 → 40.00 zł | 31.07: 520 zł biedra ( na weekendowe imprezy ) → 260.00 zł",
+   "revenue_confidence": null,
+   "revenue_source_kind": "UNKNOWN",
+   "status": "BRAK DANYCH FINANSOWYCH"
+  }
+ },
+ {
+  "id": "747029c8-0506-4926-bf05-d537f0ca2866",
+  "name": "Impreza rodzinna",
+  "date": "2026-08-01",
+  "revenue": 1950.0,
+  "price_total": 1950.0
+ },
+ {
+  "id": "4762c8bc-a7ce-4df5-abc9-f60fa6406e59",
+  "name": "Dla maluszka",
+  "date": "2026-07-30",
+  "revenue": 1710.0,
+  "price_total": 1650.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 29.07: 1710 ( w tym zaliczka 200) | Koszty: 29.07: Drzewo 520 → 201.18 zł",
+   "revenue_confidence": "WYSOKA/ŚREDNIA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "8b878797-e4a4-478a-b72f-46892943a96d",
+  "name": "Harry Potter",
+  "date": "2026-07-29",
+  "revenue": 2710.0,
+  "price_total": 2710.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 29.07: 2710zł ( w tym zaliczka 200 ) | Koszty: 29.07: Leszek 500 → 500.00 zł | 29.07: Zuza 200 → 200.00 zł | 29.07: Patrycja 175 → 175.00 zł | 29.07: Drzewo 520 → 318.82 zł | 29.07: Patrycja 210 → 210.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "c6e0363e-4223-48d7-89c3-de15a3ebcdbb",
+  "name": "Konie",
+  "date": "2026-07-28",
+  "revenue": 1710.0,
+  "price_total": 1710.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: brak | Koszty: 27.07: Karolina 330 → 330.00 zł | 27.07: Patrycja 420 → 420.00 zł | 28.07: 167 biedra (tabletki do zmywarki , wody , owoce , ręczniki papierowe , rękawiczki ) → 167.00 zł",
+   "revenue_confidence": null,
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "ea96157a-4b59-4cbf-b740-e07efec47a70",
+  "name": "Ur konie i alpaki",
+  "date": "2026-07-26",
+  "revenue": 3300.0,
+  "price_total": 3300.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 26.07: 3300 | Koszty: 25.07: Ewka 450zł ( juz z uwzględnieniem podwyżki 🤦) → 450.00 zł | 26.07: Animacje 450 → 450.00 zł | 26.07: Biedra ( impreza , środki czystości , zabawki na urodziny promo 50%) 565 zł → 565.00 zł | 26.07: 600 zł Leszek (w tym 100 zł za ostatni pusty przyjazd, tak się umówiliśmy ) → 600.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "960379d7-9cb2-4ce6-8cb0-194451e03cea",
+  "name": "Przedszkole",
+  "date": "2026-07-26",
+  "revenue": 3340.0,
+  "price_total": 3340.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 26.07: 3340 | Koszty: brak",
+   "revenue_confidence": "WYSOKA/ŚREDNIA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "WPŁYW WSKAZUJE, ŻE SIĘ ODBYŁA – SPRAWDŹ"
+  }
+ },
+ {
+  "id": "0bfd200b-1925-4f6a-8b40-8a45dda10fdf",
+  "name": "Ur dorosli",
+  "date": "2026-07-25",
+  "revenue": 0.0
+ },
+ {
+  "id": "a87aeec5-50b1-49e3-8490-a01c84171023",
+  "name": "Spotkanie rocznica matury",
+  "date": "2026-07-25",
+  "revenue": 0.0
+ },
+ {
+  "id": "796251ba-1a16-426a-bf29-91ace8c289dd",
+  "name": "Dziki zachód",
+  "date": "2026-07-24",
+  "revenue": 2860.0,
+  "price_total": 2860.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 24.07: 2860zł | Koszty: 21.07: Kapelusze cowboyskie (12szt) 219 zł → 219.00 zł | 24.07: Woda x20 , owoce , kawy rozpuszczalna/parzona 135zł → 135.00 zł | 24.07: Zuzia 240 → 240.00 zł | 24.07: Zosia 200 → 200.00 zł | 24.07: Antek 80 → 80.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b6aff0d4-071e-44ea-8dfb-b9aa2a1465d2",
+  "name": "Firmowa mirbud rezerwacja",
+  "date": "2026-07-21",
+  "revenue": 0.0
+ },
+ {
+  "id": "93fa6378-2df9-4091-ab58-eb74512414d9",
+  "name": "Standard",
+  "date": "2026-07-19",
+  "revenue": 1450.0,
+  "price_total": 1450.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 20.07: 1450 zł (data 19.07) | Koszty: 19.07: Patrycja 245 → 245.00 zł | 20.07: Zuza 250 → 120.03 zł | 20.07: Karolina 150 zł ( musiałem ją wziąć bo dmuchaniec był zatopiony ) → 72.02 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "3d5f00b2-2f10-4a68-a269-71043b3e90c0",
+  "name": "Standard",
+  "date": "2026-07-18",
+  "revenue": 1570.0,
+  "price_total": 1570.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 18.07: 1570 | Koszty: 18.07: 200 gaz → 200.00 zł | 20.07: Zuza 250 → 129.97 zł | 20.07: Karolina 150 zł ( musiałem ją wziąć bo dmuchaniec był zatopiony ) → 77.98 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "13875edd-9ca1-4969-ba1e-6c0f88a8d2ed",
+  "name": "Konie",
+  "date": "2026-07-16",
+  "revenue": 0.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: brak | Koszty: 16.07: Zuzia 160 ( czyściła domek potem ) → 160.00 zł",
+   "revenue_confidence": null,
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b62cc73d-3340-4aa9-9b6b-6a99bbaf6276",
+  "name": "Spotkanie",
+  "date": "2026-07-13",
+  "revenue": 0.0
+ },
+ {
+  "id": "87ff5761-fc22-488a-9a63-6e4850445cde",
+  "name": "Standard",
+  "date": "2026-07-13",
+  "revenue": 1035.0,
+  "price_total": 1035.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 13.07: 1035 ( w tym10%rabatu ) | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "68af8986-f004-47e5-b9a1-0229ef2c9ef4",
+  "name": "Konie",
+  "date": "2026-07-12",
+  "revenue": 2150.0,
+  "price_total": 740.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 12.07: Zysk 740 zł plus 300 euro | Koszty: 12.07: Zuzia 700 → 401.33 zł | 12.07: Karolina 200 → 114.67 zł | 14.07: Patrycja 450 ( 2 dni ) → 91.71 zł | 14.07: Lorena 965 → 196.66 zł | 15.07: Leszek 500zł ( 12.07) → 286.67 zł",
+   "revenue_confidence": "WYSOKA/ŚREDNIA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "5ca1d58c-5b92-4efd-8e1c-0f9f5c237ba5",
+  "name": "Roczek",
+  "date": "2026-07-12",
+  "revenue": 1600.0,
+  "price_total": 1600.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 12.07: Urodziny 1600 | Koszty: 12.07: Zuzia 700 → 298.67 zł | 12.07: Karolina 200 → 85.33 zł | 14.07: Patrycja 450 ( 2 dni ) → 68.25 zł | 14.07: Lorena 965 → 146.35 zł | 15.07: Leszek 500zł ( 12.07) → 213.33 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b7aebe94-1d70-4c5f-8dc8-6216a8c71963",
+  "name": "Przyjęcie weselne",
+  "date": "2026-07-11",
+  "revenue": 6800.0,
+  "price_total": 6800.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 11.07: Slub 6800 | Koszty: 09.07: Koszt 517 ( biedra) → 517.00 zł | 11.07: Biedra 262 → 262.00 zł | 11.07: Biedra 67 → 67.00 zł | 11.07: Biedra 569 → 569.00 zł | 11.07: Agata 40 → 40.00 zł | 11.07: Lewiatan 39 → 39.00 zł | 11.07: Lewiatan 38 → 38.00 zł | 14.07: Patrycja 450 ( 2 dni ) → 290.05 zł | 14.07: Lorena 965 → 621.99 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "2f1a66e7-c8ee-4629-841a-96971ba7fa9a",
+  "name": "Resovia",
+  "date": "2026-07-08",
+  "revenue": 3936.0,
+  "price_total": 4000.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 08.07: Zysk resovua 3936 | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b6fa4f44-e33c-492b-bdf5-4b1267f92324",
+  "name": "Ola 16-20",
+  "date": "2026-07-06",
+  "revenue": 1500.0,
+  "price_total": 1500.0
+ },
+ {
+  "id": "be69558a-94a7-4837-a18d-ff2533ede707",
+  "name": "Gady",
+  "date": "2026-07-05",
+  "revenue": 3400.0,
+  "price_total": 3936.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 05.07: Urodzinki 3400 | Koszty: 04.07: Napoje ziemniaki Kiełba ( jutro) 170 → 170.00 zł | 05.07: Patrycja 500 → 500.00 zł | 05.07: 48 woda musztarda → 48.00 zł | 05.07: 200 Andrzej → 200.00 zł | 06.07: Zuzia 290 → 110.79 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "547cb906-d66b-4655-a392-20869c4fb5bb",
+  "name": "Szkola wstepna rez",
+  "date": "2026-07-05",
+  "revenue": 3400.0,
+  "price_total": 3400.0
+ },
+ {
+  "id": "ae4e4cfa-3214-47c5-ae49-10a2e3255a74",
+  "name": "Dziki zachód",
+  "date": "2026-07-04",
+  "revenue": 1500.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 04.07: Urodzinki 1500 | Koszty: 04.07: 90zl zurek → 24.55 zł | 04.07: 377 biedra → 102.82 zł | 04.07: Społem 18zl → 4.91 zł | 06.07: Zuzia 290 → 48.88 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  },
+  "price_total": 1500.0
+ },
+ {
+  "id": "dd0a1f6f-e2f8-4dcc-bcdb-1a6f634890fc",
+  "name": "Impreza firmowa",
+  "date": "2026-07-04",
+  "revenue": 4000.0,
+  "price_total": 202.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 04.07: Firmowa 4000zl | Koszty: 04.07: 90zl zurek → 65.45 zł | 04.07: 377 biedra → 274.18 zł | 04.07: Społem 18zl → 13.09 zł | 06.07: Zuzia 290 → 130.34 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "76c79d95-0205-4347-b83d-f329df76c21a",
+  "name": "Odwołana",
+  "date": "2026-06-30",
+  "revenue": 700.0,
+  "price_total": 700.0
+ },
+ {
+  "id": "28432263-9cec-4054-88bc-bccc24d6a1ca",
+  "name": "Gady",
+  "date": "2026-06-29",
+  "revenue": 3160.0,
+  "price_total": 3160.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 29.06: 3160 | Koszty: 29.06: 455 patrycja → 455.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "893685da-ab9d-4aa9-bf1e-4cffde047960",
+  "name": "Zuza 16 -22",
+  "date": "2026-06-29",
+  "revenue": 2747.0,
+  "price_total": 2747.0
+ },
+ {
+  "id": "66bc3ab8-7d94-4ebc-9187-fb140a4ab3a1",
+  "name": "Standard",
+  "date": "2026-06-28",
+  "revenue": 0.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: brak | Koszty: 28.06: Ewka 400 → 200.00 zł | 28.06: Biedra 360 → 180.00 zł | 28.06: Biedra 205 → 102.50 zł",
+   "revenue_confidence": null,
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "5a4f414d-6e2c-4c14-9365-e2b4d8706704",
+  "name": "Impreza rodzinna rocznica",
+  "date": "2026-06-28",
+  "revenue": 2747.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 28.06: Urodzinki 2747 | Koszty: 28.06: Ewka 400 → 200.00 zł | 28.06: Biedra 360 → 180.00 zł | 28.06: Biedra 205 → 102.50 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  },
+  "price_total": 2747.0
+ },
+ {
+  "id": "1def1353-28fb-4425-8c62-60e29d80a399",
+  "name": "Patrycja",
+  "date": "2026-06-28",
+  "revenue": 0.0
+ },
+ {
+  "id": "2d75bc5d-061e-4d5e-893a-0b221106b379",
+  "name": "Impreza szkolna",
+  "date": "2026-06-27",
+  "revenue": 2200.0,
+  "price_total": 2200.0
+ },
+ {
+  "id": "2fbbe370-0f5c-4c8a-8392-181f936c6daa",
+  "name": "Urodzinki roczek",
+  "date": "2026-06-27",
+  "revenue": 2200.0,
+  "price_total": 6450.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 27.06: Roczek 2200zl | Koszty: 27.06: Karolina 220 → 220.00 zł | 27.06: Biedra 718 ( wczoraj) → 718.00 zł | 27.06: Biedra warzywa 30(wczoraj) → 30.00 zł | 27.06: Biedra wody owoce papier toaletowy ręczniki 90 → 90.00 zł | 27.06: Zuzia 650 ( dałem jej 700, więc 50 ma górki na przyszły tydzień? → 650.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "fff304e5-0aea-4f9c-8e26-b6a226de0e62",
+  "name": "Zeromszczacy",
+  "date": "2026-06-26",
+  "revenue": 6450.0,
+  "price_total": 1440.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 26.06: Zeromszczacy 6450 | Koszty: 26.06: Patrycja 245 → 245.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "9d015793-35c4-4abe-a4ef-f19df90130ce",
+  "name": "Urodzinki 14",
+  "date": "2026-06-25",
+  "revenue": 1440.0,
+  "price_total": 1860.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 25.06: 1440 | Koszty: 25.06: Biedra 69 → 30.11 zł | 25.06: Kinga 330 → 144.00 zł | 25.06: Antek 60 → 26.18 zł | 25.06: Balony 116 → 116.00 zł | 25.06: Gazx2 180pln → 78.55 zł | 25.06: Żurek 70zl → 30.55 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "690113d8-094d-47d0-be52-cff867174408",
+  "name": "Warsztaty",
+  "date": "2026-06-25",
+  "revenue": 1860.0,
+  "price_total": 1610.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 25.06: 1860 ( opuściłem Pani 10 zł na kierowcę ) | Koszty: 25.06: Biedra 69 → 38.89 zł | 25.06: Torby papierowe 85 → 85.00 zł | 25.06: Kinga 330 → 186.00 zł | 25.06: Antek 60 → 33.82 zł | 25.06: Gazx2 180pln → 101.45 zł | 25.06: Żurek 70zl → 39.45 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "35c3412f-04f0-4856-9bf6-c7fea55157da",
+  "name": "Szkola",
+  "date": "2026-06-24",
+  "revenue": 3610.0,
+  "price_total": 2490.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 24.06: Zysk 810 | 24.06: Zysk 1000zl | 24.06: 1800 zł | Koszty: 24.06: Kaśka 160 → 160.00 zł | 24.06: Antek 60 → 60.00 zł | 24.06: Biedra 359 ( zakupy , łuki , wino dla Patrycji za Facebook) → 359.00 zł | 24.06: Antek 60 → 60.00 zł | 24.06: Patrycja 180 → 180.00 zł",
+   "revenue_confidence": "ŚREDNIA – automatyczne dopasowanie | ŚREDNIA – automatyczne dopasowanie | ŚREDNIA – automatyczne dopasowanie",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "67b75450-8edb-4427-a57f-617d9b17eaee",
+  "name": "Patrycja",
+  "date": "2026-06-24",
+  "revenue": 1800.0,
+  "price_total": 1800.0
+ },
+ {
+  "id": "0e0f0a92-d4dc-4e15-9eb9-ad931cc6efb7",
+  "name": "Standard norbi",
+  "date": "2026-06-23",
+  "revenue": 810.0,
+  "price_total": 810.0
+ },
+ {
+  "id": "7011820d-6027-47f2-95ef-697975145073",
+  "name": "Kaśka",
+  "date": "2026-06-23",
+  "revenue": 1000.0,
+  "price_total": 1000.0
+ },
+ {
+  "id": "5ccd81be-f186-4060-b7af-767bcab52410",
+  "name": "Urodziny 16",
+  "date": "2026-06-22",
+  "revenue": 1000.0,
+  "price_total": 2950.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: ŚREDNIA – w opisie TimeTree jest wprost 'Kwota 1000' | Koszty: 22.06: Patrycja 245 → 245.00 zł | To jest szacunek z opisu TimeTree, nie potwierdzony wpis z pliku Zyski.",
+   "revenue_confidence": "ŚREDNIA – w opisie TimeTree jest wprost 'Kwota 1000'",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b125e8a1-cf14-4b0e-be32-c51c2758b397",
+  "name": "Konie",
+  "date": "2026-06-21",
+  "revenue": 2950.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 21.06: Urodzinki 2950 | Koszty: 21.06: Koń 600 → 600.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  },
+  "price_total": 2950.0
+ },
+ {
+  "id": "4d861b31-9329-4938-884f-e8abc2904971",
+  "name": "Wycieczka z rodzicami",
+  "date": "2026-06-20",
+  "revenue": 1610.0,
+  "price_total": 2925.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 20.06: Wycieczka 1610 | Koszty: 20.06: Biedra 112 → 112.00 zł | 20.06: Woda 29 → 29.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "93cf0ff1-ed63-4dc7-b729-28c6a7dd2bb8",
+  "name": "Wycieczka z rodzicami",
+  "date": "2026-06-19",
+  "revenue": 2490.0,
+  "price_total": 2050.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 19.06: Wycieczka 2490 (42 osoby) | Koszty: 19.06: Biedra 220 → 220.00 zł | 19.06: Biedra 170 → 170.00 zł | 19.06: Komorowski 140 → 140.00 zł | 19.06: Biedra 10 ( woda) → 10.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "6505f882-9644-4586-8f50-2a40b5a3a0d1",
+  "name": "Warsztaty",
+  "date": "2026-06-18",
+  "revenue": 2925.0,
+  "price_total": 2050.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 18.06: 2925 ( 39 dzieci ) | Koszty: 17.06: Warsztaty ( chrobotek , kamienie ,żwirek , wstążki , żywe dekoracje, torby do pakowania ) 530 zł → 530.00 zł | 17.06: Słoiki 110 → 110.00 zł | 17.06: 135 zł komorowski → 135.00 zł | 18.06: Biedra 170 → 170.00 zł | 18.06: Zuza 200 → 200.00 zł | 18.06: Marta 200 → 200.00 zł | 18.06: Płyn do baniek 43 → 43.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "8768f912-3194-46d1-b9e4-142601847427",
+  "name": "Wycieczka szkolna",
+  "date": "2026-06-15",
+  "revenue": 2050.0,
+  "price_total": 1570.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 15.06: Szkola 2050 | Koszty: 15.06: Podpałka 10 → 10.00 zł | 15.06: Zuzia 200 → 200.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "name": "Party 22:00",
+  "date": "2026-06-15",
+  "revenue": 15762.5,
+  "id": "0a5816d3-979d-4187-8060-9547fd84568f",
+  "price_total": 15762.5
+ },
+ {
+  "id": "ce85abf7-b51e-447d-ab15-b23c9c51fdf3",
+  "name": "Standard",
+  "date": "2026-06-14",
+  "revenue": 1570.0,
+  "price_total": 2650.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 14.06: Roczek 1570 | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "b4a2cd01-47a1-451b-9417-ada4cfbebffa",
+  "name": "Harry Potter",
+  "date": "2026-06-13",
+  "revenue": 2650.0,
+  "price_total": 3960.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 13.06: Urodzinki 2650 | Koszty: 13.06: Koszt 647 biedra → 259.39 zł | 13.06: Koszt 209 biedra → 83.79 zł | 13.06: Koszt 60 Hania → 24.05 zł | 13.06: Koszt żurek 95 → 38.09 zł | 13.06: Biedra 12zl → 4.81 zł | 13.06: Zuzia 950 → 380.86 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "2562ccb5-ad8a-4d35-be55-a9497a489423",
+  "name": "rocznica matury",
+  "date": "2026-06-13",
+  "revenue": 3960.0,
+  "price_total": 800.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 13.06: Matura 3960 | Koszty: 13.06: Koszt 647 biedra → 387.61 zł | 13.06: Koszt 209 biedra → 125.21 zł | 13.06: Koszt 60 Hania → 35.95 zł | 13.06: Koszt żurek 95 → 56.91 zł | 13.06: Biedra 12zl → 7.19 zł | 13.06: Zuzia 950 → 569.14 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "bc6bf1ac-060d-4ce2-81a6-8deb2d37402b",
+  "name": "Wycieczka sp39 Angelika G.",
+  "date": "2026-06-12",
+  "revenue": 1920.0,
+  "price_total": 1120.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 12.06: Ukraina 800 | 12.06: Wycieczka 12.06. 1120pln | Koszty: 12.06: Biedra 370 → 116.08 zł | 12.06: Gaz 112 → 35.14 zł | 12.06: Biedra 339 → 106.35 zł | 12.06: Marta 200pln → 62.75 zł | 12.06: Zosia 200 → 62.75 zł | 12.06: Hania 50 ( pomagała dużo ) → 15.69 zł",
+   "revenue_confidence": "ŚREDNIA – automatyczne dopasowanie | WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "406ed481-42c8-4475-9d16-517d2ff0b5a8",
+  "name": "Wycieczka klasowa",
+  "date": "2026-06-12",
+  "revenue": 4200.0,
+  "price_total": 4200.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 12.06: Wycieczka 12.06. 4200pln | Koszty: 12.06: Biedra 370 → 253.92 zł | 12.06: Gaz 112 → 76.86 zł | 12.06: Biedra 339 → 232.65 zł | 12.06: Marta 200pln → 137.25 zł | 12.06: Zosia 200 → 137.25 zł | 12.06: Hania 50 ( pomagała dużo ) → 34.31 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "d94ef97e-878f-49b8-b1dc-f1170b199054",
+  "name": "Wesele Nowaków",
+  "date": "2026-06-10",
+  "revenue": 0.0
+ },
+ {
+  "id": "7d9c1b8f-e434-4da0-bdf0-446074454dcf",
+  "name": "Wycieczka szkola",
+  "date": "2026-06-09",
+  "revenue": 1595.0,
+  "price_total": 300.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: NISKA – wyliczenie z TimeTree: 29 osób × 55 zł | Koszty: 08.06: Zuzia 300 → 300.00 zł | 08.06: 537 biedra → 537.00 zł | 08.06: Komorowski 150 → 150.00 zł | 08.06: Klaudia 200 → 200.00 zł | 09.06: Koszt biedra 218 → 218.00 zł | 09.06: Koszt biedra ciasto 60 → 60.00 zł | 09.06: Koszt Marta 200 → 200.00 zł | To jest szacunek z opisu TimeTree, nie potwierdzony wpis z pliku Zyski.",
+   "revenue_confidence": "NISKA – wyliczenie z TimeTree: 29 osób × 55 zł",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "cc268d1e-a91a-4244-b569-a4d775b09f0f",
+  "name": "Warsztaty",
+  "date": "2026-06-07",
+  "revenue": 2500.0,
+  "price_total": 2500.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 07.06: Przedszkole 2500 | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "5262d6b9-a4b1-452f-b769-d7885ce68a23",
+  "name": "Dziki zachód",
+  "date": "2026-06-05",
+  "revenue": 2350.0,
+  "price_total": 2350.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 05.06: 2350 | Koszty: 05.06: Biedra 220 → 220.00 zł | 05.06: Ewka 300zl → 300.00 zł | 05.06: Ręcznik zmiotka 23 zł → 23.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "1b967d6c-41f1-414c-bbb6-d0c489b760be",
+  "name": "Wycieczka szkolna",
+  "date": "2026-06-03",
+  "revenue": 1950.0,
+  "price_total": 1950.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 03.06: 1950 | Koszty: 02.06: Kapsułki do zmywania 40 → 40.00 zł | 03.06: Biedra 180 → 180.00 zł | 03.06: Piłki 40 zł → 40.00 zł | 03.06: Marta 200 → 200.00 zł | 03.06: Folia alum 20 → 20.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "557b3617-c666-4c49-9616-d18bded7a3d0",
+  "name": "Standard",
+  "date": "2026-05-30",
+  "revenue": 1850.0,
+  "price_total": 1850.0
+ },
+ {
+  "id": "7c044114-cc98-496b-b2cd-7bce73d55304",
+  "name": "Nie odbyła się Impreza firmowa",
+  "date": "2026-05-29",
+  "revenue": 0.0
+ },
+ {
+  "id": "0ccd8ede-ec4a-4208-93f2-764573a13e77",
+  "name": "Nie odbyła sie Przedszkole",
+  "date": "2026-05-29",
+  "revenue": 1665.0,
+  "price_total": 1665.0
+ },
+ {
+  "id": "4e765dfd-9262-42d6-94ae-36a714a36bd3",
+  "name": "Wycieczka",
+  "date": "2026-05-28",
+  "revenue": 1665.0,
+  "price_total": 600.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 28.05: 1665 | Koszty: 28.05: Koszt Zuza 200 → 200.00 zł | 28.05: Kinga 345 → 345.00 zł | 28.05: Gaz x2 200 → 200.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "1d5028a2-e8bf-4b1b-8361-1b484e9fe768",
+  "name": "Warsztaty przrdszkole",
+  "date": "2026-05-27",
+  "revenue": 4120.0,
+  "price_total": 3520.0,
+  "finance": {
+   "cost_confidence": "WYSOKA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 27.05: 3520 | 06.07: 600 wycieczka (27.05) | Koszty: 27.05: Koszt Kinga 660 zł → 660.00 zł | 27.05: Koszt Auchan 240 → 240.00 zł | 27.05: Koszt Ewka 400 → 400.00 zł | 27.05: Koszt Marta 200 → 200.00 zł | 27.05: Koszt biedra 154 → 154.00 zł",
+   "revenue_confidence": "WYSOKA | WYSOKA/ŚREDNIA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "e5925b88-053f-4050-8171-8a6428adba77",
+  "name": "Warsztaty przedszkole",
+  "date": "2026-05-26",
+  "revenue": 2350.0,
+  "price_total": 2350.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 26.05: 2350 | Koszty: 26.05: Biedra 180 → 180.00 zł | 26.05: Warsztaty piasek , grys 60 → 60.00 zł | 26.05: Płyn do baniek 50 → 50.00 zł | 26.05: 240 zł kinga → 240.00 zł | 26.05: 140 kwiatki → 140.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "03843f78-5ae0-4f6b-a7f1-6a27158ca7dc",
+  "name": "Dziki zachód",
+  "date": "2026-05-24",
+  "revenue": 2700.0,
+  "price_total": 2500.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 24.05: Zysk 2700 | Koszty: 24.05: Rakiety 54 → 54.00 zł | 24.05: Ewka 400 → 207.69 zł | 24.05: Koszt soki 20 → 10.38 zł | 24.05: Koszt 1400 zuza → 726.92 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "0de19389-84e5-4154-a623-7c73fa7d114e",
+  "name": "Impreza 18 stka rodzinna Łukasz zultak",
+  "date": "2026-05-24",
+  "revenue": 2500.0,
+  "price_total": 2700.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 24.05: Urodzinki 2500 | Koszty: 24.05: Ewka 400 → 192.31 zł | 24.05: Koszt soki 20 → 9.62 zł | 24.05: Koszt 1400 zuza → 673.08 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "fe96706f-df67-4237-b5a1-b9755c37e164",
+  "name": "Standard",
+  "date": "2026-05-23",
+  "revenue": 1730.0,
+  "price_total": 1730.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 23.05: Zysk 1730 | Koszty: 23.05: Biedra 437 → 159.83 zł | 23.05: Biedra 40 → 14.63 zł | 23.05: Biedra 20 → 7.32 zł | 23.05: Biedra 205 → 74.98 zł | 23.05: Buedra 75 → 27.43 zł | 23.05: Michal 150 → 54.86 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "2bbe3a1b-58ec-4314-90c3-d71ca5f7330c",
+  "name": "Firmowa Renault",
+  "date": "2026-05-23",
+  "revenue": 3000.0,
+  "price_total": 3000.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 23.05: Zysk 3000 | Koszty: 23.05: Biedra 437 → 277.17 zł | 23.05: Biedra 40 → 25.37 zł | 23.05: Biedra 20 → 12.68 zł | 23.05: Biedra 205 → 130.02 zł | 23.05: Buedra 75 → 47.57 zł | 23.05: Michal 150 → 95.14 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "50189408-1b12-4405-94b1-aed8654bed96",
+  "name": "Szkolna z rodzicami",
+  "date": "2026-05-22",
+  "revenue": 1260.0,
+  "price_total": 1260.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 22.05: Zysk 1260 | Koszty: 21.05: Koszt Kinga 240 → 102.86 zł | 21.05: Koszt Michał 60 → 25.71 zł | 21.05: Ewka 400 → 171.43 zł | 22.05: kleje torby ręcznik pap 134 zł → 57.43 zł | 22.05: Kinga 500 → 214.29 zł | 22.05: Marta 140 → 60.00 zł | 22.05: Klaudia 200 → 85.71 zł | 22.05: Biedra 42 → 18.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "e42f620f-7f29-4d04-806f-9ea854f8c6a6",
+  "name": "Wycieczka przedszkole konkurs",
+  "date": "2026-05-22",
+  "revenue": 1680.0,
+  "price_total": 1680.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ESTIMATED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 22.05: Zysk 1680 | Koszty: 21.05: Koszt Kinga 240 → 137.14 zł | 21.05: Koszt Michał 60 → 34.29 zł | 21.05: Ewka 400 → 228.57 zł | 22.05: kleje torby ręcznik pap 134 zł → 76.57 zł | 22.05: Kinga 500 → 285.71 zł | 22.05: Marta 140 → 80.00 zł | 22.05: Klaudia 200 → 114.29 zł | 22.05: Biedra 42 → 24.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "5d1962ee-5fa1-464b-adb5-11b721891e7b",
+  "name": "Średniowiecze",
+  "date": "2026-05-21",
+  "revenue": 1610.0,
+  "price_total": 1610.0
+ },
+ {
+  "id": "234f629c-fa7b-4444-875f-ccfdd4f9d1f8",
+  "name": "Wycieczka Pani smolinska podchody zrobić",
+  "date": "2026-05-20",
+  "revenue": 1050.0,
+  "price_total": 1050.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 20.05: 1050 | Koszty: 19.05: Koszt 105 biedra → 105.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "368ce850-f606-48bf-b824-bb6437989e40",
+  "name": "Urodziny 18",
+  "date": "2026-05-17",
+  "revenue": 1200.0,
+  "price_total": 1200.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 17.05: 18 stka 1200 | Koszty: 17.05: Zuzia 1400 → 1400.00 zł | 17.05: Makro 34 → 34.00 zł | 17.05: 70 Kaufland → 70.00 zł | 17.05: Zurek 120 → 120.00 zł | 17.05: Lorna 975 → 130.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "953715ee-69cc-42ad-a2da-c82da707a7db",
+  "name": "Komunia Marty koleżanka Monika szyszka",
+  "date": "2026-05-16",
+  "revenue": 7800.0,
+  "price_total": 7800.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "MIXED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": true,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 17.05: Komunia 7800 | Koszty: 16.05: Kaska 250 → 250.00 zł | 16.05: Koszt biedra 360 → 360.00 zł | 16.05: Koszt biedra 558 → 558.00 zł | 16.05: Koszt Agata 90 → 90.00 zł | 16.05: Biedra 457 → 457.00 zł | 16.05: Społem 139 → 139.00 zł | 16.05: Biedra 81 → 81.00 zł | 16.05: Biedra 13 → 13.00 zł | 16.05: Kon 700 → 700.00 zł | 17.05: Lorna 975 → 845.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "22624c64-b32b-4536-840c-cbebdcaf1da2",
+  "name": "Firmowa Ekobox",
+  "date": "2026-05-15",
+  "revenue": 10762.5,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 15.06: Ekobox 10762,50 (8750) | Koszty: 15.05: Koszt 360 kinga → 360.00 zł | 15.05: Koszt 175 klaudia → 175.00 zł | 15.05: Koszt biedra 55 wczoraj → 55.00 zł | 15.05: Agata 41 → 41.00 zł | 15.05: Biedra żabka 140 → 140.00 zł | 15.05: Biedra 225 → 225.00 zł | 15.05: Kamil 250 → 250.00 zł",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  },
+  "price_total": 10762.5
+ },
+ {
+  "name": "Wesele",
+  "date": "2026-05-15",
+  "revenue": 10000.0,
+  "id": "3d1d8222-bb0a-4085-995a-9ee66599d83a",
+  "price_total": 10000.0
+ },
+ {
+  "id": "6bd34a57-f34e-480e-9360-2dc4d8649c4b",
+  "name": "Wycieczka przedszkole konkurs",
+  "date": "2026-05-14",
+  "revenue": 0.0
+ },
+ {
+  "id": "c62c7dc9-09f7-4652-8f08-52a96dcc857e",
+  "name": "Konie",
+  "date": "2026-05-10",
+  "revenue": 3000.0,
+  "price_total": 7100.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 10.05: Urodzinki 3000 zl | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "9483fddd-226d-471c-bcce-1328818b5477",
+  "name": "Urodziny 40",
+  "date": "2026-05-09",
+  "revenue": 7100.0,
+  "price_total": 3000.0,
+  "finance": {
+   "cost_confidence": null,
+   "cost_source_kind": "UNKNOWN",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: 11.05: Zysk 7100 | Koszty: brak",
+   "revenue_confidence": "WYSOKA",
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ },
+ {
+  "id": "e615dde6-84fa-4748-b4b7-7415d870d627",
+  "name": "Roczek",
+  "date": "2026-05-02",
+  "revenue": 0.0
+ },
+ {
+  "id": "a00d2638-557a-4461-abfb-d9f5cccae113",
+  "name": "Rodzinna",
+  "date": "2026-05-01",
+  "revenue": 0.0
+ },
+ {
+  "id": "69f7f448-fe33-4b11-859f-2cdceab7d0a7",
+  "name": "Firmowa Defro",
+  "date": "2026-04-17",
+  "revenue": 0.0,
+  "finance": {
+   "cost_confidence": "ŚREDNIA",
+   "cost_source_kind": "ACTUAL_OR_MATCHED",
+   "import_batch_id": "BPL_2021_2026_FINANCE_V1",
+   "imported_at": "2026-08-24T09:41:12.191166+00:00",
+   "is_cost_estimated": false,
+   "is_revenue_estimated": false,
+   "notes": "Wpływy: brak | Koszty: 16.04: Komorowski 150zl → 150.00 zł | 17.04: Zakupy biedra 403 zł → 403.00 zł | 17.04: Koszt Auchan 115 → 115.00 zł",
+   "revenue_confidence": null,
+   "revenue_source_kind": "ACTUAL_OR_MATCHED",
+   "status": "ODBYŁA SIĘ / PRAWDOPODOBNIE"
+  }
+ }
+]

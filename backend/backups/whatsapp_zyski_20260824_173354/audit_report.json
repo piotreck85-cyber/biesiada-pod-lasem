@@ -1,0 +1,20 @@
+{
+ "batch": "WHATSAPP_ZYSKI_2026_V1",
+ "workspace": "18ea076f-3ff4-4ac4-b17b-1ef2f44aadfc",
+ "prev_revenue_backup_count": 102,
+ "prev_revenue_sum": 251192.0,
+ "cleared_events": 102,
+ "updated_events_revenue": 33,
+ "src_sum": 188498.5,
+ "assigned_sum": 114322.0,
+ "pending": 26,
+ "pending_sum": 61884.5,
+ "misc": 7,
+ "misc_sum": 12292.0,
+ "stats": {
+  "misc_no_event": 7,
+  "single_event": 31,
+  "multi_pending": 26,
+  "multi_kw_match": 7
+ }
+}
