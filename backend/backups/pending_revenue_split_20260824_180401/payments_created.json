@@ -1,0 +1,146 @@
+[
+  {
+    "id": "b0790019-cbff-420b-81c4-72932f6eaa27",
+    "event_id": "50189408-1b12-4405-94b1-aed8654bed96",
+    "event_name": "Szkolna z rodzicami",
+    "amount": 630.0,
+    "date": "2026-05-22",
+    "source_pending": "5b88b24d-1806-4b54-9320-abb206749058"
+  },
+  {
+    "id": "013776a1-4990-4f97-9174-a81628db99b7",
+    "event_id": "e42f620f-7f29-4d04-806f-9ea854f8c6a6",
+    "event_name": "Wycieczka przedszkole konkurs",
+    "amount": 630.0,
+    "date": "2026-05-22",
+    "source_pending": "5b88b24d-1806-4b54-9320-abb206749058"
+  },
+  {
+    "id": "1e45fea6-85ec-4395-982c-3263cfe206ba",
+    "event_id": "fe96706f-df67-4237-b5a1-b9755c37e164",
+    "event_name": "Standard",
+    "amount": 1500.0,
+    "date": "2026-05-23",
+    "source_pending": "cb24bb84-adff-4936-beda-ef7b4910c9b5"
+  },
+  {
+    "id": "0a22e007-26b0-4b62-bd44-af7e879bdfa5",
+    "event_id": "2bbe3a1b-58ec-4314-90c3-d71ca5f7330c",
+    "event_name": "Firmowa Renault",
+    "amount": 1500.0,
+    "date": "2026-05-23",
+    "source_pending": "cb24bb84-adff-4936-beda-ef7b4910c9b5"
+  },
+  {
+    "id": "27b5b267-2363-40a7-8e44-b1566fdd1440",
+    "event_id": "03843f78-5ae0-4f6b-a7f1-6a27158ca7dc",
+    "event_name": "Dziki zach\u00f3d",
+    "amount": 1350.0,
+    "date": "2026-05-24",
+    "source_pending": "f81b862b-7c24-4c8d-963a-2bef5410673a"
+  },
+  {
+    "id": "e7bb0c53-7f20-4c2f-a185-575e712916f3",
+    "event_id": "0de19389-84e5-4154-a623-7c73fa7d114e",
+    "event_name": "Impreza 18 stka rodzinna \u0141ukasz zultak",
+    "amount": 1350.0,
+    "date": "2026-05-24",
+    "source_pending": "f81b862b-7c24-4c8d-963a-2bef5410673a"
+  },
+  {
+    "id": "d37155de-0fd3-41ee-87e6-a904a86aae58",
+    "event_id": "8768f912-3194-46d1-b9e4-142601847427",
+    "event_name": "Wycieczka szkolna",
+    "amount": 1025.0,
+    "date": "2026-06-15",
+    "source_pending": "d7ab85fc-898d-4538-bf89-95ea1d9901f0"
+  },
+  {
+    "id": "5687fee1-0806-4350-919d-af668bd57d5e",
+    "event_id": "0a5816d3-979d-4187-8060-9547fd84568f",
+    "event_name": "Party 22:00",
+    "amount": 1025.0,
+    "date": "2026-06-15",
+    "source_pending": "d7ab85fc-898d-4538-bf89-95ea1d9901f0"
+  },
+  {
+    "id": "04d0c8ac-e3f5-4439-9253-ccbb8529657b",
+    "event_id": "35c3412f-04f0-4856-9bf6-c7fea55157da",
+    "event_name": "Szkola",
+    "amount": 500.0,
+    "date": "2026-06-24",
+    "source_pending": "87954e98-c26b-432f-a74c-c45966decb84"
+  },
+  {
+    "id": "43a209b8-dc78-439c-8f41-a2fd863beda7",
+    "event_id": "67b75450-8edb-4427-a57f-617d9b17eaee",
+    "event_name": "Patrycja",
+    "amount": 500.0,
+    "date": "2026-06-24",
+    "source_pending": "87954e98-c26b-432f-a74c-c45966decb84"
+  },
+  {
+    "id": "8c0512ff-8af4-4de2-819b-3ed85bc58fcf",
+    "event_id": "35c3412f-04f0-4856-9bf6-c7fea55157da",
+    "event_name": "Szkola",
+    "amount": 900.0,
+    "date": "2026-06-24",
+    "source_pending": "4bc4ec26-ddc4-4625-acd4-a0b5f35f3586"
+  },
+  {
+    "id": "ffeae138-4622-4565-8ab3-1e0ec282c5a1",
+    "event_id": "67b75450-8edb-4427-a57f-617d9b17eaee",
+    "event_name": "Patrycja",
+    "amount": 900.0,
+    "date": "2026-06-24",
+    "source_pending": "4bc4ec26-ddc4-4625-acd4-a0b5f35f3586"
+  },
+  {
+    "id": "686506c7-9f2c-48ad-a810-83880634d8ab",
+    "event_id": "9d015793-35c4-4abe-a4ef-f19df90130ce",
+    "event_name": "Urodzinki 14",
+    "amount": 720.0,
+    "date": "2026-06-25",
+    "source_pending": "3c40c368-0d56-4cfc-aa8e-cd8137a46954"
+  },
+  {
+    "id": "9f8b68b5-7674-492f-aa6c-ef0f4af4a891",
+    "event_id": "690113d8-094d-47d0-be52-cff867174408",
+    "event_name": "Warsztaty",
+    "amount": 720.0,
+    "date": "2026-06-25",
+    "source_pending": "3c40c368-0d56-4cfc-aa8e-cd8137a46954"
+  },
+  {
+    "id": "5093875c-8a16-4956-b5a4-1da56204dbbb",
+    "event_id": "68af8986-f004-47e5-b9a1-0229ef2c9ef4",
+    "event_name": "Konie",
+    "amount": 370.0,
+    "date": "2026-07-12",
+    "source_pending": "2dd22cbf-bb41-4d51-84be-f11d4a4cec66"
+  },
+  {
+    "id": "7fdb1ac6-c74b-4597-ae83-5ce7c93e14f5",
+    "event_id": "5ca1d58c-5b92-4efd-8e1c-0f9f5c237ba5",
+    "event_name": "Roczek",
+    "amount": 370.0,
+    "date": "2026-07-12",
+    "source_pending": "2dd22cbf-bb41-4d51-84be-f11d4a4cec66"
+  },
+  {
+    "id": "8c37d656-3a0a-4367-8ba2-ed968474ec75",
+    "event_id": "ea96157a-4b59-4cbf-b740-e07efec47a70",
+    "event_name": "Ur konie i alpaki",
+    "amount": 1650.0,
+    "date": "2026-07-26",
+    "source_pending": "9fda9bc8-9751-458c-91e0-f4a40a728175"
+  },
+  {
+    "id": "9f121823-0a1d-40c7-84ab-bb828e2192b1",
+    "event_id": "960379d7-9cb2-4ce6-8cb0-194451e03cea",
+    "event_name": "Przedszkole",
+    "amount": 1650.0,
+    "date": "2026-07-26",
+    "source_pending": "9fda9bc8-9751-458c-91e0-f4a40a728175"
+  }
+]

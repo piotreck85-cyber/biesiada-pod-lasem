@@ -1,31 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, ActivityIndicator,
-  TextInput, Modal, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl,
+  TextInput, Modal, KeyboardAvoidingView, Platform, StatusBar,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { theme, formatPLN } from "@/src/theme";
+import { v2 } from "@/src/designTokensV2";
+import { formatPLN } from "@/src/theme";
 import { api } from "@/src/api";
 
-type Tile = { key: string; label: string; icon: any; route: string; color: string };
+type Tile = { key: string; label: string; icon: any; route: string; color: string; bg: string };
 
 const TILES: Tile[] = [
-  { key: "koszty",      label: "Koszty",       icon: "trending-down", route: "/koszty",       color: "#DC2626" },
-  { key: "przychody",   label: "Przychody",    icon: "trending-up",   route: "/statystyki?tab=revenue", color: "#10B981" },
-  { key: "misc",        label: "Pozostałe przychody", icon: "gift",   route: "/pozostale-przychody", color: "#14B8A6" },
-  { key: "kasa",        label: "Kasa",         icon: "pie-chart",     route: "/rozliczenie",  color: "#F59E0B" },
-  { key: "wspolnicy",   label: "Rozliczenia wspólników", icon: "users", route: "/wspolnicy",   color: "#7C3AED" },
-  { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: "#0891B2" },
+  { key: "koszty",      label: "Koszty",       icon: "trending-down", route: "/koszty",       color: v2.color.error,   bg: v2.color.errorBg },
+  { key: "przychody",   label: "Przychody",    icon: "trending-up",   route: "/statystyki?tab=revenue", color: v2.color.success, bg: v2.color.successBg },
+  { key: "misc",        label: "Pozostałe przychody", icon: "gift",   route: "/pozostale-przychody", color: "#0D9488",        bg: "#CCFBF1" },
+  { key: "kasa",        label: "Kasa",         icon: "pie-chart",     route: "/rozliczenie",  color: v2.color.warning, bg: v2.color.warningBg },
+  { key: "wspolnicy",   label: "Rozliczenia wspólników", icon: "users", route: "/wspolnicy",   color: "#7C3AED",        bg: "#EDE9FE" },
+  { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: v2.color.info,    bg: v2.color.infoBg },
 ];
 
 const SUBTITLE: Record<string, string> = {
-  koszty:      "koszty firmowe · koszty wydarzeń · kategorie",
+  koszty:      "koszty firmowe · wydarzeń · kategorie",
   przychody:   "wpłaty klientów · planowane · historia",
-  misc:        "sprzedaż sprzętu · dmuchaniec · ognisko · refundy",
+  misc:        "sprzęt · dmuchaniec · ognisko · refundy",
   kasa:        "stan kasy · rozliczenia · historia",
-  wspolnicy:   "wypłaty wspólników · saldo per wspólnik",
+  wspolnicy:   "wypłaty · saldo per wspólnik",
   statystyki:  "wykresy · miesiąc · rok · eksport",
 };
 
@@ -66,7 +67,7 @@ export default function FinanseScreen() {
         : { period };
       const r: any = await api.financeSummaryV2(params);
       setSummary(r);
-    } catch (e) {
+    } catch {
       // handled by UI
     } finally {
       setLoading(false);
@@ -83,19 +84,32 @@ export default function FinanseScreen() {
     return `${fmtDatePL(summary.date_from)} – ${fmtDatePL(summary.date_to)}`;
   }, [period, summary]);
 
+  const profit = summary?.profit_real || 0;
+  const profitPositive = profit >= 0;
+
   return (
-    <View style={{ flex: 1, backgroundColor: theme.color.surface }}>
+    <View style={{ flex: 1, backgroundColor: v2.color.bg }}>
+      <StatusBar barStyle="light-content" />
+
+      {/* HEADER (dark forest) */}
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
-        <Text style={s.brand}>Finanse</Text>
-        <Text style={s.title}>Panel finansowy</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.brand}>FINANSE</Text>
+          <Text style={s.title}>Panel finansowy</Text>
+          <Text style={s.subtitle}>{periodLabel}</Text>
+        </View>
+        <Pressable
+          onPress={() => router.push("/statystyki" as any)}
+          style={s.headerBtn}
+          testID="fin-stats-shortcut"
+        >
+          <Feather name="bar-chart-2" size={18} color="#fff" />
+        </Pressable>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={theme.color.brand} />}
-      >
-        {/* Filtry okresu */}
-        <View style={s.chipRow}>
+      {/* Period chips (on dark header) */}
+      <View style={s.chipBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 16 }}>
           {([
             ["current_month", "Bieżący miesiąc"],
             ["prev_month",    "Poprzedni"],
@@ -107,71 +121,95 @@ export default function FinanseScreen() {
             </Pressable>
           ))}
           <Pressable onPress={() => { setPeriod("custom"); setCustomModal(true); }}
-            style={[s.chip, period === "custom" && s.chipActive]}>
-            <Feather name="calendar" size={12} color={period === "custom" ? theme.color.brand : theme.color.onSurface} />
-            <Text style={[s.chipText, period === "custom" && s.chipTextActive, { marginLeft: 4 }]}>Zakres</Text>
+            style={[s.chip, period === "custom" && s.chipActive, { flexDirection: "row", gap: 4 }]}>
+            <Feather name="calendar" size={12} color={period === "custom" ? v2.color.forest : "#fff"} />
+            <Text style={[s.chipText, period === "custom" && s.chipTextActive]}>Zakres</Text>
           </Pressable>
-        </View>
-        <Text style={s.periodInfo}>{periodLabel}</Text>
+        </ScrollView>
+      </View>
 
-        {/* KPI Cards (4 sekcje) */}
-        <View style={s.kpiGrid}>
-          {/* Realny przychód */}
-          <View style={[s.kpiCard, { borderColor: "#10B98155", backgroundColor: "#10B9810A" }]}>
-            <View style={s.kpiHead}>
-              <Feather name="trending-up" size={14} color="#10B981" />
-              <Text style={s.kpiLabel}>Realny przychód</Text>
+      <ScrollView
+        contentContainerStyle={{ paddingBottom: 140 }}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={load} tintColor={v2.color.forest} />}
+      >
+        {/* KPI Card (floating white) */}
+        <View style={s.kpiCard}>
+          {/* Główny wynik: zysk */}
+          <View style={s.profitHead}>
+            <View>
+              <Text style={s.profitLabel}>Realny zysk</Text>
+              <Text style={[s.profitValue, { color: profitPositive ? v2.color.success : v2.color.error }]}>
+                {loading ? "…" : formatPLN(profit)}
+              </Text>
             </View>
-            <Text style={[s.kpiValue, { color: "#10B981" }]}>
-              {loading ? "…" : formatPLN(summary?.revenue_real || 0)}
-            </Text>
-            <Text style={s.kpiHint}>{summary?.payments_count || 0} wpłat</Text>
+            <View style={[s.profitBadge, { backgroundColor: profitPositive ? v2.color.successBg : v2.color.errorBg }]}>
+              <Feather
+                name={profitPositive ? "trending-up" : "trending-down"}
+                size={14}
+                color={profitPositive ? v2.color.success : v2.color.error}
+              />
+              <Text style={[s.profitBadgeText, { color: profitPositive ? v2.color.success : v2.color.error }]}>
+                {profitPositive ? "na plusie" : "na minusie"}
+              </Text>
+            </View>
           </View>
-          {/* Realne koszty */}
-          <View style={[s.kpiCard, { borderColor: "#DC262655", backgroundColor: "#DC26260A" }]}>
-            <View style={s.kpiHead}>
-              <Feather name="trending-down" size={14} color="#DC2626" />
-              <Text style={s.kpiLabel}>Realne koszty</Text>
+
+          <View style={s.divider} />
+
+          {/* KPI grid 2x2 */}
+          <View style={s.kpiGrid}>
+            <View style={s.kpiItem}>
+              <View style={s.kpiIconBox}>
+                <Feather name="trending-up" size={13} color={v2.color.success} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.kpiLabel}>Przychód</Text>
+                <Text style={s.kpiValue}>{loading ? "…" : formatPLN(summary?.revenue_real || 0)}</Text>
+                <Text style={s.kpiHint}>{summary?.payments_count || 0} wpłat</Text>
+              </View>
             </View>
-            <Text style={[s.kpiValue, { color: "#DC2626" }]}>
-              {loading ? "…" : formatPLN(summary?.costs_real || 0)}
-            </Text>
-            <Text style={s.kpiHint}>{summary?.expenses_count || 0} dokumentów</Text>
-          </View>
-          {/* Realny zysk */}
-          <View style={[s.kpiCard, {
-            borderColor: (summary?.profit_real || 0) >= 0 ? theme.color.brand + "55" : "#DC262655",
-            backgroundColor: (summary?.profit_real || 0) >= 0 ? theme.color.brand + "0A" : "#DC26260A",
-          }]}>
-            <View style={s.kpiHead}>
-              <Feather name="dollar-sign" size={14} color={(summary?.profit_real || 0) >= 0 ? theme.color.brand : "#DC2626"} />
-              <Text style={s.kpiLabel}>Realny zysk</Text>
+
+            <View style={s.kpiItem}>
+              <View style={[s.kpiIconBox, { backgroundColor: v2.color.errorBg }]}>
+                <Feather name="trending-down" size={13} color={v2.color.error} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.kpiLabel}>Koszty</Text>
+                <Text style={s.kpiValue}>{loading ? "…" : formatPLN(summary?.costs_real || 0)}</Text>
+                <Text style={s.kpiHint}>{summary?.expenses_count || 0} dokumentów</Text>
+              </View>
             </View>
-            <Text style={[s.kpiValue, { color: (summary?.profit_real || 0) >= 0 ? theme.color.brand : "#DC2626" }]}>
-              {loading ? "…" : formatPLN(summary?.profit_real || 0)}
-            </Text>
-            <Text style={s.kpiHint}>przychód − koszty</Text>
-          </View>
-          {/* Należności */}
-          <View style={[s.kpiCard, { borderColor: "#F59E0B55", backgroundColor: "#F59E0B0A" }]}>
-            <View style={s.kpiHead}>
-              <Feather name="clock" size={14} color="#F59E0B" />
-              <Text style={s.kpiLabel}>Do pobrania</Text>
+
+            <View style={s.kpiItem}>
+              <View style={[s.kpiIconBox, { backgroundColor: v2.color.warningBg }]}>
+                <Feather name="clock" size={13} color={v2.color.warning} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.kpiLabel}>Do pobrania</Text>
+                <Text style={s.kpiValue}>{loading ? "…" : formatPLN(summary?.receivables || 0)}</Text>
+                <Text style={s.kpiHint}>od klientów</Text>
+              </View>
             </View>
-            <Text style={[s.kpiValue, { color: "#F59E0B" }]}>
-              {loading ? "…" : formatPLN(summary?.receivables || 0)}
-            </Text>
-            <Text style={s.kpiHint}>od klientów</Text>
+
+            <View style={s.kpiItem}>
+              <View style={[s.kpiIconBox, { backgroundColor: v2.color.mint }]}>
+                <Feather name="calendar" size={13} color={v2.color.forest} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.kpiLabel}>Imprezy</Text>
+                <Text style={s.kpiValue}>{summary?.events_count || 0}</Text>
+                <Text style={s.kpiHint}>w okresie</Text>
+              </View>
+            </View>
           </View>
         </View>
 
         {/* Info: planowana wartość imprez */}
         <View style={s.plannedBox}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Feather name="info" size={14} color={theme.color.info} />
+            <Feather name="info" size={14} color={v2.color.info} />
             <Text style={s.plannedText}>
               Planowana wartość imprez: <Text style={{ fontWeight: "800" }}>{formatPLN(summary?.price_planned || 0)}</Text>
-              {" "}({summary?.events_count || 0} {(summary?.events_count === 1) ? "impreza" : "imprez"})
             </Text>
           </View>
           <Text style={s.plannedHint}>
@@ -179,19 +217,28 @@ export default function FinanseScreen() {
           </Text>
         </View>
 
-        {/* Tiles do podekranów */}
-        <View style={{ marginTop: 20, gap: 10 }}>
+        {/* Section header */}
+        <View style={s.sectionHead}>
+          <Text style={s.sectionLabel}>Moduły finansowe</Text>
+        </View>
+
+        {/* Tiles */}
+        <View style={{ paddingHorizontal: 16, gap: 10 }}>
           {TILES.map(t => (
-            <Pressable key={t.key} onPress={() => router.push(t.route as any)}
-              style={[s.tile, { borderColor: t.color + "44" }]}>
-              <View style={[s.tileIconBox, { backgroundColor: t.color + "18" }]}>
-                <Feather name={t.icon} size={22} color={t.color} />
+            <Pressable
+              key={t.key}
+              onPress={() => router.push(t.route as any)}
+              style={({ pressed }) => [s.tile, pressed && { opacity: 0.7, transform: [{ scale: 0.995 }] }]}
+              testID={`fin-tile-${t.key}`}
+            >
+              <View style={[s.tileIconBox, { backgroundColor: t.bg }]}>
+                <Feather name={t.icon} size={20} color={t.color} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.tileLabel}>{t.label}</Text>
                 <Text style={s.tileSub}>{SUBTITLE[t.key]}</Text>
               </View>
-              <Feather name="chevron-right" size={20} color={theme.color.onSurfaceSecondary} />
+              <Feather name="chevron-right" size={20} color={v2.color.textSubtle} />
             </Pressable>
           ))}
         </View>
@@ -200,25 +247,25 @@ export default function FinanseScreen() {
       {/* Custom range modal */}
       <Modal visible={customModal} transparent animationType="slide" onRequestClose={() => setCustomModal(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
-          <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }}>
+          <View style={s.modalBackdrop}>
             <Pressable style={{ flex: 1 }} onPress={() => setCustomModal(false)} />
             <View style={[s.sheet, { paddingBottom: insets.bottom + 20 }]}>
               <View style={s.handle} />
               <Text style={s.sheetTitle}>Wybierz zakres dat</Text>
 
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 8 }}>
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rangeLabel}>Od</Text>
                   <TextInput value={customFrom} onChangeText={setCustomFrom}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholderTextColor={v2.color.textSubtle}
                     style={s.rangeInput} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.rangeLabel}>Do</Text>
                   <TextInput value={customTo} onChangeText={setCustomTo}
                     placeholder="YYYY-MM-DD"
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholderTextColor={v2.color.textSubtle}
                     style={s.rangeInput} />
                 </View>
               </View>
@@ -237,47 +284,111 @@ export default function FinanseScreen() {
 }
 
 const s = StyleSheet.create({
-  header: { paddingHorizontal: 20, paddingBottom: 8 },
-  brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
+  header: {
+    flexDirection: "row", alignItems: "flex-end", gap: 8,
+    paddingHorizontal: 20, paddingBottom: 14,
+    backgroundColor: v2.color.forestDeep,
+  },
+  brand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800", marginBottom: 2 },
+  title: { color: v2.color.onDark, fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
+  subtitle: { color: v2.color.sage, fontSize: 12, marginTop: 4, textTransform: "capitalize" },
+  headerBtn: {
+    width: 40, height: 40, borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center", justifyContent: "center",
+  },
 
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  chipBar: {
+    paddingBottom: 20,
+    backgroundColor: v2.color.forestDeep,
+  },
   chip: {
-    flexDirection: "row", alignItems: "center",
-    paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999,
-    borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary,
+    paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center", justifyContent: "center",
   },
-  chipActive: { borderColor: theme.color.brand, backgroundColor: theme.color.brand + "22" },
-  chipText: { color: theme.color.onSurface, fontSize: 12, fontWeight: "700" },
-  chipTextActive: { color: theme.color.brand },
-  periodInfo: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 6, marginBottom: 12 },
+  chipActive: { backgroundColor: v2.color.card, borderColor: v2.color.card },
+  chipText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  chipTextActive: { color: v2.color.forest },
 
-  kpiGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
+  // KPI card (floating)
   kpiCard: {
-    flexBasis: "48%", padding: 12, borderRadius: 12, borderWidth: 1,
+    marginTop: -12, marginHorizontal: 16,
+    padding: 16, borderRadius: v2.radius.xl,
+    backgroundColor: v2.color.card,
+    ...v2.shadow.md,
   },
-  kpiHead: { flexDirection: "row", alignItems: "center", gap: 4 },
-  kpiLabel: { color: theme.color.onSurfaceSecondary, fontSize: 10, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase" },
-  kpiValue: { fontSize: 18, fontWeight: "800", marginTop: 6 },
-  kpiHint: { color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 2 },
+  profitHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  profitLabel: { color: v2.color.textSubtle, fontSize: 10, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" },
+  profitValue: { fontSize: 28, fontWeight: "800", marginTop: 4, letterSpacing: -0.8 },
+  profitBadge: {
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999,
+  },
+  profitBadgeText: { fontSize: 11, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
+
+  divider: { height: 1, backgroundColor: v2.color.divider, marginVertical: 14 },
+
+  kpiGrid: { flexDirection: "row", flexWrap: "wrap" },
+  kpiItem: { flexBasis: "50%", flexDirection: "row", gap: 10, paddingVertical: 8, paddingRight: 8, alignItems: "flex-start" },
+  kpiIconBox: {
+    width: 30, height: 30, borderRadius: v2.radius.sm,
+    backgroundColor: v2.color.successBg,
+    alignItems: "center", justifyContent: "center",
+  },
+  kpiLabel: { color: v2.color.textSubtle, fontSize: 10, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" },
+  kpiValue: { color: v2.color.text, fontSize: 16, fontWeight: "800", marginTop: 2, letterSpacing: -0.3 },
+  kpiHint: { color: v2.color.textMuted, fontSize: 10, marginTop: 2 },
 
   plannedBox: {
-    padding: 12, borderRadius: 10,
-    backgroundColor: theme.color.info + "12", borderWidth: 1, borderColor: theme.color.info + "33",
+    marginTop: 14, marginHorizontal: 16,
+    padding: 12, borderRadius: v2.radius.md,
+    backgroundColor: v2.color.infoBg,
+    borderWidth: 1, borderColor: v2.color.info + "33",
   },
-  plannedText: { color: theme.color.onSurface, fontSize: 12, flexShrink: 1 },
-  plannedHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 4, lineHeight: 16 },
+  plannedText: { color: v2.color.text, fontSize: 12, flexShrink: 1 },
+  plannedHint: { color: v2.color.textMuted, fontSize: 11, marginTop: 6, lineHeight: 16 },
 
-  tile: { flexDirection: "row", alignItems: "center", gap: 12, padding: 14, borderRadius: 14, borderWidth: 1, backgroundColor: theme.color.surface },
-  tileIconBox: { width: 48, height: 48, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  tileLabel: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },
-  tileSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  sectionHead: { paddingHorizontal: 20, marginTop: 24, marginBottom: 10 },
+  sectionLabel: { color: v2.color.text, fontSize: 15, fontWeight: "800" },
 
-  sheet: { backgroundColor: theme.color.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.border, marginBottom: 12 },
-  sheetTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "800" },
-  rangeLabel: { color: theme.color.onSurfaceSecondary, fontSize: 11, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
-  rangeInput: { backgroundColor: theme.color.surfaceSecondary, borderWidth: 1, borderColor: theme.color.border, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, color: theme.color.onSurface, fontSize: 15 },
-  applyBtn: { marginTop: 18, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 14, borderRadius: 12, backgroundColor: theme.color.brand },
+  tile: {
+    flexDirection: "row", alignItems: "center", gap: 12,
+    padding: 14, borderRadius: v2.radius.lg,
+    backgroundColor: v2.color.card,
+    borderWidth: 1, borderColor: v2.color.border,
+    ...v2.shadow.sm,
+  },
+  tileIconBox: {
+    width: 44, height: 44, borderRadius: v2.radius.md,
+    alignItems: "center", justifyContent: "center",
+  },
+  tileLabel: { color: v2.color.text, fontSize: 15, fontWeight: "800" },
+  tileSub: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
+
+  // Modal
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  sheet: {
+    backgroundColor: v2.color.card,
+    borderTopLeftRadius: v2.radius.xl, borderTopRightRadius: v2.radius.xl,
+    padding: 20,
+  },
+  handle: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 },
+  sheetTitle: { color: v2.color.text, fontSize: 18, fontWeight: "800" },
+  rangeLabel: { color: v2.color.textSubtle, fontSize: 11, fontWeight: "700", marginBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  rangeInput: {
+    backgroundColor: v2.color.cardMuted,
+    borderWidth: 1, borderColor: v2.color.border,
+    borderRadius: v2.radius.md,
+    paddingHorizontal: 12, paddingVertical: 10,
+    color: v2.color.text, fontSize: 15,
+  },
+  applyBtn: {
+    marginTop: 18,
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    padding: 14, borderRadius: v2.radius.md,
+    backgroundColor: v2.color.forest,
+  },
   applyText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 });

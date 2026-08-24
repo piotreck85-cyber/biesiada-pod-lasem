@@ -217,3 +217,21 @@ Polish mobile app for event organizers to manage:
 - Klik → Alert.prompt (native) / window.prompt (web) → wpisujesz nazwę → zapisuje i od razu wybiera nową kategorię
 - Long-press na własną kategorię = usuń
 - AI Kategoryzacja rozszerzona o custom categories (backend include ich do listy dopuszczalnych)
+
+### Etap 3 UI — Finanse V2.0 + Split pozostałych zysków — Aug 2026
+
+**Finanse V2.0 (dark forest + karty):**
+- Ekran `/(tabs)/finanse.tsx` przerobiony w stylu V2.0 (spójny z Kalendarzem)
+- Dark forest header z brand `FINANSE` + tytuł „Panel finansowy" + subtitle z okresem
+- Chip bar (Bieżący miesiąc / Poprzedni / Rok / Zakres) na ciemnym tle
+- Floating white KPI card (marginTop: -12) z dużym „Realny zysk" i badge (na plusie/minusie)
+- Grid 2x2 KPI: Przychód, Koszty, Do pobrania, Imprezy (z kolorowymi ikonami)
+- Info box (planowana wartość imprez) z niebieskim akcentem
+- 6 modułowych kafli (Koszty, Przychody, Pozostałe przychody, Kasa, Wspólnicy, Statystyki) w V2.0 stylu
+- Logika biznesowa/obliczenia bez zmian — używa `api.financeSummaryV2`
+
+**Split 9 nieprzypisanych zysków WhatsApp:**
+- Skrypt `split_pending_revenues.py` (backup w `backups/pending_revenue_split_20260824_180401/`)
+- Każdy pending revenue z multi-event dnia podzielony równo między imprezy tego dnia
+- Utworzono 18 nowych `event_payments` (18 płatności z 9 pending), zredukowano pending do 0
+- Wszystkie z `source: 'whatsapp_pending_split'` i opisem „WhatsApp import (auto-split): ..."
