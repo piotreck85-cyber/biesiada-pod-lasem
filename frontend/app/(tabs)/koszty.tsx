@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, RefreshControl,
@@ -34,6 +34,13 @@ export default function Koszty() {
   const [saving, setSaving] = useState(false);
   const [scope, setScope] = useState<"month" | "all">("month");
   const [aiCatLoading, setAiCatLoading] = useState(false);
+  const [customCats, setCustomCats] = useState<{ id: string; label: string; color?: string }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try { const r: any = await api.listCustomCategories(); setCustomCats(Array.isArray(r) ? r : []); } catch {}
+    })();
+  }, []);
 
   const uncatCount = useMemo(() => items.filter(e => !e.category).length, [items]);
 
@@ -64,7 +71,7 @@ export default function Koszty() {
         },
       ],
     );
-  }, [aiCatLoading, uncatCount, load]);
+  }, [aiCatLoading, uncatCount]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const load = useCallback(async () => {
     try {
@@ -379,6 +386,53 @@ export default function Koszty() {
                     </Pressable>
                   );
                 })}
+                {customCats.map(c => {
+                  const active = category === c.id;
+                  return (
+                    <Pressable
+                      key={c.id}
+                      onPress={() => setCategory(c.id)}
+                      onLongPress={() => Alert.alert("Usunąć kategorię?", c.label, [
+                        { text: "Anuluj", style: "cancel" },
+                        { text: "Usuń", style: "destructive", onPress: async () => { try { await api.deleteCustomCategory(c.id); setCustomCats(customCats.filter(x => x.id !== c.id)); if (category === c.id) setCategory(""); } catch {} } },
+                      ])}
+                      style={[s.chip, active && { backgroundColor: c.color || "#6B7280", borderColor: c.color || "#6B7280" }]}
+                    >
+                      <View style={[s.chipDot, { backgroundColor: c.color || "#6B7280" }]} />
+                      <Text style={[s.chipText, active && { color: "#FFFFFF" }]}>{c.label}</Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  testID="exp-cat-add-new"
+                  onPress={() => {
+                    if (Platform.OS === "web") {
+                      const label = (globalThis as any).prompt?.("Nazwa nowej kategorii (min. 2 znaki):");
+                      if (label && label.trim().length >= 2) {
+                        (async () => {
+                          try {
+                            const r: any = await api.createCustomCategory({ label: label.trim() });
+                            setCustomCats([...customCats, r]);
+                            setCategory(r.id);
+                          } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się"); }
+                        })();
+                      }
+                    } else {
+                      Alert.prompt?.("Nowa kategoria", "Nazwa (min. 2 znaki):", async (label?: string) => {
+                        if (!label || label.trim().length < 2) return;
+                        try {
+                          const r: any = await api.createCustomCategory({ label: label.trim() });
+                          setCustomCats([...customCats, r]);
+                          setCategory(r.id);
+                        } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się"); }
+                      });
+                    }
+                  }}
+                  style={[s.chip, { borderStyle: "dashed", borderColor: theme.color.brand }]}
+                >
+                  <Feather name="plus" size={12} color={theme.color.brand} />
+                  <Text style={[s.chipText, { color: theme.color.brand, marginLeft: 3 }]}>Dodaj nową</Text>
+                </Pressable>
               </ScrollView>
               <Text style={s.label}>Notatka</Text>
               <TextInput testID="exp-notes-input" value={notes} onChangeText={setNotes} placeholder="np. faktura FV/2026/12" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />

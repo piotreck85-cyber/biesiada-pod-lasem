@@ -5610,12 +5610,105 @@ class AICategorizeIn(BaseModel):
     dry_run: Optional[bool] = False
 
 
-_EXPENSE_CATEGORY_IDS = ["zakupy_spozywcze", "rachunki", "podatki", "pensje", "wyplaty_szefow", "inwestycje", "ogolne_zaopatrzenie"]
+# ---------- Misc Revenues (Pozostałe przychody) ----------
+class MiscRevenueIn(BaseModel):
+    date: str
+    amount: float
+    description: Optional[str] = ""
+    category: Optional[str] = None
+
+
+@api.get("/misc-revenues")
+async def list_misc_revenues(user=Depends(require_admin), date_from: Optional[str] = None, date_to: Optional[str] = None):
+    q: dict = {"owner_id": ws(user)}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    rows = await db.misc_revenues.find(q, {"_id": 0}).sort("date", -1).to_list(500)
+    total = sum(float(r.get("amount") or 0) for r in rows)
+    return {"items": rows, "total": round(total, 2), "count": len(rows)}
+
+
+@api.post("/misc-revenues")
+async def create_misc_revenue(body: MiscRevenueIn, user=Depends(require_admin)):
+    doc = {
+        "id": str(uuid.uuid4()), "owner_id": ws(user),
+        "date": body.date, "amount": float(body.amount),
+        "description": (body.description or "").strip(),
+        "category": (body.category or "").strip() or None,
+        "source": "manual", "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.misc_revenues.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+
+@api.put("/misc-revenues/{item_id}")
+async def update_misc_revenue(item_id: str, body: MiscRevenueIn, user=Depends(require_admin)):
+    r = await db.misc_revenues.update_one(
+        {"owner_id": ws(user), "id": item_id},
+        {"$set": {"date": body.date, "amount": float(body.amount),
+                    "description": (body.description or "").strip(),
+                    "category": (body.category or "").strip() or None,
+                    "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if r.matched_count == 0: raise HTTPException(404, "Nie znaleziono")
+    return {"ok": True}
+
+
+@api.delete("/misc-revenues/{item_id}")
+async def delete_misc_revenue(item_id: str, user=Depends(require_admin)):
+    r = await db.misc_revenues.delete_one({"owner_id": ws(user), "id": item_id})
+    if r.deleted_count == 0: raise HTTPException(404, "Nie znaleziono")
+    return {"ok": True}
+
+
+# ---------- Custom Expense Categories ----------
+class CustomCategoryIn(BaseModel):
+    label: str
+    color: Optional[str] = "#6B7280"
+
+
+@api.get("/expense-categories/custom")
+async def list_custom_categories(user=Depends(require_admin)):
+    rows = await db.custom_expense_categories.find({"owner_id": ws(user)}, {"_id": 0}).sort("label", 1).to_list(200)
+    return rows
+
+
+@api.post("/expense-categories/custom")
+async def create_custom_category(body: CustomCategoryIn, user=Depends(require_admin)):
+    label = (body.label or "").strip()
+    if not label or len(label) < 2:
+        raise HTTPException(400, "Nazwa kategorii musi mieć min. 2 znaki")
+    import re as _re5
+    cat_id = "custom_" + _re5.sub(r'[^a-z0-9]+', '_', label.lower()).strip('_')[:40]
+    existing = await db.custom_expense_categories.find_one({"owner_id": ws(user), "id": cat_id})
+    if existing: raise HTTPException(400, "Kategoria o tej nazwie już istnieje")
+    doc = {
+        "id": cat_id, "owner_id": ws(user), "label": label,
+        "color": (body.color or "#6B7280"), "custom": True,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.custom_expense_categories.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+
+@api.delete("/expense-categories/custom/{cat_id}")
+async def delete_custom_category(cat_id: str, user=Depends(require_admin)):
+    r = await db.custom_expense_categories.delete_one({"owner_id": ws(user), "id": cat_id})
+    if r.deleted_count == 0: raise HTTPException(404, "Nie znaleziono")
+    return {"ok": True}
 
 
 @api.post("/expenses/ai-categorize")
 async def expenses_ai_categorize(body: AICategorizeIn, user=Depends(require_admin)):
     """Kategoryzuje koszty bez kategorii przy pomocy AI (GPT 5.6 Terra)."""
+    _EXPENSE_CATEGORY_IDS = ["zakupy_spozywcze", "rachunki", "podatki", "pensje", "wyplaty_szefow", "inwestycje", "ogolne_zaopatrzenie"]
+    # include custom categories
+    custom = await db.custom_expense_categories.find({"owner_id": ws(user)}, {"_id": 0, "id": 1}).to_list(200)
+    _EXPENSE_CATEGORY_IDS = _EXPENSE_CATEGORY_IDS + [c["id"] for c in custom]
     key = _ai_get_key()
 
     q: dict = {"owner_id": ws(user), "$or": [{"category": None}, {"category": ""}, {"category": {"$exists": False}}]}

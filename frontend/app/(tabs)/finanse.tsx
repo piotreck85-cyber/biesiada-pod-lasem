@@ -14,6 +14,7 @@ type Tile = { key: string; label: string; icon: any; route: string; color: strin
 const TILES: Tile[] = [
   { key: "koszty",      label: "Koszty",       icon: "trending-down", route: "/koszty",       color: "#DC2626" },
   { key: "przychody",   label: "Przychody",    icon: "trending-up",   route: "/statystyki?tab=revenue", color: "#10B981" },
+  { key: "misc",        label: "Pozostałe przychody", icon: "gift",   route: "/pozostale-przychody", color: "#14B8A6" },
   { key: "kasa",        label: "Kasa",         icon: "pie-chart",     route: "/rozliczenie",  color: "#F59E0B" },
   { key: "wspolnicy",   label: "Rozliczenia wspólników", icon: "users", route: "/wspolnicy",   color: "#7C3AED" },
   { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: "#0891B2" },
@@ -22,6 +23,7 @@ const TILES: Tile[] = [
 const SUBTITLE: Record<string, string> = {
   koszty:      "koszty firmowe · koszty wydarzeń · kategorie",
   przychody:   "wpłaty klientów · planowane · historia",
+  misc:        "sprzedaż sprzętu · dmuchaniec · ognisko · refundy",
   kasa:        "stan kasy · rozliczenia · historia",
   wspolnicy:   "wypłaty wspólników · saldo per wspólnik",
   statystyki:  "wykresy · miesiąc · rok · eksport",

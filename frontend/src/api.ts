@@ -351,4 +351,22 @@ export const api = {
     request(`/clients/known${q ? `?q=${encodeURIComponent(q)}` : ""}`),
   expensesAiCategorize: (opts?: { ids?: string[]; limit?: number; dry_run?: boolean }) =>
     request("/expenses/ai-categorize", { method: "POST", body: JSON.stringify(opts || {}) }),
+  // Misc revenues (Pozostałe przychody)
+  listMiscRevenues: (params?: { date_from?: string; date_to?: string }) => {
+    const p: string[] = [];
+    if (params?.date_from) p.push(`date_from=${params.date_from}`);
+    if (params?.date_to)   p.push(`date_to=${params.date_to}`);
+    return request(`/misc-revenues${p.length ? `?${p.join("&")}` : ""}`);
+  },
+  createMiscRevenue: (data: { date: string; amount: number; description?: string; category?: string }) =>
+    request("/misc-revenues", { method: "POST", body: JSON.stringify(data) }),
+  updateMiscRevenue: (id: string, data: { date: string; amount: number; description?: string; category?: string }) =>
+    request(`/misc-revenues/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteMiscRevenue: (id: string) => request(`/misc-revenues/${id}`, { method: "DELETE" }),
+  // Custom expense categories
+  listCustomCategories: () => request("/expense-categories/custom"),
+  createCustomCategory: (data: { label: string; color?: string }) =>
+    request("/expense-categories/custom", { method: "POST", body: JSON.stringify(data) }),
+  deleteCustomCategory: (id: string) =>
+    request(`/expense-categories/custom/${id}`, { method: "DELETE" }),
 };

@@ -198,3 +198,22 @@ Polish mobile app for event organizers to manage:
 - **Kontrola sum:** 114 322 + 61 885 + 12 292 = **188 498,50 zł ✅ zgodne z plikiem źródłowym**
 - Metadane finance: `revenue_source_kind: "ACTUAL_OR_MATCHED"`, `is_revenue_estimated: false`, `revenue_source_text` (opis z WhatsApp)
 - Nowe kolekcje: `pending_revenue_assignments`, `misc_revenues`
+
+### Pozostałe przychody + Własne kategorie — Aug 2026
+
+**Pozostałe przychody (Misc Revenues):**
+- Backend: 4 endpointy CRUD (`GET/POST/PUT/DELETE /api/misc-revenues`)
+- Nowa kolekcja `misc_revenues` (używana już od importu Zysków)
+- Frontend: nowy ekran `/pozostale-przychody.tsx` w V2.0 stylu (dark forest header + teal accent)
+- Wchodzimy z Finanse → nowy kafel „Pozostałe przychody"
+- Suma widoczna u góry, lista pod spodem z tagiem "📱 WhatsApp" dla importowanych
+- Modal edycji/dodawania z polami: data, kwota, opis
+- Long-press na wpis = usuń
+
+**Własne kategorie kosztów (Custom Expense Categories):**
+- Backend: 3 endpointy (`GET/POST/DELETE /api/expense-categories/custom`)
+- Nowa kolekcja `custom_expense_categories` (per owner_id)
+- Frontend w modalu edycji kosztu: po ostatniej predefiniowanej kategorii chip „+ Dodaj nową" (dashed border)
+- Klik → Alert.prompt (native) / window.prompt (web) → wpisujesz nazwę → zapisuje i od razu wybiera nową kategorię
+- Long-press na własną kategorię = usuń
+- AI Kategoryzacja rozszerzona o custom categories (backend include ich do listy dopuszczalnych)
