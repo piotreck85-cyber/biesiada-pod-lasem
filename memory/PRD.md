@@ -55,3 +55,17 @@ Polish mobile app for event organizers to manage:
 - Model: `gpt-5.6-terra` (OpenAI via EMERGENT_LLM_KEY)
 - Historia czatu w kolekcji `ai_chat_messages` (owner-scoped, session-scoped)
 - Dostęp z Więcej → "AI Asystent ✨"
+
+### Etap 1 UI V2.0 — Kalendarz z Pulpitem + AI Coach kosztów (Aug 2026)
+- **Kalendarz (`(tabs)/kalendarz.tsx`)** przepisany w V2.0 stylu (dark forest green header, glass KPI card, cards z designTokensV2)
+- Dwa widoki w jednym tabie:
+  - **Pulpit**: powitanie + KPI 2x2 (imprezy/gości/przychód/wynik), top 3 wskazówek AI, karty weekendowe, alerty rule-based, najbliższe imprezy
+  - **Miesiąc**: legenda kolorów (zapłacone/zaliczka/brak), siatka miesięczna z inteligentnym kolorem kropek (worst-wins), agenda wybranego dnia
+- Backup starego ekranu: `kalendarz.v1.tsx.bak`
+- **AI top-3 na Pulpicie** — endpoint `/api/ai/assistant-tips` renderowany jako karty z ikoną severity, klik → pełny ekran AI
+- **AI Coach kosztów** (nowa 4-ta zakładka w `/ai-asystent`) — endpoint `POST /api/ai/cost-coach`:
+  - Hero card z sumą kosztów + zmianą % vs poprzedni miesiąc
+  - AI summary (1-2 zdania) po polsku
+  - Podział kategorii z paskami progress i zmianami vs poprzedni miesiąc
+  - 3-5 konkretnych sugestii z pigułkami impact (wysoki/średni/niski)
+  - Nawigacja +/- między miesiącami

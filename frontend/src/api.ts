@@ -329,4 +329,6 @@ export const api = {
     request(`/ai/chat/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`),
   aiChatClear: (sessionId?: string) =>
     request(`/ai/chat/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`, { method: "DELETE" }),
+  aiCostCoach: (year?: number, month?: number) =>
+    request("/ai/cost-coach", { method: "POST", body: JSON.stringify({ year, month }) }),
 };

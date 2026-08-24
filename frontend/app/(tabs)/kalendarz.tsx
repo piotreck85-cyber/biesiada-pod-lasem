@@ -1,215 +1,129 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, RefreshControl, Modal,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Modal, ActivityIndicator, StatusBar,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme, MONTHS_PL, DAYS_PL, formatPLN, initials } from "@/src/theme";
+import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
-import { categoryLabel } from "@/src/categories";
-import { findAdultSet } from "@/src/offers";
 import { useAuth } from "@/src/auth";
-import { printSchedule, printMonthCalendar } from "@/src/printSchedule";
+import { formatPLN, MONTHS_PL, DAYS_PL } from "@/src/theme";
 
+const MONTHS_LOWER = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia","września","października","listopada","grudnia"];
+const DOW = ["pn","wt","śr","cz","pt","sb","nd"];
+
+function fmt(y: number, m: number, d: number) { return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
 function daysInMonth(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
-// return weekday index Mon=0..Sun=6 for a given date (m: 0-11)
-function firstWeekday(y: number, m: number) {
-  const d = new Date(y, m, 1).getDay(); // 0 = Sun
-  return (d + 6) % 7;
-}
-function fmt(y: number, m: number, d: number) {
-  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+function firstWeekday(y: number, m: number) { const day = new Date(y, m, 1).getDay(); return (day + 6) % 7; }
+
+function dateChip(iso: string): string {
+  if (!iso) return "";
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(iso + "T00:00:00");
+  const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
+  if (diff === 0) return "Dziś";
+  if (diff === 1) return "Jutro";
+  if (diff >= -1 && diff < 0) return "Wczoraj";
+  if (diff > 0 && diff <= 6) return `Za ${diff} dni`;
+  return d.toLocaleDateString("pl-PL", { day: "numeric", month: "short" });
 }
 
-function formatTimeRange(start?: string, end?: string, legacy?: string): string {
-  const compact = (t?: string) => {
-    if (!t) return "";
-    const [h, m] = t.split(":");
-    return m && m !== "00" ? `${parseInt(h, 10)}:${m}` : `${parseInt(h, 10)}`;
-  };
-  if (start && end) return `${compact(start)}–${compact(end)}`;
-  if (start) return compact(start);
-  return legacy || "—";
+function nextWeekendRange(): { sat: string; sun: string } {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const daysToSat = (6 - today.getDay() + 7) % 7;
+  const sat = new Date(today); sat.setDate(today.getDate() + daysToSat);
+  const sun = new Date(sat); sun.setDate(sat.getDate() + 1);
+  return { sat: sat.toISOString().slice(0,10), sun: sun.toISOString().slice(0,10) };
 }
 
-// Color per event category — matches offer types (firmowe/okolicznościowe/urodziny/warsztaty)
-function categoryColor(category?: string): string {
-  const c = (category || "").toLowerCase();
-  if (c.startsWith("dorosli/firmowe")) return "#60A5FA";           // niebieski – firmowe
-  if (c.startsWith("dorosli/okolicznosciowe")) return "#D4AF37";   // złoto – okolicznościowe
-  if (c.startsWith("dorosli")) return "#D4AF37";                   // fallback dla dorosłych
-  if (c.startsWith("dzieci/urodzinki")) return "#F472B6";          // róż – urodziny
-  if (c === "dzieci/wycieczki_rodzice") return "#F97316";          // pomarańcz – wycieczki z rodzicami
-  if (c.startsWith("warsztaty")) return "#34D399";                 // zielony – warsztaty (nowe)
-  if (c.startsWith("dzieci/wycieczki")) return "#34D399";          // zielony – wycieczki szkolne (traktujemy jako warsztaty)
-  return "#9CA3AF";                                                // szary – bez kategorii
+// Simple rule-based alerts as fallback (no AI needed)
+function buildLocalAlerts(events: any[]): { severity: "error" | "warning"; text: string; eventId?: string }[] {
+  const out: any[] = [];
+  const todayIso = new Date().toISOString().slice(0,10);
+  for (const e of events) {
+    if ((e.date || "") < todayIso) continue;
+    if (((e.status || "").toLowerCase()) === "anulowana") continue;
+    const price = Number(e.price_total || e.revenue) || 0;
+    const dep = Number(e.deposit_amount) || 0;
+    if (price > 0 && dep <= 0) {
+      out.push({ severity: "error", text: `Brak zaliczki — ${e.name || "impreza"} (${dateChip(e.date)})`, eventId: e.id });
+    }
+    if ((e.shifts || []).length === 0 && (e.date || "") >= todayIso) {
+      out.push({ severity: "warning", text: `Brak obsady — ${e.name || "impreza"} (${dateChip(e.date)})`, eventId: e.id });
+    }
+  }
+  return out.slice(0, 5);
 }
 
-// Return the list of distinct status ring colors for a day.
-// Priority within a single status kept for ordering.
-function dayStatusColors(entries: { status?: string }[]): string[] {
-  const kinds = new Set<string>();
-  entries.forEach(e => {
-    const s = (e.status || "").toLowerCase();
-    if (s === "potwierdzona" || s === "zakonczona") kinds.add("confirmed");
-    else if (s === "wstepne" || s === "rezerwacja") kinds.add("tentative");
-    else if (s === "anulowana") kinds.add("cancelled");
-  });
-  const order = ["confirmed", "tentative", "cancelled"];
-  const colorMap: Record<string, string> = {
-    confirmed: "#34D399", // zielony
-    tentative: "#F59E0B", // żółty
-    cancelled: "#EF4444", // czerwony
-  };
-  return order.filter(k => kinds.has(k)).map(k => colorMap[k]);
-}
+type Tip = { severity: "error" | "warning" | "info" | "success"; text: string; action?: string };
+type ViewMode = "pulpit" | "miesiac";
 
 export default function Kalendarz() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
   const today = new Date();
+
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
   const [selected, setSelected] = useState<string>(fmt(today.getFullYear(), today.getMonth(), today.getDate()));
   const [events, setEvents] = useState<any[]>([]);
-  const [staffAll, setStaffAll] = useState<any[]>([]);
+  const [nextEvents, setNextEvents] = useState<any[]>([]);   // combined this + next month for upcoming section
+  const [kpi, setKpi] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [mode, setMode] = useState<"events" | "schedule">("events");
+  const [view, setView] = useState<ViewMode>("pulpit");
+  const [aiTips, setAiTips] = useState<Tip[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [alerts, setAlerts] = useState<any[]>([]);
+  const [alertsModalOpen, setAlertsModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const monthLast = new Date(year, month + 1, 0).getDate();
       const df = `${year}-${String(month + 1).padStart(2, "0")}-01`;
       const dt = `${year}-${String(month + 1).padStart(2, "0")}-${String(monthLast).padStart(2, "0")}`;
-      const [evs, staff, exps, mv2Res] = await Promise.all([
+      const nextY = month === 11 ? year + 1 : year;
+      const nextM = month === 11 ? 1 : month + 2;
+
+      const [evs, evsNext, sum, al] = await Promise.all([
         api.listEvents(year, month + 1),
-        api.listStaff(),
-        api.listExpenses(year, month + 1),
+        api.listEvents(nextY, nextM).catch(() => []),
         api.financeSummaryV2({ date_from: df, date_to: dt }).catch(() => null),
+        api.listAlerts().catch(() => []),
       ]);
       setEvents(evs as any[]);
-      setStaffAll(staff as any[]);
-      setExpenses(exps as any[]);
-      setMv2(mv2Res as any);
+      setNextEvents([...(evs as any[]), ...(evsNext as any[])]);
+      setKpi(sum);
+      setAlerts(al as any[]);
     } catch {}
   }, [year, month]);
 
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [mv2, setMv2] = useState<any | null>(null);
-
-  // Alerts (2-day stale bookings)
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [alertsOpen, setAlertsOpen] = useState(false);
-  const loadAlerts = useCallback(async () => {
-    try { setAlerts((await api.listAlerts()) as any[]); } catch {}
+  const loadAiTips = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const r: any = await api.aiAssistantTips(14);
+      setAiTips(Array.isArray(r?.tips) ? r.tips.slice(0, 3) : []);
+    } catch { setAiTips([]); } finally { setAiLoading(false); }
   }, []);
 
-  useFocusEffect(useCallback(() => { setLoading(true); load().finally(() => setLoading(false)); loadAlerts(); }, [load, loadAlerts]));
+  useFocusEffect(useCallback(() => {
+    setLoading(true); load().finally(() => setLoading(false));
+  }, [load]));
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { loadAiTips(); }, [loadAiTips]); // once on mount
 
-  const eventDates = useMemo(() => {
-    const map: Record<string, { count: number; entries: { name: string; color: string; status?: string }[] }> = {};
-    events.forEach(e => {
-      if (!map[e.date]) map[e.date] = { count: 0, entries: [] };
-      map[e.date].count += 1;
-      map[e.date].entries.push({ name: e.name, color: categoryColor(e.category), status: e.status });
-    });
+  const eventsByDate = useMemo(() => {
+    const map: Record<string, any[]> = {};
+    events.forEach(e => { if (!map[e.date]) map[e.date] = []; map[e.date].push(e); });
     return map;
   }, [events]);
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
 
-  // Monthly summary — clear semantics:
-  //  - Rzeczywisty przychód: revenue from past events (any status except anulowana)
-  //  - Rzeczywisty koszt: event costs + separate expenses (recorded)
-  //  - Planowany przychód: revenue/price_total from future events (any price entered)
-  //  - Planowany koszt: estimated from historical cost ratios for planned events
-  const monthlySummary = useMemo(() => {
-    const monthPrefix = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const monthEvents = events.filter(e => (e.date || "").startsWith(monthPrefix));
-    const todayIso = new Date().toISOString().slice(0, 10);
-
-    let actualRevenue = 0;
-    let plannedRevenue = 0;
-    let plannedCost = 0;
-    let eventActualCosts = 0;
-
-    monthEvents.forEach(e => {
-      const st = (e.status || "").toLowerCase();
-      const isCancelled = st === "anulowana";
-      const isFuture = (e.date || "") >= todayIso;
-      const rev = Number(e.revenue) || 0;
-      const priceTotal = Number(e.price_total) || 0;
-      const recordedCost = Number(e.total_cost) || 0;
-
-      if (isCancelled) return;
-
-      if (isFuture && (rev > 0 || priceTotal > 0)) {
-        // Future event with any price entered → planned
-        plannedRevenue += rev || priceTotal;
-        if (recordedCost > 0) {
-          plannedCost += recordedCost;
-        } else if (e.estimated_cost !== undefined) {
-          plannedCost += Number(e.estimated_cost) || 0;
-        }
-      } else {
-        // Past / no-price event → actual
-        actualRevenue += rev;
-        eventActualCosts += recordedCost;
-      }
-    });
-
-    const expensesTotal = expenses.reduce((s, x) => s + (Number(x.amount) || 0), 0);
-    const actualCost = eventActualCosts + expensesTotal;
-    const profitActual = actualRevenue - actualCost;
-    const profitProjected = (actualRevenue + plannedRevenue) - (actualCost + plannedCost);
-
-    return {
-      actualRevenue,
-      actualCost,
-      plannedRevenue,
-      plannedCost,
-      profitActual,
-      profitProjected,
-      eventCount: monthEvents.length,
-      expenseCount: expenses.length,
-    };
-  }, [events, expenses, year, month]);
-
-  const staffMap = useMemo(() => {
-    const m: Record<string, any> = {};
-    staffAll.forEach(s => m[s.id] = s);
-    return m;
-  }, [staffAll]);
-
-  // Aggregated shifts for the selected day across all events, per staff
-  const dayShifts = useMemo(() => {
-    const map: Record<string, { staff: any; hours: number; amount: number; eventNames: string[] }> = {};
-    dayEvents.forEach(ev => {
-      (ev.shifts || []).forEach((sh: any) => {
-        const s = staffMap[sh.staff_id];
-        if (!s) return;
-        const row = map[sh.staff_id] || { staff: s, hours: 0, amount: 0, eventNames: [] };
-        row.hours += Number(sh.hours) || 0;
-        row.amount += (Number(sh.hours) || 0) * (Number(s.hourly_rate) || 0);
-        row.eventNames.push(ev.name);
-        map[sh.staff_id] = row;
-      });
-    });
-    return Object.values(map).sort((a, b) => b.hours - a.hours);
-  }, [dayEvents, staffMap]);
-
-  const prevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(year - 1); }
-    else setMonth(month - 1);
-  };
-  const nextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(year + 1); }
-    else setMonth(month + 1);
-  };
+  const prevMonth = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
+  const nextMonth = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
 
   const total = daysInMonth(year, month);
   const startPad = firstWeekday(year, month);
@@ -218,336 +132,407 @@ export default function Kalendarz() {
   for (let d = 1; d <= total; d++) cells.push(d);
   while (cells.length % 7 !== 0) cells.push(null);
 
+  // Weekend calc
+  const { sat, sun } = nextWeekendRange();
+  const upcoming = useMemo(() => {
+    const todayIso = new Date().toISOString().slice(0,10);
+    return nextEvents
+      .filter(e => (e.date || "") >= todayIso && ((e.status || "").toLowerCase() !== "anulowana"))
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  }, [nextEvents]);
+  const satEvs = upcoming.filter(e => e.date === sat);
+  const sunEvs = upcoming.filter(e => e.date === sun);
+
+  const localAttention = useMemo(() => buildLocalAlerts(upcoming), [upcoming]);
+
+  const greeting = today.getHours() < 12 ? "Dzień dobry" : today.getHours() < 18 ? "Miłego dnia" : "Dobry wieczór";
+  const firstName = (user?.name || user?.email || "").split(" ")[0].split("@")[0];
+
+  const tone = (t: string) => ({ error: v2.color.error, warning: v2.color.warning, info: v2.color.info, success: v2.color.success } as any)[t] || v2.color.info;
+  const toneBg = (t: string) => ({ error: v2.color.errorBg, warning: v2.color.warningBg, info: v2.color.infoBg, success: v2.color.successBg } as any)[t] || v2.color.infoBg;
+
+  const weekendCard = (label: string, dateIso: string, evs: any[]) => {
+    const guests = evs.reduce((sum, e) => sum + (Number(e.guests) || 0), 0);
+    const problems = evs.filter(e => {
+      const price = Number(e.price_total || e.revenue) || 0;
+      return price > 0 && (Number(e.deposit_amount) || 0) <= 0;
+    }).length;
+    let ready = 0;
+    for (const e of evs) {
+      const price = Number(e.price_total || e.revenue) || 0;
+      const okDep = price === 0 || (Number(e.deposit_amount) || 0) > 0;
+      const okStaff = (e.shifts || []).length > 0;
+      const okStat = ((e.status || "").toLowerCase()) !== "anulowana";
+      const score = [okDep, okStaff, okStat].filter(Boolean).length;
+      ready += score * 33;
+    }
+    const readiness = evs.length ? Math.min(100, Math.round(ready / evs.length)) : 0;
+    return { label, dateIso, count: evs.length, guests, problems, readiness };
+  };
+  const weekend = [weekendCard("Sobota", sat, satEvs), weekendCard("Niedziela", sun, sunEvs)];
+
   return (
-    <View style={[s.root, { paddingTop: insets.top }]} testID="calendar-screen">
-      <View style={s.header}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-          <Text style={s.brand}>Kalendarz</Text>
-          <Pressable
-            testID="alerts-bell"
-            onPress={() => setAlertsOpen(true)}
-            style={s.bellBtn}
-            hitSlop={12}
-          >
-            <Feather name="bell" size={18} color={alerts.length > 0 ? theme.color.brand : theme.color.onSurfaceSecondary} />
-            {alerts.length > 0 && (
-              <View style={s.bellBadge}>
-                <Text style={s.bellBadgeText}>{alerts.length > 9 ? "9+" : alerts.length}</Text>
+    <View style={{ flex: 1, backgroundColor: v2.color.bg }}>
+      <StatusBar barStyle="light-content" />
+
+      {/* HEADER (dark forest) */}
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
+        <View style={{ flex: 1 }}>
+          {view === "pulpit" ? (
+            <>
+              <Text style={s.hello}>{greeting}{firstName ? `, ${firstName}` : ""} 👋</Text>
+              <Text style={s.helloDate}>{DAYS_PL[today.getDay()]}, {today.getDate()} {MONTHS_LOWER[today.getMonth()]}</Text>
+            </>
+          ) : (
+            <>
+              <Text style={s.brand}>KALENDARZ</Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                <Pressable onPress={prevMonth} style={s.navBtn} testID="cal-prev-month">
+                  <Feather name="chevron-left" size={16} color="#fff" />
+                </Pressable>
+                <Text style={s.monthTitle} testID="cal-month-label">{MONTHS_PL[month]} {year}</Text>
+                <Pressable onPress={nextMonth} style={s.navBtn} testID="cal-next-month">
+                  <Feather name="chevron-right" size={16} color="#fff" />
+                </Pressable>
               </View>
-            )}
-          </Pressable>
+            </>
+          )}
         </View>
-        <View style={s.monthNav}>
-          <Pressable testID="cal-prev-month" onPress={prevMonth} style={s.navBtn} hitSlop={12}>
-            <Feather name="chevron-left" size={20} color={theme.color.onSurface} />
-          </Pressable>
-          <Text style={s.monthTitle} testID="cal-month-label">{MONTHS_PL[month]} {year}</Text>
-          <Pressable testID="cal-next-month" onPress={nextMonth} style={s.navBtn} hitSlop={12}>
-            <Feather name="chevron-right" size={20} color={theme.color.onSurface} />
-          </Pressable>
-        </View>
-        <View style={s.modeToggle}>
-          <Pressable
-            testID="mode-events"
-            onPress={() => setMode("events")}
-            style={[s.modeBtn, mode === "events" && s.modeBtnActive]}
-          >
-            <Feather name="calendar" size={13} color={mode === "events" ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
-            <Text style={[s.modeText, mode === "events" && s.modeTextActive]}>Kalendarz</Text>
-          </Pressable>
-          <Pressable
-            testID="mode-costs"
-            onPress={() => router.push("/(tabs)/koszty")}
-            style={s.modeBtn}
-          >
-            <Feather name="trending-down" size={13} color={theme.color.onSurfaceSecondary} />
-            <Text style={s.modeText}>Koszty</Text>
-          </Pressable>
-          <Pressable
-            testID="mode-profits"
-            onPress={() => router.push("/(tabs)/statystyki")}
-            style={s.modeBtn}
-          >
-            <Feather name="trending-up" size={13} color={theme.color.onSurfaceSecondary} />
-            <Text style={s.modeText}>Zyski</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          testID="alerts-bell"
+          onPress={() => setAlertsModalOpen(true)}
+          style={s.bellBtn}
+          hitSlop={12}
+        >
+          <Feather name="bell" size={18} color="#fff" />
+          {alerts.length > 0 && (
+            <View style={s.bellBadge}>
+              <Text style={s.bellBadgeText}>{alerts.length > 9 ? "9+" : alerts.length}</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
-      {/* Monthly summary v2.0 — spec: liczba imprez, realny przychód, koszty, zysk, do pobrania */}
-      <View style={s.summaryCardV2} testID="monthly-summary-v2">
-        <View style={s.mv2Row}>
-          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/imprezy" as any)}>
-            <Text style={s.mv2Label}>Imprezy</Text>
-            <Text style={[s.mv2Value, { color: theme.color.onSurface }]}>{mv2?.events_count ?? monthlySummary.eventCount ?? 0}</Text>
+      {/* Toggle: Pulpit / Miesiąc */}
+      <View style={s.segRow}>
+        {(["pulpit", "miesiac"] as const).map(k => (
+          <Pressable key={k} onPress={() => setView(k)} style={[s.seg, view === k && s.segActive]} testID={`view-${k}`}>
+            <Feather name={k === "pulpit" ? "home" : "grid"} size={14} color={view === k ? v2.color.forest : "#fff"} />
+            <Text style={[s.segText, view === k && s.segTextActive]}>{k === "pulpit" ? "Pulpit" : "Miesiąc"}</Text>
           </Pressable>
-          <View style={s.mv2Divider} />
-          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/finanse" as any)}>
-            <Text style={s.mv2Label}>Przychód</Text>
-            <Text style={[s.mv2Value, { color: theme.color.success }]}>
-              {formatPLN(mv2?.revenue_real ?? 0)}
-            </Text>
-          </Pressable>
-          <View style={s.mv2Divider} />
-          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/koszty" as any)}>
-            <Text style={s.mv2Label}>Koszty</Text>
-            <Text style={[s.mv2Value, { color: theme.color.error }]}>
-              {formatPLN(mv2?.costs_real ?? 0)}
-            </Text>
-          </Pressable>
-        </View>
-        <View style={s.mv2Row}>
-          <Pressable style={s.mv2Cell} onPress={() => router.push("/(tabs)/finanse" as any)}>
-            <Text style={s.mv2Label}>Zysk</Text>
-            <Text style={[s.mv2Value, { color: (mv2?.profit_real ?? 0) >= 0 ? theme.color.brand : theme.color.error }]}>
-              {formatPLN(mv2?.profit_real ?? 0)}
-            </Text>
-          </Pressable>
-          <View style={s.mv2Divider} />
-          <Pressable style={[s.mv2Cell, { flex: 2 }]} onPress={() => router.push("/(tabs)/finanse" as any)}>
-            <Text style={s.mv2Label}>Do pobrania od klientów</Text>
-            <Text style={[s.mv2Value, { color: (mv2?.receivables ?? 0) > 0 ? theme.color.warning : theme.color.onSurfaceSecondary }]}>
-              {formatPLN(mv2?.receivables ?? 0)}
-            </Text>
-          </Pressable>
-        </View>
+        ))}
       </View>
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(); setRefreshing(false); }} tintColor={theme.color.brand} />}
+        contentContainerStyle={{ paddingBottom: 32 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => {
+          setRefreshing(true); await Promise.all([load(), loadAiTips()]); setRefreshing(false);
+        }} tintColor={v2.color.forest} />}
       >
-        <View style={s.calendarWrap}>
-          <View style={s.weekRow}>
-            {DAYS_PL.map(d => <Text key={d} style={s.weekLabel}>{d}</Text>)}
-          </View>
-          <View style={s.gridWrap}>
-            {cells.map((d, i) => {
-              if (d === null) return <View key={i} style={s.cell} />;
-              const dateStr = fmt(year, month, d);
-              const isSel = dateStr === selected;
-              const isToday = dateStr === fmt(today.getFullYear(), today.getMonth(), today.getDate());
-              const info = eventDates[dateStr];
-              const count = info?.count || 0;
-              const entries = info?.entries || [];
-              const ringColors = dayStatusColors(entries);
-              return (
-                <Pressable
-                  key={i}
-                  onPress={() => setSelected(dateStr)}
-                  style={[s.cell, isSel && s.cellSelected]}
-                  testID={`day-${dateStr}`}
-                >
-                  <Text style={[s.cellText, isSel && s.cellTextSelected, isToday && !isSel && { color: theme.color.brand, fontWeight: "700" }]}>{d}</Text>
-                  {ringColors.length > 0 && (
-                    <View style={s.statusDotRow}>
-                      {ringColors.map((c, idx) => (
-                        <View
-                          key={idx}
-                          style={[
-                            s.statusDot,
-                            { backgroundColor: c, borderColor: isSel ? theme.color.onBrand : "transparent" },
-                          ]}
-                          testID={`status-dot-${dateStr}-${idx}`}
-                        />
-                      ))}
-                    </View>
-                  )}
-                  {count > 0 && (
-                    <View style={s.cellEventList}>
-                      {entries.slice(0, 2).map((en, idx) => (
-                        <Text
-                          key={idx}
-                          numberOfLines={1}
-                          style={[
-                            s.cellEventName,
-                            { color: en.color },
-                            isSel && { color: theme.color.onBrand },
-                          ]}
-                        >
-                          {en.name}
-                        </Text>
-                      ))}
-                      {count > 2 && (
-                        <Text style={[s.cellEventMore, isSel && { color: theme.color.onBrand }]}>+{count - 2}</Text>
+        {view === "pulpit" && (
+          <>
+            {/* KPI 2x2 */}
+            <View style={s.kpiGrid}>
+              <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/imprezy" as any)}>
+                <Feather name="calendar" size={16} color={v2.color.forest} />
+                <Text style={s.kpiLabel}>Najbliższe imprezy</Text>
+                <Text style={s.kpiValue}>{loading ? "…" : (upcoming.length || "Brak")}</Text>
+              </Pressable>
+              <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/imprezy" as any)}>
+                <Feather name="users" size={16} color={v2.color.forest} />
+                <Text style={s.kpiLabel}>Gości (plan)</Text>
+                <Text style={s.kpiValue}>{loading ? "…" : (upcoming.reduce((sum, e) => sum + (Number(e.guests) || 0), 0) || "Brak")}</Text>
+              </Pressable>
+              <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/finanse" as any)}>
+                <Feather name="trending-up" size={16} color={v2.color.success} />
+                <Text style={s.kpiLabel}>Przychód (plan.)</Text>
+                <Text style={[s.kpiValue, { color: v2.color.success }]}>
+                  {loading ? "…" : (kpi?.price_planned ? formatPLN(kpi.price_planned) : "Brak")}
+                </Text>
+              </Pressable>
+              <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/finanse" as any)}>
+                <Feather name="dollar-sign" size={16} color={v2.color.forest} />
+                <Text style={s.kpiLabel}>Wynik miesiąca</Text>
+                <Text style={[s.kpiValue, { color: (kpi?.profit_real || 0) >= 0 ? v2.color.forest : v2.color.error }]}>
+                  {loading ? "…" : (kpi ? formatPLN(kpi.profit_real) : "Brak")}
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* AI TIPS TOP-3 */}
+            <View style={s.section}>
+              <View style={s.sectionHead}>
+                <Text style={s.sectionLabel}>✨ Asystent AI</Text>
+                <Pressable onPress={() => router.push("/ai-asystent" as any)}>
+                  <Text style={s.sectionLink}>Rozwiń →</Text>
+                </Pressable>
+              </View>
+              {aiLoading && aiTips.length === 0 ? (
+                <View style={s.aiLoading}>
+                  <ActivityIndicator size="small" color={v2.color.forest} />
+                  <Text style={s.aiLoadingText}>AI analizuje Twoje dane…</Text>
+                </View>
+              ) : aiTips.length === 0 ? (
+                <View style={s.okBox}>
+                  <Feather name="check-circle" size={16} color={v2.color.success} />
+                  <Text style={s.okText}>Wszystko pod kontrolą 🟢</Text>
+                </View>
+              ) : aiTips.map((t, i) => (
+                <Pressable key={i} onPress={() => router.push("/ai-asystent" as any)}
+                  style={[s.aiTip, { backgroundColor: toneBg(t.severity), borderLeftColor: tone(t.severity) }]}>
+                  <View style={[s.aiTipDot, { backgroundColor: tone(t.severity) }]}>
+                    <Feather name={t.severity === "error" ? "alert-triangle" : t.severity === "warning" ? "clock" : "info"} size={11} color="#fff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.aiTipText}>{t.text}</Text>
+                    {!!t.action && <Text style={[s.aiTipAction, { color: tone(t.severity) }]}>→ {t.action}</Text>}
+                  </View>
+                </Pressable>
+              ))}
+            </View>
+
+            {/* WEEKEND */}
+            <View style={s.section}>
+              <Text style={s.sectionLabel}>🗓️ Ten weekend</Text>
+              <View style={{ gap: 10, marginTop: 8 }}>
+                {weekend.map(w => (
+                  <Pressable key={w.dateIso} style={s.weekendCard}
+                    onPress={() => { setSelected(w.dateIso); setView("miesiac"); }}>
+                    <View style={s.weekendHead}>
+                      <View>
+                        <Text style={s.weekendDay}>{w.label}</Text>
+                        <Text style={s.weekendDate}>{new Date(w.dateIso + "T00:00:00").toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}</Text>
+                      </View>
+                      {w.count > 0 && (
+                        <View style={[s.readyPill, { backgroundColor: w.readiness >= 80 ? v2.color.successBg : w.readiness >= 50 ? v2.color.warningBg : v2.color.errorBg }]}>
+                          <Text style={[s.readyText, { color: w.readiness >= 80 ? v2.color.success : w.readiness >= 50 ? v2.color.warning : v2.color.error }]}>{w.readiness}% gotowe</Text>
+                        </View>
                       )}
                     </View>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-
-        <View style={s.listSection}>
-          <View style={s.listHeaderRow}>
-            <Text style={s.sectionTitle}>
-              {mode === "events" ? "Wydarzenia" : "Grafik pracowników"} — {new Date(selected).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })}
-            </Text>
-            <Pressable
-              testID={mode === "schedule" ? "print-grafik-btn" : "print-month-btn"}
-              onPress={() => {
-                if (mode === "schedule") {
-                  printSchedule({ year, month, events, staff: staffAll, ownerName: user?.name });
-                } else {
-                  printMonthCalendar({ year, month, events, staff: staffAll, ownerName: user?.name });
-                }
-              }}
-              style={s.printBtn}
-            >
-              <Feather name="printer" size={14} color={theme.color.brand} />
-              <Text style={s.printBtnText}>{mode === "schedule" ? "Drukuj grafik" : "Drukuj miesiąc"}</Text>
-            </Pressable>
-          </View>
-          {loading ? (
-            <ActivityIndicator color={theme.color.brand} style={{ marginTop: 24 }} />
-          ) : mode === "events" ? (
-            dayEvents.length === 0 ? (
-              <View style={s.emptyBox}>
-                <Feather name="calendar" size={32} color={theme.color.onSurfaceSecondary} />
-                <Text style={s.emptyText}>Brak wydarzeń tego dnia</Text>
-                <Pressable
-                  testID="cal-add-event"
-                  style={s.emptyBtn}
-                  onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } })}
-                >
-                  <Text style={s.emptyBtnText}>+ Dodaj imprezę</Text>
-                </Pressable>
-              </View>
-            ) : (
-              dayEvents.map(ev => (
-                <Pressable
-                  key={ev.id}
-                  testID={`cal-event-${ev.id}`}
-                  style={s.eventCard}
-                  onPress={() => router.push({ pathname: "/event/[id]", params: { id: ev.id } })}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.evName}>{ev.name}</Text>
-                    <Text style={s.evMeta}>{formatTimeRange(ev.time_start, ev.time_end, ev.time)}{ev.people ? `  ·  ${ev.people} os.` : ""}</Text>
-                    <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                      {ev.category ? <Text style={s.evCat}>{categoryLabel(ev.category)}</Text> : null}
-                      {ev.package_set && findAdultSet(ev.package_set) ? (
-                        <View style={s.setBadge}>
-                          <Text style={s.setBadgeText}>{findAdultSet(ev.package_set)!.name} · {findAdultSet(ev.package_set)!.price_per_person} zł/os.</Text>
-                        </View>
-                      ) : null}
-                    </View>
-                    {ev.notes ? (
-                      <View style={s.evNotesWrap}>
-                        <Feather name="file-text" size={11} color={theme.color.onSurfaceSecondary} />
-                        <Text style={s.evNotes} numberOfLines={3}>{ev.notes}</Text>
+                    {w.count === 0 ? (
+                      <View style={s.emptyDay}>
+                        <Feather name="coffee" size={18} color={v2.color.textSubtle} />
+                        <Text style={s.emptyText}>Brak imprez tego dnia</Text>
                       </View>
-                    ) : null}
-                  </View>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={s.evProfit}>{formatPLN(ev.profit)}</Text>
-                    <Text style={s.evSub}>zysk</Text>
-                  </View>
-                </Pressable>
-              ))
-            )
-          ) : (
-            dayShifts.length === 0 ? (
-              <View style={s.emptyBox}>
-                <Feather name="users" size={32} color={theme.color.onSurfaceSecondary} />
-                <Text style={s.emptyText}>Brak pracowników w grafiku tego dnia</Text>
-              </View>
-            ) : (
-              <>
-                {dayShifts.map(row => (
-                  <View key={row.staff.id} style={s.shiftCard} testID={`grafik-${row.staff.id}`}>
-                    <View style={s.avatarCircle}><Text style={s.avatarText}>{initials(row.staff.name)}</Text></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.evName}>{row.staff.name}</Text>
-                      <Text style={s.evMeta} numberOfLines={1}>{row.staff.role || "—"}  ·  {row.eventNames.join(", ")}</Text>
-                    </View>
-                    <View style={{ alignItems: "flex-end" }}>
-                      <Text style={s.evProfit}>{row.hours.toFixed(1)} h</Text>
-                      <Text style={s.evSub}>{formatPLN(row.amount)}</Text>
-                    </View>
-                  </View>
+                    ) : (
+                      <>
+                        <View style={s.weekendStats}>
+                          <View style={s.wsItem}><Text style={s.wsLabel}>Imprezy</Text><Text style={s.wsValue}>{w.count}</Text></View>
+                          <View style={s.wsItem}><Text style={s.wsLabel}>Gości</Text><Text style={s.wsValue}>{w.guests || "—"}</Text></View>
+                          <View style={s.wsItem}><Text style={s.wsLabel}>Problemy</Text><Text style={[s.wsValue, { color: w.problems > 0 ? v2.color.error : v2.color.text }]}>{w.problems}</Text></View>
+                        </View>
+                        <View style={{ marginTop: 10 }}>
+                          <View style={s.progressBg}>
+                            <View style={[s.progressFill, { width: `${w.readiness}%`, backgroundColor: w.readiness >= 80 ? v2.color.success : w.readiness >= 50 ? v2.color.warning : v2.color.error }]} />
+                          </View>
+                        </View>
+                      </>
+                    )}
+                  </Pressable>
                 ))}
-                <View style={s.dayTotal}>
-                  <Text style={s.dayTotalLabel}>Razem dnia</Text>
-                  <View style={{ alignItems: "flex-end" }}>
-                    <Text style={s.dayTotalHours}>
-                      {dayShifts.reduce((sum, r) => sum + r.hours, 0).toFixed(1)} h
-                    </Text>
-                    <Text style={s.dayTotalAmount}>
-                      {formatPLN(dayShifts.reduce((sum, r) => sum + r.amount, 0))}
-                    </Text>
-                  </View>
+              </View>
+            </View>
+
+            {/* WYMAGA UWAGI (rule-based) */}
+            <View style={s.section}>
+              <View style={s.sectionHead}>
+                <Text style={s.sectionLabel}>⚠️ Wymaga uwagi</Text>
+                {localAttention.length > 0 && <Text style={s.sectionCount}>{localAttention.length}</Text>}
+              </View>
+              {localAttention.length === 0 ? (
+                <View style={s.okBox}>
+                  <Feather name="check-circle" size={16} color={v2.color.success} />
+                  <Text style={s.okText}>Wszystko OK</Text>
                 </View>
-              </>
-            )
-          )}
-        </View>
+              ) : (
+                <View style={{ gap: 8, marginTop: 8 }}>
+                  {localAttention.map((a, i) => (
+                    <Pressable key={i} onPress={() => a.eventId && router.push(`/event/${a.eventId}` as any)}
+                      style={[s.attention, { backgroundColor: toneBg(a.severity), borderLeftColor: tone(a.severity) }]}>
+                      <View style={[s.aiTipDot, { backgroundColor: tone(a.severity) }]} />
+                      <Text style={s.attentionText}>{a.text}</Text>
+                      <Feather name="chevron-right" size={16} color={v2.color.textMuted} />
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* NAJBLIŻSZE IMPREZY */}
+            <View style={s.section}>
+              <View style={s.sectionHead}>
+                <Text style={s.sectionLabel}>📅 Najbliższe imprezy</Text>
+                {upcoming.length > 3 && (
+                  <Pressable onPress={() => router.push("/(tabs)/imprezy" as any)}>
+                    <Text style={s.sectionLink}>Wszystkie →</Text>
+                  </Pressable>
+                )}
+              </View>
+              {loading ? null : upcoming.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Feather name="calendar" size={28} color={v2.color.textSubtle} />
+                  <Text style={s.emptyTitle}>Brak nadchodzących imprez</Text>
+                </View>
+              ) : (
+                <View style={{ gap: 10, marginTop: 8 }}>
+                  {upcoming.slice(0, 3).map(ev => {
+                    const price = Number(ev.price_total || ev.revenue) || 0;
+                    const dep = Number(ev.deposit_amount) || 0;
+                    const noDeposit = price > 0 && dep <= 0;
+                    return (
+                      <Pressable key={ev.id} onPress={() => router.push(`/event/${ev.id}` as any)} style={s.eventCard}>
+                        <View style={s.eventHead}>
+                          <View style={s.dateChip}><Text style={s.dateChipText}>{dateChip(ev.date)}</Text></View>
+                          {!!ev.status && (
+                            <View style={s.statusPill}>
+                              <View style={s.statusDot} />
+                              <Text style={s.statusText}>{ev.status}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={s.eventName}>{ev.name || "Impreza"}</Text>
+                        <Text style={s.eventMeta}>
+                          {ev.time_start || "—"}{ev.time_end ? ` – ${ev.time_end}` : ""} · {ev.guests || 0} os. · {ev.category || "—"}
+                        </Text>
+                        <View style={s.eventFooter}>
+                          <View style={{ flex: 1 }}><Text style={s.footerLabel}>Cena</Text><Text style={s.footerValue}>{price > 0 ? formatPLN(price) : "Brak"}</Text></View>
+                          <View style={{ flex: 1 }}><Text style={s.footerLabel}>Zaliczka</Text><Text style={[s.footerValue, { color: noDeposit ? v2.color.error : v2.color.success }]}>{noDeposit ? "❌ brak" : formatPLN(dep)}</Text></View>
+                          <View style={{ flex: 1 }}><Text style={s.footerLabel}>Obsada</Text><Text style={[s.footerValue, { color: (ev.shifts || []).length === 0 ? v2.color.error : v2.color.text }]}>{(ev.shifts || []).length || "brak"}</Text></View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {view === "miesiac" && (
+          <>
+            {/* Legend */}
+            <View style={s.legend}>
+              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.success }]} /><Text style={s.legendText}>Zapłacone</Text></View>
+              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.warning }]} /><Text style={s.legendText}>Zaliczka</Text></View>
+              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.error }]} /><Text style={s.legendText}>Brak zaliczki</Text></View>
+            </View>
+
+            {/* Weekday header */}
+            <View style={s.dowRow}>{DOW.map(d => <Text key={d} style={s.dowText}>{d}</Text>)}</View>
+
+            {/* Grid */}
+            <View style={s.grid}>
+              {cells.map((day, idx) => {
+                if (day === null) return <View key={idx} style={s.cell} />;
+                const iso = fmt(year, month, day);
+                const isToday = iso === today.toISOString().slice(0, 10);
+                const isSelected = iso === selected;
+                const evs = eventsByDate[iso] || [];
+                // dot color: worst wins (error > warning > success)
+                let bestColor = v2.color.forest;
+                for (const e of evs) {
+                  const price = Number(e.price_total || e.revenue) || 0;
+                  const dep = Number(e.deposit_amount) || 0;
+                  if (price > 0 && dep <= 0) { bestColor = v2.color.error; break; }
+                  if (price > 0 && dep < price) bestColor = v2.color.warning;
+                  else if (bestColor === v2.color.forest) bestColor = v2.color.success;
+                }
+                return (
+                  <Pressable key={idx} onPress={() => setSelected(iso)} testID={`cal-day-${day}`}
+                    style={[s.cell, isSelected && s.cellSelected, isToday && !isSelected && s.cellToday]}>
+                    <Text style={[s.day, isSelected && { color: "#fff" }, isToday && !isSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
+                    {evs.length > 0 && (
+                      <View style={s.dotsRow}>
+                        {evs.slice(0, 3).map((_, i) => <View key={i} style={[s.eventDot, { backgroundColor: isSelected ? "#fff" : bestColor }]} />)}
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {/* Agenda */}
+            <View style={{ padding: 16 }}>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+                <Text style={s.agendaTitle}>{new Date(selected + "T00:00:00").toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</Text>
+                <Pressable onPress={() => router.push({ pathname: "/event/new", params: { date: selected } } as any)}>
+                  <Text style={s.sectionLink}>+ Dodaj</Text>
+                </Pressable>
+              </View>
+              {dayEvents.length === 0 ? (
+                <View style={s.emptyBox}>
+                  <Feather name="calendar" size={26} color={v2.color.textSubtle} />
+                  <Text style={s.emptyText}>Brak imprez tego dnia</Text>
+                  <Pressable style={s.emptyBtn} onPress={() => router.push({ pathname: "/event/new", params: { date: selected } } as any)}>
+                    <Feather name="plus" size={13} color={v2.color.forest} />
+                    <Text style={s.emptyBtnText}>Dodaj imprezę</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={{ gap: 8 }}>
+                  {dayEvents.map(ev => {
+                    const price = Number(ev.price_total || ev.revenue) || 0;
+                    const dep = Number(ev.deposit_amount) || 0;
+                    const noDeposit = price > 0 && dep <= 0;
+                    return (
+                      <Pressable key={ev.id} onPress={() => router.push(`/event/${ev.id}` as any)} style={s.dayEventRow}>
+                        <View style={s.timeCol}>
+                          <Text style={s.timeText}>{ev.time_start || "—"}</Text>
+                          {!!ev.time_end && <Text style={s.timeText2}>{ev.time_end}</Text>}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.dayEventName}>{ev.name || "Impreza"}</Text>
+                          <Text style={s.dayEventMeta}>{ev.guests || 0} os. · {ev.category || "—"}</Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={s.dayEventPrice}>{price > 0 ? formatPLN(price) : "—"}</Text>
+                          {noDeposit && <Text style={s.dayEventBrak}>brak zaliczki</Text>}
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Alerts Modal */}
-      <Modal visible={alertsOpen} animationType="slide" transparent onRequestClose={() => setAlertsOpen(false)}>
+      <Modal visible={alertsModalOpen} transparent animationType="slide" onRequestClose={() => setAlertsModalOpen(false)}>
         <View style={s.modalBackdrop}>
-          <View style={s.modalCard}>
-            <View style={s.modalHeader}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Feather name="bell" size={18} color={theme.color.brand} />
-                <Text style={s.modalTitle}>Powiadomienia</Text>
-              </View>
-              <Pressable onPress={() => setAlertsOpen(false)} hitSlop={12}>
-                <Feather name="x" size={22} color={theme.color.onSurface} />
+          <View style={[s.modalSheet, { paddingBottom: insets.bottom + 16 }]}>
+            <View style={s.modalHead}>
+              <Text style={s.modalTitle}>Powiadomienia</Text>
+              <Pressable onPress={() => setAlertsModalOpen(false)}>
+                <Feather name="x" size={20} color={v2.color.text} />
               </Pressable>
             </View>
             {alerts.length === 0 ? (
-              <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                <Feather name="check-circle" size={40} color={theme.color.onSurfaceSecondary} />
-                <Text style={{ color: theme.color.onSurfaceSecondary, marginTop: 12, textAlign: "center" }}>
-                  Brak powiadomień{"\n"}Wszystko na bieżąco 👍
-                </Text>
+              <View style={{ padding: 40, alignItems: "center" }}>
+                <Feather name="check-circle" size={30} color={v2.color.success} />
+                <Text style={[s.okText, { marginTop: 8 }]}>Brak nowych powiadomień</Text>
               </View>
             ) : (
-              <>
-                <Text style={s.alertsHint}>
-                  Poniższe imprezy mają status „wstępne zapytanie” lub „rezerwacja” od co najmniej 2 dni i wciąż nie są potwierdzone. Rozważ kontakt z klientem lub zmianę statusu.
-                </Text>
-                <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
-                  {alerts.map(a => (
-                    <Pressable
-                      key={a.id}
-                      onPress={() => { setAlertsOpen(false); router.push(`/event/${a.event_id}`); }}
-                      style={s.alertRow}
-                      testID={`alert-${a.id}`}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.alertName} numberOfLines={1}>{a.event_name || "(bez nazwy)"}</Text>
-                        <Text style={s.alertMeta} numberOfLines={1}>
-                          {a.event_date} · {a.status === "wstepne" ? "Wstępne zapytanie" : a.status === "rezerwacja" ? "Rezerwacja" : a.status}
-                          {a.client_name ? `  ·  ${a.client_name}` : ""}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={async (e) => {
-                          e.stopPropagation?.();
-                          try { await api.dismissAlert(a.id); await loadAlerts(); } catch {}
-                        }}
-                        hitSlop={12}
-                        style={s.alertDismiss}
-                      >
-                        <Feather name="x" size={18} color={theme.color.onSurfaceSecondary} />
-                      </Pressable>
+              <ScrollView style={{ maxHeight: 400 }}>
+                {alerts.map((a: any) => (
+                  <View key={a.id} style={s.alertRow}>
+                    <Feather name="alert-circle" size={16} color={v2.color.warning} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.alertText}>{a.message || a.text || "Powiadomienie"}</Text>
+                    </View>
+                    <Pressable onPress={async () => { try { await api.dismissAlert(a.id); setAlerts(alerts.filter(x => x.id !== a.id)); } catch {} }}>
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
                     </Pressable>
-                  ))}
-                </ScrollView>
-                <Pressable
-                  testID="alerts-dismiss-all"
-                  onPress={async () => { try { await api.dismissAllAlerts(); await loadAlerts(); } catch {} }}
-                  style={s.dismissAllBtn}
-                >
-                  <Feather name="check" size={16} color={theme.color.onBrand} />
-                  <Text style={s.dismissAllText}>Oznacz wszystkie jako przeczytane</Text>
-                </Pressable>
-              </>
+                  </View>
+                ))}
+                {alerts.length > 1 && (
+                  <Pressable style={s.dismissAll} onPress={async () => { try { await api.dismissAllAlerts(); setAlerts([]); } catch {} }}>
+                    <Text style={s.dismissAllText}>Odrzuć wszystkie</Text>
+                  </Pressable>
+                )}
+              </ScrollView>
             )}
           </View>
         </View>
@@ -557,189 +542,110 @@ export default function Kalendarz() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: {
-    paddingHorizontal: 20, paddingBottom: 12, paddingTop: 8, borderBottomWidth: 1,
-    borderBottomColor: theme.color.divider,
-  },
-  brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  monthNav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  monthTitle: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
-  navBtn: { padding: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 999 },
-  calendarWrap: { paddingHorizontal: 16, paddingTop: 16 },
-  weekRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 8 },
-  weekLabel: { flex: 1, textAlign: "center", color: theme.color.onSurfaceSecondary, fontSize: 12, fontWeight: "600" },
-  gridWrap: { flexDirection: "row", flexWrap: "wrap" },
-  cell: {
-    width: `${100 / 7}%`, minHeight: 62, alignItems: "center", justifyContent: "flex-start",
-    paddingTop: 6, paddingHorizontal: 2, paddingBottom: 4,
-  },
-  cellSelected: {
-    backgroundColor: theme.color.brand, borderRadius: 12,
-  },
-  cellText: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700" },
-  cellTextSelected: { color: theme.color.onBrand, fontWeight: "800" },
-  statusDotRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 3, marginTop: 2,
-  },
-  statusDot: {
-    width: 7, height: 7, borderRadius: 4, borderWidth: 1,
-  },
-  cellEventList: { width: "100%", marginTop: 3, alignItems: "center" },
-  cellEventName: {
-    fontSize: 10, lineHeight: 12, color: theme.color.brand, maxWidth: "100%",
-    textAlign: "center", fontWeight: "600",
-  },
-  cellEventMore: {
-    fontSize: 10, color: theme.color.brand, fontWeight: "700", marginTop: 1,
-  },
-  dotRow: {
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 3, marginTop: 4,
-  },
-  dot: { width: 5, height: 5, borderRadius: 3 },
-  dotMore: { color: theme.color.brand, fontSize: 9, fontWeight: "700", marginLeft: 2 },
-  listSection: { paddingHorizontal: 20, paddingTop: 20 },
-  listHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionTitle: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700" },
-  printBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8,
-    borderRadius: 999, borderWidth: 1, borderColor: theme.color.brand,
-    backgroundColor: "rgba(212,175,55,0.06)",
-  },
-  printBtnText: { color: theme.color.brand, fontSize: 12, fontWeight: "700" },
-  emptyBox: { alignItems: "center", padding: 24, borderWidth: 1, borderColor: theme.color.border, borderRadius: 16, borderStyle: "dashed" },
-  emptyText: { color: theme.color.onSurfaceSecondary, marginTop: 12, marginBottom: 16 },
-  emptyBtn: { paddingHorizontal: 20, paddingVertical: 10, backgroundColor: theme.color.brand, borderRadius: 999 },
-  emptyBtnText: { color: theme.color.onBrand, fontWeight: "700" },
-  eventCard: {
-    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
-    padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: theme.color.border,
-    alignItems: "center",
-  },
-  evName: { color: theme.color.onSurface, fontSize: 16, fontWeight: "700", marginBottom: 4 },
-  evMeta: { color: theme.color.onSurfaceSecondary, fontSize: 13 },
-  evCat: { color: theme.color.brand, fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
-  setBadge: {
-    backgroundColor: theme.color.brand, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
-  },
-  setBadgeText: { color: theme.color.onBrand, fontSize: 10, fontWeight: "800" },
-  evProfit: { color: theme.color.brand, fontSize: 16, fontWeight: "700" },
-  evSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 },
-  evNotesWrap: {
-    flexDirection: "row", alignItems: "flex-start", gap: 4, marginTop: 6,
-    paddingTop: 6, borderTopWidth: 1, borderTopColor: theme.color.divider,
-  },
-  evNotes: { color: theme.color.onSurfaceSecondary, fontSize: 12, lineHeight: 17, flex: 1 },
-  modeToggle: {
-    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary, borderRadius: 999,
-    padding: 4, marginTop: 12, borderWidth: 1, borderColor: theme.color.border,
-  },
-  modeBtn: {
-    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
-    paddingVertical: 8, borderRadius: 999,
-  },
-  modeBtnActive: { backgroundColor: theme.color.brand },
-  modeText: { color: theme.color.onSurfaceSecondary, fontSize: 13, fontWeight: "700" },
-  modeTextActive: { color: theme.color.onBrand },
-  // Monthly summary card
-  summaryCard: {
-    marginHorizontal: 12, marginTop: 12, marginBottom: 4,
-    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
-    borderRadius: 20, borderWidth: 1, borderColor: theme.color.border,
-    paddingVertical: 12, paddingHorizontal: 2,
-    ...({ shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 } as any),
-  },
-  summaryCol: {
-    flex: 1, alignItems: "center", paddingHorizontal: 2,
-  },
-  summaryDot: { width: 6, height: 6, borderRadius: 999, marginBottom: 3 },
-  summaryLabel: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.3, textTransform: "uppercase", marginBottom: 2, textAlign: "center" },
-  summaryValue: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
-  summaryUnit: { color: theme.color.onSurfaceSecondary, fontSize: 9, marginTop: 1 },
-  summaryDivider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 6 },
-  // Monthly summary v2.0 (Faza 3B)
-  summaryCardV2: {
-    marginHorizontal: 12, marginTop: 12, marginBottom: 6,
-    backgroundColor: theme.color.surfaceSecondary,
-    borderRadius: 16, borderWidth: 1, borderColor: theme.color.border,
-    padding: 8,
-  },
-  mv2Row: { flexDirection: "row", alignItems: "stretch" },
-  mv2Cell: { flex: 1, alignItems: "center", paddingVertical: 8, paddingHorizontal: 4 },
-  mv2Label: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.5, textTransform: "uppercase", fontWeight: "700", marginBottom: 4 },
-  mv2Value: { fontSize: 15, fontWeight: "800", letterSpacing: -0.3, textAlign: "center" },
-  mv2Divider: { width: 1, backgroundColor: theme.color.divider, marginVertical: 4 },
-  // Profit strip below summary card
-  profitStrip: {
-    flexDirection: "row",
-    marginHorizontal: 12, marginBottom: 6,
-    backgroundColor: theme.color.brand + "0A",
-    borderRadius: 14, borderWidth: 1, borderColor: theme.color.brand + "44",
-    paddingVertical: 10,
-  },
-  profitCol: { flex: 1, alignItems: "center" },
-  profitDivider: { width: 1, backgroundColor: theme.color.brand + "33", marginVertical: 4 },
-  profitLabel: { color: theme.color.onSurfaceSecondary, fontSize: 9, letterSpacing: 0.8, marginBottom: 2 },
-  profitValue: { fontSize: 18, fontWeight: "800", letterSpacing: -0.3 },
-  shiftCard: {
-    flexDirection: "row", backgroundColor: theme.color.surfaceSecondary,
-    padding: 14, borderRadius: 16, marginBottom: 8, borderWidth: 1, borderColor: theme.color.border,
-    alignItems: "center", gap: 12,
-  },
-  avatarCircle: {
-    width: 40, height: 40, borderRadius: 999, backgroundColor: theme.color.brandTertiary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarText: { color: theme.color.onBrandTertiary, fontWeight: "700", fontSize: 13 },
-  dayTotal: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    marginTop: 8, padding: 14, borderRadius: 16, borderWidth: 1, borderColor: theme.color.brandTertiary,
-    backgroundColor: "rgba(212,175,55,0.06)",
-  },
-  dayTotalLabel: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
-  dayTotalHours: { color: theme.color.brand, fontSize: 18, fontWeight: "800" },
-  dayTotalAmount: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
-  // Bell + Alerts
-  bellBtn: {
-    padding: 8, borderRadius: 999, backgroundColor: theme.color.surfaceSecondary,
-    borderWidth: 1, borderColor: theme.color.border, position: "relative",
-  },
-  bellBadge: {
-    position: "absolute", top: -2, right: -2, backgroundColor: "#EF4444",
-    minWidth: 18, height: 18, borderRadius: 9, alignItems: "center", justifyContent: "center",
-    paddingHorizontal: 4, borderWidth: 2, borderColor: theme.color.surface,
-  },
-  bellBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
-  modalBackdrop: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.55)", justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: theme.color.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24,
-    paddingHorizontal: 20, paddingTop: 16, paddingBottom: 28,
-    borderWidth: 1, borderColor: theme.color.border,
-  },
-  modalHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-    paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.color.divider, marginBottom: 12,
-  },
-  modalTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700" },
-  alertsHint: {
-    color: theme.color.onSurfaceSecondary, fontSize: 12, lineHeight: 17, marginBottom: 12,
-    paddingHorizontal: 4,
-  },
-  alertRow: {
-    flexDirection: "row", alignItems: "center", gap: 8,
-    backgroundColor: theme.color.surfaceSecondary, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, marginBottom: 8,
-    borderWidth: 1, borderColor: theme.color.border,
-  },
-  alertName: { color: theme.color.onSurface, fontSize: 14, fontWeight: "700" },
-  alertMeta: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 3 },
-  alertDismiss: { padding: 6 },
-  dismissAllBtn: {
-    marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center",
-    gap: 6, backgroundColor: theme.color.brand, borderRadius: 999, paddingVertical: 12,
-  },
-  dismissAllText: { color: theme.color.onBrand, fontSize: 13, fontWeight: "700" },
+  header: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 20, paddingBottom: 14, backgroundColor: v2.color.forestDeep, gap: 8 },
+  hello: { color: v2.color.onDark, fontSize: 20, fontWeight: "800", letterSpacing: -0.3 },
+  helloDate: { color: v2.color.sage, fontSize: 12, marginTop: 3 },
+  brand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800" },
+  monthTitle: { color: "#fff", fontSize: 18, fontWeight: "800", textTransform: "capitalize", minWidth: 140 },
+  navBtn: { width: 30, height: 30, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  bellBtn: { width: 40, height: 40, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" },
+  bellBadge: { position: "absolute", top: -2, right: -2, backgroundColor: v2.color.error, borderRadius: 999, minWidth: 18, height: 18, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 },
+  bellBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+
+  segRow: { flexDirection: "row", padding: 10, gap: 8, backgroundColor: v2.color.forestDeep },
+  seg: { flex: 1, flexDirection: "row", gap: 6, alignItems: "center", justifyContent: "center", paddingVertical: 9, borderRadius: v2.radius.md, backgroundColor: "rgba(255,255,255,0.12)" },
+  segActive: { backgroundColor: v2.color.card },
+  segText: { color: "#fff", fontSize: 13, fontWeight: "700" },
+  segTextActive: { color: v2.color.forest },
+
+  kpiGrid: { marginTop: -12, marginHorizontal: 16, padding: 4, borderRadius: v2.radius.xl, backgroundColor: v2.color.card, flexDirection: "row", flexWrap: "wrap", ...v2.shadow.md },
+  kpi: { flexBasis: "50%", padding: 14 },
+  kpiLabel: { color: v2.color.textSubtle, fontSize: 10, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 6 },
+  kpiValue: { color: v2.color.text, fontSize: 19, fontWeight: "800", marginTop: 2, letterSpacing: -0.5 },
+
+  section: { paddingHorizontal: 16, marginTop: 20 },
+  sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 },
+  sectionLabel: { color: v2.color.text, fontSize: 15, fontWeight: "800" },
+  sectionCount: { color: v2.color.textMuted, fontSize: 12, fontWeight: "700" },
+  sectionLink: { color: v2.color.forest, fontSize: 12, fontWeight: "800" },
+
+  aiLoading: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderRadius: v2.radius.md, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border, marginTop: 8 },
+  aiLoadingText: { color: v2.color.textMuted, fontSize: 12 },
+  aiTip: { flexDirection: "row", alignItems: "flex-start", gap: 10, padding: 12, marginTop: 8, borderRadius: v2.radius.md, borderLeftWidth: 4 },
+  aiTipDot: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  aiTipText: { color: v2.color.text, fontSize: 13, fontWeight: "700", lineHeight: 18 },
+  aiTipAction: { fontSize: 11, fontWeight: "800", marginTop: 3 },
+
+  okBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 14, borderRadius: v2.radius.md, backgroundColor: v2.color.successBg, marginTop: 8 },
+  okText: { color: v2.color.success, fontSize: 13, fontWeight: "800" },
+
+  weekendCard: { padding: 14, borderRadius: v2.radius.xl, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm },
+  weekendHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 },
+  weekendDay: { color: v2.color.text, fontSize: 16, fontWeight: "800" },
+  weekendDate: { color: v2.color.textMuted, fontSize: 12, fontWeight: "600", marginTop: 2 },
+  readyPill: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 },
+  readyText: { fontSize: 10, fontWeight: "800", letterSpacing: 0.3 },
+  emptyDay: { padding: 12, alignItems: "center", gap: 4, borderRadius: v2.radius.md, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border, borderStyle: "dashed" },
+  weekendStats: { flexDirection: "row", gap: 12, marginTop: 4 },
+  wsItem: { flex: 1 },
+  wsLabel: { color: v2.color.textSubtle, fontSize: 9, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase" },
+  wsValue: { color: v2.color.text, fontSize: 16, fontWeight: "800", marginTop: 2 },
+
+  attention: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: v2.radius.md, borderLeftWidth: 4 },
+  attentionText: { flex: 1, color: v2.color.text, fontSize: 13, fontWeight: "700" },
+
+  emptyBox: { padding: 24, alignItems: "center", gap: 8, borderRadius: v2.radius.md, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border, borderStyle: "dashed", marginTop: 8 },
+  emptyTitle: { color: v2.color.textMuted, fontSize: 13, fontWeight: "700" },
+  emptyText: { color: v2.color.textSubtle, fontSize: 12 },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: v2.radius.md, backgroundColor: v2.color.mint, marginTop: 6 },
+  emptyBtnText: { color: v2.color.forest, fontWeight: "800", fontSize: 12 },
+
+  eventCard: { backgroundColor: v2.color.card, borderRadius: v2.radius.xl, padding: 14, borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm },
+  eventHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  dateChip: { backgroundColor: v2.color.mint, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999 },
+  dateChipText: { color: v2.color.forest, fontSize: 11, fontWeight: "800", letterSpacing: 0.3 },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999, backgroundColor: v2.color.successBg },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: v2.color.success },
+  statusText: { color: v2.color.success, fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
+  eventName: { color: v2.color.text, fontSize: 16, fontWeight: "800", marginTop: 2, letterSpacing: -0.3 },
+  eventMeta: { color: v2.color.textMuted, fontSize: 12, marginTop: 3 },
+  eventFooter: { flexDirection: "row", marginTop: 10, gap: 8 },
+  footerLabel: { color: v2.color.textSubtle, fontSize: 9, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase" },
+  footerValue: { color: v2.color.text, fontSize: 12, fontWeight: "700", marginTop: 2 },
+
+  legend: { flexDirection: "row", gap: 12, padding: 12, justifyContent: "center" },
+  legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
+  legendDot: { width: 8, height: 8, borderRadius: 4 },
+  legendText: { color: v2.color.textMuted, fontSize: 11, fontWeight: "600" },
+  dowRow: { flexDirection: "row", paddingHorizontal: 8 },
+  dowText: { flex: 1, textAlign: "center", color: v2.color.textSubtle, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, paddingTop: 4 },
+  cell: { width: `${100/7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", padding: 2 },
+  cellToday: { backgroundColor: v2.color.mint, borderRadius: v2.radius.md },
+  cellSelected: { backgroundColor: v2.color.forest, borderRadius: v2.radius.md },
+  day: { color: v2.color.text, fontSize: 14, fontWeight: "600" },
+  dotsRow: { flexDirection: "row", gap: 2, marginTop: 3 },
+  eventDot: { width: 4, height: 4, borderRadius: 2 },
+  agendaTitle: { color: v2.color.text, fontSize: 16, fontWeight: "800", textTransform: "capitalize" },
+
+  dayEventRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: v2.radius.md, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border },
+  timeCol: { alignItems: "center", width: 46 },
+  timeText: { color: v2.color.forest, fontSize: 13, fontWeight: "800" },
+  timeText2: { color: v2.color.textMuted, fontSize: 11 },
+  dayEventName: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  dayEventMeta: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
+  dayEventPrice: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
+  dayEventBrak: { color: v2.color.error, fontSize: 10, fontWeight: "800", marginTop: 2 },
+
+  progressBg: { height: 6, borderRadius: 3, backgroundColor: v2.color.divider, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 3 },
+
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: v2.color.card, borderTopLeftRadius: v2.radius.xl, borderTopRightRadius: v2.radius.xl, padding: 16 },
+  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  modalTitle: { color: v2.color.text, fontSize: 18, fontWeight: "800" },
+  alertRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, marginBottom: 6, borderRadius: v2.radius.md, backgroundColor: v2.color.warningBg },
+  alertText: { color: v2.color.text, fontSize: 13 },
+  dismissAll: { padding: 12, alignItems: "center", borderRadius: v2.radius.md, backgroundColor: v2.color.cardMuted, marginTop: 8 },
+  dismissAllText: { color: v2.color.forest, fontWeight: "800", fontSize: 13 },
 });

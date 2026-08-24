@@ -9,8 +9,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Clipboard from "expo-clipboard";
 import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
+import { formatPLN } from "@/src/theme";
 
-type Tab = "tips" | "offer" | "chat";
+type Tab = "tips" | "offer" | "chat" | "coach";
 type Tip = { severity: "error" | "warning" | "info" | "success"; text: string; action?: string };
 type ChatMsg = { role: "user" | "assistant"; content: string; created_at?: string; id?: string };
 
@@ -38,12 +39,13 @@ export default function AiAsystent() {
 
       <View style={s.segRow}>
         {([
-          ["tips",  "Wskazówki dnia", "zap"],
-          ["offer", "Oferty",         "edit-3"],
-          ["chat",  "Czat",           "message-circle"],
+          ["tips",  "Wskazówki", "zap"],
+          ["offer", "Oferty",    "edit-3"],
+          ["coach", "Koszty",    "trending-down"],
+          ["chat",  "Czat",      "message-circle"],
         ] as const).map(([k, l, icon]) => (
           <Pressable key={k} onPress={() => setTab(k as Tab)} style={[s.seg, tab === k && s.segActive]}>
-            <Feather name={icon as any} size={14} color={tab === k ? v2.color.forest : "#fff"} />
+            <Feather name={icon as any} size={13} color={tab === k ? v2.color.forest : "#fff"} />
             <Text style={[s.segText, tab === k && s.segTextActive]}>{l}</Text>
           </Pressable>
         ))}
@@ -51,6 +53,7 @@ export default function AiAsystent() {
 
       {tab === "tips"  && <TipsTab />}
       {tab === "offer" && <OfferTab />}
+      {tab === "coach" && <CoachTab />}
       {tab === "chat"  && <ChatTab />}
     </View>
   );
@@ -239,6 +242,157 @@ function OfferTab() {
   );
 }
 
+/* ---------------- COACH TAB (Koszty AI) ---------------- */
+function CoachTab() {
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [month, setMonth] = useState<number>(new Date().getMonth() + 1);
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+
+  const load = useCallback(async () => {
+    setLoading(true); setErr(null);
+    try {
+      const r: any = await api.aiCostCoach(year, month);
+      setData(r);
+    } catch (e: any) {
+      setErr(String(e?.message || "Nie udało się połączyć z AI"));
+    } finally { setLoading(false); }
+  }, [year, month]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const MONTHS = ["Styczeń","Luty","Marzec","Kwiecień","Maj","Czerwiec","Lipiec","Sierpień","Wrzesień","Październik","Listopad","Grudzień"];
+  const shift = (delta: number) => {
+    let m = month + delta; let y = year;
+    if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+    setMonth(m); setYear(y);
+  };
+
+  const impactColor = (imp: string) => imp === "wysoki" ? v2.color.error : imp === "średni" ? v2.color.warning : v2.color.info;
+  const impactBg = (imp: string) => imp === "wysoki" ? v2.color.errorBg : imp === "średni" ? v2.color.warningBg : v2.color.infoBg;
+
+  return (
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
+      <View style={s.hint}>
+        <Feather name="trending-down" size={14} color={v2.color.info} />
+        <Text style={s.hintText}>AI analizuje Twoje koszty i wskazuje gdzie tracisz pieniądze.</Text>
+      </View>
+
+      <View style={[s.chipRow, { justifyContent: "center", alignItems: "center", marginTop: 12 }]}>
+        <Pressable onPress={() => shift(-1)} style={s.chipIcon}>
+          <Feather name="chevron-left" size={13} color={v2.color.forest} />
+        </Pressable>
+        <View style={[s.chip, s.chipActive, { minWidth: 160, alignItems: "center" }]}>
+          <Text style={[s.chipText, s.chipTextActive]}>{MONTHS[month - 1]} {year}</Text>
+        </View>
+        <Pressable onPress={() => shift(1)} style={s.chipIcon}>
+          <Feather name="chevron-right" size={13} color={v2.color.forest} />
+        </Pressable>
+      </View>
+
+      {loading && (
+        <View style={s.loading}>
+          <ActivityIndicator color={v2.color.forest} />
+          <Text style={s.loadingText}>AI analizuje koszty…</Text>
+        </View>
+      )}
+
+      {!loading && err && (
+        <View style={[s.emptyBox, { borderColor: v2.color.error }]}>
+          <Feather name="alert-triangle" size={24} color={v2.color.error} />
+          <Text style={s.emptyText}>{err}</Text>
+          <Pressable style={s.primaryBtn} onPress={load}>
+            <Feather name="refresh-cw" size={14} color="#fff" />
+            <Text style={s.primaryBtnText}>Spróbuj ponownie</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {!loading && data && (
+        <>
+          {/* Hero total */}
+          <View style={coachS.heroCard}>
+            <Text style={coachS.heroLabel}>Koszty miesiąca</Text>
+            <Text style={coachS.heroValue}>{formatPLN(data.current_total || 0)}</Text>
+            {data.change_pct !== null && data.change_pct !== undefined && (
+              <View style={[coachS.changeBadge, {
+                backgroundColor: data.change_pct >= 0 ? "rgba(220,38,38,0.15)" : "rgba(22,163,74,0.15)",
+              }]}>
+                <Feather name={data.change_pct >= 0 ? "trending-up" : "trending-down"} size={12} color={data.change_pct >= 0 ? "#FCA5A5" : "#86EFAC"} />
+                <Text style={[coachS.changeText, { color: data.change_pct >= 0 ? "#FCA5A5" : "#86EFAC" }]}>
+                  {data.change_pct > 0 ? "+" : ""}{data.change_pct}% vs poprzedni
+                </Text>
+              </View>
+            )}
+            <Text style={coachS.heroPrev}>poprzednio: {formatPLN(data.previous_total || 0)}</Text>
+          </View>
+
+          {/* AI summary */}
+          {!!data.summary && (
+            <View style={coachS.summary}>
+              <Feather name="cpu" size={14} color={v2.color.forest} />
+              <Text style={coachS.summaryText}>{data.summary}</Text>
+            </View>
+          )}
+
+          {/* Breakdown */}
+          {(data.breakdown || []).length > 0 && (
+            <>
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>Podział kategorii</Text>
+              {(data.breakdown || []).slice(0, 6).map((b: any, i: number) => {
+                const maxCur = Math.max(...(data.breakdown || []).map((x: any) => x.current || 0));
+                const w = maxCur > 0 ? Math.max(4, (b.current / maxCur) * 100) : 0;
+                const up = b.change_pct !== null && b.change_pct > 0;
+                return (
+                  <View key={i} style={coachS.catRow}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 4 }}>
+                      <Text style={coachS.catName}>{b.category}</Text>
+                      <Text style={coachS.catVal}>{formatPLN(b.current)}</Text>
+                    </View>
+                    <View style={coachS.catBg}>
+                      <View style={[coachS.catFill, { width: `${w}%` }]} />
+                    </View>
+                    {b.change_pct !== null && (
+                      <Text style={[coachS.catDelta, { color: up ? v2.color.error : v2.color.success }]}>
+                        {up ? "▲" : "▼"} {Math.abs(b.change_pct)}% vs poprzedni ({formatPLN(b.previous)})
+                      </Text>
+                    )}
+                  </View>
+                );
+              })}
+            </>
+          )}
+
+          {/* Suggestions */}
+          {(data.suggestions || []).length > 0 && (
+            <>
+              <Text style={[s.fieldLabel, { marginTop: 16 }]}>💡 Sugestie AI</Text>
+              {(data.suggestions || []).map((sg: any, i: number) => (
+                <View key={i} style={[coachS.suggestion, { backgroundColor: impactBg(sg.impact), borderLeftColor: impactColor(sg.impact) }]}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <Text style={coachS.suggCat}>{sg.category || "Ogólne"}</Text>
+                    <View style={[coachS.impactPill, { backgroundColor: impactColor(sg.impact) + "22" }]}>
+                      <Text style={[coachS.impactText, { color: impactColor(sg.impact) }]}>Impakt: {sg.impact || "—"}</Text>
+                    </View>
+                  </View>
+                  <Text style={coachS.suggText}>{sg.text}</Text>
+                  {!!sg.action && <Text style={[coachS.suggAction, { color: impactColor(sg.impact) }]}>→ {sg.action}</Text>}
+                </View>
+              ))}
+            </>
+          )}
+
+          <Pressable style={s.regenBtn} onPress={load}>
+            <Feather name="refresh-cw" size={14} color={v2.color.forest} />
+            <Text style={s.regenBtnText}>Odśwież analizę</Text>
+          </Pressable>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
 /* ---------------- CHAT TAB ---------------- */
 function ChatTab() {
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
@@ -419,4 +573,30 @@ const s = StyleSheet.create({
   chatIconBtn: { width: 36, height: 36, borderRadius: 999, alignItems: "center", justifyContent: "center" },
   chatInput: { flex: 1, height: 42, paddingHorizontal: 14, borderRadius: 999, backgroundColor: v2.color.bg, borderWidth: 1, borderColor: v2.color.border, color: v2.color.text, fontSize: 14 },
   chatSend: { width: 42, height: 42, borderRadius: 999, backgroundColor: v2.color.forest, alignItems: "center", justifyContent: "center" },
+});
+
+const coachS = StyleSheet.create({
+  heroCard: { padding: 18, borderRadius: v2.radius.xl, backgroundColor: v2.color.forestDeep, marginTop: 16, ...v2.shadow.md },
+  heroLabel: { color: v2.color.sage, fontSize: 10, fontWeight: "800", letterSpacing: 1, textTransform: "uppercase" },
+  heroValue: { color: "#fff", fontSize: 30, fontWeight: "800", marginTop: 4, letterSpacing: -1 },
+  heroPrev: { color: v2.color.sage, fontSize: 11, marginTop: 6 },
+  changeBadge: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, marginTop: 8 },
+  changeText: { fontSize: 11, fontWeight: "800" },
+
+  summary: { flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 12, marginTop: 12, borderRadius: v2.radius.md, backgroundColor: v2.color.mint, borderLeftWidth: 3, borderLeftColor: v2.color.forest },
+  summaryText: { flex: 1, color: v2.color.text, fontSize: 13, lineHeight: 18, fontWeight: "600" },
+
+  catRow: { padding: 12, marginTop: 8, borderRadius: v2.radius.md, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border },
+  catName: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
+  catVal: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
+  catBg: { height: 6, borderRadius: 3, backgroundColor: v2.color.divider, overflow: "hidden" },
+  catFill: { height: "100%", borderRadius: 3, backgroundColor: v2.color.forest },
+  catDelta: { fontSize: 10, fontWeight: "700", marginTop: 4 },
+
+  suggestion: { padding: 12, marginTop: 8, borderRadius: v2.radius.md, borderLeftWidth: 4 },
+  suggCat: { color: v2.color.text, fontSize: 13, fontWeight: "800" },
+  suggText: { color: v2.color.text, fontSize: 13, lineHeight: 18, marginTop: 2 },
+  suggAction: { fontSize: 11, fontWeight: "800", marginTop: 4 },
+  impactPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  impactText: { fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
 });

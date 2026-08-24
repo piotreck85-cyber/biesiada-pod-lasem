@@ -5411,6 +5411,125 @@ async def ai_chat_clear(user=Depends(require_admin), session_id: Optional[str] =
     return {"ok": True, "deleted": r.deleted_count}
 
 
+class AICostCoachIn(BaseModel):
+    year: Optional[int] = None
+    month: Optional[int] = None  # 1-12
+
+
+@api.post("/ai/cost-coach")
+async def ai_cost_coach(body: AICostCoachIn, user=Depends(require_admin)):
+    """Comiesięczna analiza kosztów: kategorie, zmiany m/m, sugestie cięć."""
+    key = _ai_get_key()
+    now = datetime.now(timezone.utc)
+    y = int(body.year or now.year)
+    m = int(body.month or now.month)
+    if not (1 <= m <= 12): raise HTTPException(400, "Nieprawidłowy miesiąc")
+
+    def month_range(yy: int, mm: int):
+        last = 31
+        if mm in (4, 6, 9, 11): last = 30
+        if mm == 2:
+            last = 29 if (yy % 4 == 0 and (yy % 100 != 0 or yy % 400 == 0)) else 28
+        return f"{yy:04d}-{mm:02d}-01", f"{yy:04d}-{mm:02d}-{last:02d}"
+
+    cur_from, cur_to = month_range(y, m)
+    py = y if m > 1 else y - 1
+    pm = m - 1 if m > 1 else 12
+    prev_from, prev_to = month_range(py, pm)
+
+    async def group_by_cat(df: str, dt: str):
+        pipe = [
+            {"$match": {"owner_id": ws(user), "date": {"$gte": df, "$lte": dt}}},
+            {"$group": {"_id": {"$ifNull": ["$category", "Inne"]}, "sum": {"$sum": "$amount"}, "n": {"$sum": 1}}},
+        ]
+        rows: Dict[str, dict] = {}
+        async for r in db.expenses.aggregate(pipe):
+            cat = str(r.get("_id") or "Inne")
+            rows[cat] = {"category": cat, "sum": float(r.get("sum") or 0), "count": int(r.get("n") or 0)}
+        return rows
+
+    cur_cats = await group_by_cat(cur_from, cur_to)
+    prev_cats = await group_by_cat(prev_from, prev_to)
+
+    cur_total = sum(x["sum"] for x in cur_cats.values())
+    prev_total = sum(x["sum"] for x in prev_cats.values())
+
+    # Merge into list with change %
+    all_cats = set(cur_cats.keys()) | set(prev_cats.keys())
+    breakdown = []
+    for c in all_cats:
+        cs = cur_cats.get(c, {"sum": 0.0, "count": 0})
+        ps = prev_cats.get(c, {"sum": 0.0, "count": 0})
+        change_pct = None
+        if ps["sum"] > 0:
+            change_pct = round(((cs["sum"] - ps["sum"]) / ps["sum"]) * 100)
+        breakdown.append({
+            "category": c,
+            "current": round(cs["sum"], 2),
+            "previous": round(ps["sum"], 2),
+            "change_pct": change_pct,
+            "count": cs["count"],
+        })
+    breakdown.sort(key=lambda x: -x["current"])
+
+    if cur_total == 0 and prev_total == 0:
+        return {
+            "period": f"{y:04d}-{m:02d}",
+            "current_total": 0,
+            "previous_total": 0,
+            "breakdown": [],
+            "summary": "Brak kosztów w analizowanym miesiącu — nie mam czego analizować.",
+            "suggestions": [],
+        }
+
+    # Kontekst dla LLM
+    ctx_lines = [f"Miesiąc analizowany: {y}-{m:02d}", f"Poprzedni miesiąc: {py}-{pm:02d}",
+                 f"Łączne koszty (bieżący): {cur_total:.0f} zł", f"Łączne koszty (poprzedni): {prev_total:.0f} zł",
+                 "", "KOSZTY PER KATEGORIA (bieżący vs poprzedni):"]
+    for b in breakdown[:15]:
+        cp = f", zmiana {b['change_pct']:+d}%" if b["change_pct"] is not None else ""
+        ctx_lines.append(f"- {b['category']}: {b['current']:.0f} zł (poprzednio {b['previous']:.0f} zł{cp}), {b['count']} dok.")
+
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Twoja rola: coach kosztów. Analizujesz koszty firmy cateringowej per kategoria "
+        "i wskazujesz KONKRETNE sugestie cięć. Format odpowiedzi to JSON: "
+        '{ "summary": "krótki opis w 1-2 zdaniach", '
+        '"suggestions": [ { "category": "...", "impact": "wysoki|średni|niski", "text": "...", "action": "..." } ] } '
+        "Zwróć 3-5 sugestii. Bez dodatkowego tekstu, tylko JSON. Sugestie muszą być konkretne "
+        '(np. "koszty napojów wzrosły o 40% — porównaj ceny u dwóch nowych dostawców") i realne '
+        '(bez ogólników typu "oszczędzaj więcej"). Skup się na kategoriach które WZROSŁY najbardziej '
+        "lub zajmują największą część budżetu."
+    )
+    session_id = f"cost-coach-{ws(user)}-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text="\n".join(ctx_lines)))
+    except Exception as e:
+        logging.exception("AI cost coach failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+
+    import re as _re3
+    text = str(raw or "").strip()
+    m2 = _re3.search(r"\{.*\}", text, _re3.DOTALL)
+    parsed: dict = {}
+    if m2:
+        try: parsed = _json.loads(m2.group(0))
+        except Exception: parsed = {}
+
+    return {
+        "period": f"{y:04d}-{m:02d}",
+        "current_total": round(cur_total, 2),
+        "previous_total": round(prev_total, 2),
+        "change_pct": round(((cur_total - prev_total) / prev_total) * 100) if prev_total > 0 else None,
+        "breakdown": breakdown[:10],
+        "summary": str(parsed.get("summary") or "").strip()[:300] or text[:300],
+        "suggestions": parsed.get("suggestions") if isinstance(parsed.get("suggestions"), list) else [],
+    }
+
+
 app.include_router(api)
 
 
