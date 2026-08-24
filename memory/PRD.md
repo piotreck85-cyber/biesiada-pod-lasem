@@ -85,3 +85,14 @@ Polish mobile app for event organizers to manage:
   - `POST /api/ai/detect-kind` — heurystyczna detekcja typu z briefu
   - `POST /api/ai/generate-summary` — AI podsumowanie szczegółów imprezy (dla mode="summary")
   - `POST /api/ai/send-offer-email` — wysyłka przez istniejący SMTP + załączniki
+
+### Etap 2 UI — Centrum Imprezy / Nowa Impreza V2.0 (Aug 2026)
+- **Ekran `event/[id].tsx`** (1713 linii) — pełny restyle do V2.0 BEZ zmian logiki:
+  - Nowy header dark forest green z brandingiem "CENTRUM IMPREZY" / "NOWA IMPREZA" + tytuł
+  - Wszystkie 160 odwołań `theme.color.*` zamienione na `v2.color.*`
+  - Karty sekcji w białym tle, forest-green akcenty
+  - Sekcja podsumowania (`.summary`) w dark forest green (kontrast)
+  - Sticky footer „Zapisz zmiany" w forest green
+- **Logika, endpointy, baza danych, funkcje — bez zmian** (0 zmian w handlers/state/effects)
+- Import `theme` zastąpiony przez `formatPLN, initials` + `v2` z designTokensV2
+- Fix routingu w kalendarz.tsx: `/event/new` → `/event/[id]` z `id: "new"` (spójne z resztą apki)

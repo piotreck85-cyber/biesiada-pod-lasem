@@ -9,7 +9,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { theme, formatPLN, initials } from "@/src/theme";
+import { formatPLN, initials } from "@/src/theme";
+import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
@@ -471,27 +472,30 @@ export default function EventDetail() {
   };
 
   if (loading) {
-    return <View style={[s.root, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator color={theme.color.brand} /></View>;
+    return <View style={[s.root, { justifyContent: "center", alignItems: "center" }]}><ActivityIndicator color={v2.color.forest} /></View>;
   }
 
   const availStaff = staffAll.filter(s => !shifts.some(sh => sh.staff_id === s.id));
 
   return (
     <View style={s.root} testID="event-detail-screen">
-      <View style={[s.header, { paddingTop: insets.top + 8 }]}>
+      <View style={[s.header, { paddingTop: insets.top + 12 }]}>
         <Pressable testID="event-back-btn" onPress={() => router.back()} hitSlop={12} style={s.backBtn}>
-          <Feather name="chevron-left" size={22} color={theme.color.onSurface} />
+          <Feather name="chevron-left" size={22} color="#fff" />
         </Pressable>
-        <Text style={s.headerTitle}>{isNew ? "Nowa impreza" : "Edytuj imprezę"}</Text>
+        <View style={{ flex: 1, alignItems: "center" }}>
+          <Text style={s.headerBrand}>{isNew ? "NOWA IMPREZA" : "CENTRUM IMPREZY"}</Text>
+          <Text style={s.headerTitle} numberOfLines={1}>{isNew ? "Utwórz nową" : (name || "Edytuj imprezę")}</Text>
+        </View>
         <View style={{ flexDirection: "row", gap: 4 }}>
           {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
-              <Feather name="mail" size={18} color={theme.color.brand} />
+              <Feather name="mail" size={18} color="#fff" />
             </Pressable>
           ) : null}
           {!isNew ? (
-            <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={s.backBtn}>
-              <Feather name="trash-2" size={18} color={theme.color.error} />
+            <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={[s.backBtn, { backgroundColor: "rgba(220,38,38,0.35)" }]}>
+              <Feather name="trash-2" size={18} color="#fff" />
             </Pressable>
           ) : <View style={{ width: 36 }} />}
         </View>
@@ -510,17 +514,17 @@ export default function EventDetail() {
                 />
                 <View style={s.imageEditRow}>
                   <View style={s.imageBadge}>
-                    <Feather name="camera" size={14} color={theme.color.onBrand} />
+                    <Feather name="camera" size={14} color={'#fff'} />
                     <Text style={s.imageBadgeText}>Zmień zdjęcie</Text>
                   </View>
                   <Pressable testID="event-image-remove" onPress={(e) => { e.stopPropagation?.(); setImageUrl(""); }} hitSlop={10} style={s.imageRemoveBtn}>
-                    <Feather name="x" size={16} color={theme.color.onSurface} />
+                    <Feather name="x" size={16} color={v2.color.text} />
                   </Pressable>
                 </View>
               </>
             ) : (
               <View style={s.imagePlaceholder}>
-                <Feather name="camera" size={28} color={theme.color.brand} />
+                <Feather name="camera" size={28} color={v2.color.forest} />
                 <Text style={s.imagePlaceholderText}>Dodaj zdjęcie imprezy</Text>
                 <Text style={s.imagePlaceholderSub}>Galeria lub aparat</Text>
               </View>
@@ -530,7 +534,7 @@ export default function EventDetail() {
           {/* Template chips - shown for new events */}
           {isNew && templates.length > 0 && (
             <Pressable testID="tpl-load-btn" onPress={() => setTplPickerOpen(true)} style={s.tplLoadBtn}>
-              <Feather name="copy" size={16} color={theme.color.brand} />
+              <Feather name="copy" size={16} color={v2.color.forest} />
               <Text style={s.tplLoadText}>Wczytaj z szablonu ({templates.length})</Text>
             </Pressable>
           )}
@@ -538,35 +542,35 @@ export default function EventDetail() {
           {/* Info */}
           <Section title="Informacje">
             <Field label="Nazwa">
-              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="Wesele Kowalscy" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="Wesele Kowalscy" placeholderTextColor={v2.color.textMuted} style={s.input} />
             </Field>
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
                 <Field label="Data (RRRR-MM-DD)">
-                  <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="2026-05-15" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} autoCapitalize="none" />
+                  <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="2026-05-15" placeholderTextColor={v2.color.textMuted} style={s.input} autoCapitalize="none" />
                 </Field>
               </View>
               <View style={{ flex: 1 }}>
                 <Field label="Godzina od">
-                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
                 </Field>
               </View>
               <View style={{ flex: 1 }}>
                 <Field label="Godzina do">
-                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
                 </Field>
               </View>
             </View>
             <Field label="Kategoria">
               <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-                <Text style={{ color: category ? theme.color.onSurface : theme.color.onSurfaceSecondary, fontSize: 15 }}>
+                <Text style={{ color: category ? v2.color.text : v2.color.textMuted, fontSize: 15 }}>
                   {category ? categoryLabel(category) : "Wybierz kategorię"}
                 </Text>
-                <Feather name="chevron-down" size={18} color={theme.color.onSurfaceSecondary} />
+                <Feather name="chevron-down" size={18} color={v2.color.textMuted} />
               </Pressable>
             </Field>
             <Field label="Notatki">
-              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={theme.color.onSurfaceSecondary} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
+              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
             </Field>
           </Section>
 
@@ -589,12 +593,12 @@ export default function EventDetail() {
                     style={{
                       flexDirection: "row", alignItems: "center", gap: 6,
                       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                      backgroundColor: active ? st.color : theme.color.surfaceTertiary,
-                      borderWidth: 1, borderColor: active ? st.color : theme.color.border,
+                      backgroundColor: active ? st.color : v2.color.cardMuted,
+                      borderWidth: 1, borderColor: active ? st.color : v2.color.border,
                     }}
                   >
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
-                    <Text style={{ color: active ? "#0A0A0A" : theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
+                    <Text style={{ color: active ? "#0A0A0A" : v2.color.text, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
                   </Pressable>
                 );
               })}
@@ -606,10 +610,10 @@ export default function EventDetail() {
                   value={validUntil}
                   onChangeText={setValidUntil}
                   placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  placeholderTextColor={v2.color.textMuted}
                   style={s.input}
                 />
-                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
                   💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
                 </Text>
               </Field>
@@ -620,39 +624,39 @@ export default function EventDetail() {
           <Section title="Klient">
             <Field label="Imię i nazwisko / nazwa firmy">
               <TextInput testID="client-name" value={clientName} onChangeText={setClientName}
-                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={theme.color.onSurfaceSecondary} style={s.input} />
+                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={v2.color.textMuted} style={s.input} />
             </Field>
             <Field label="Telefon">
               <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
                 <TextInput testID="client-phone" value={clientPhone} onChangeText={setClientPhone}
-                  placeholder="+48 123 456 789" placeholderTextColor={theme.color.onSurfaceSecondary}
+                  placeholder="+48 123 456 789" placeholderTextColor={v2.color.textMuted}
                   keyboardType="phone-pad" style={[s.input, { flex: 1 }]} />
                 <Pressable
                   testID="client-call"
                   disabled={!clientPhone.trim()}
                   onPress={() => Linking.openURL(`tel:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? theme.color.brand : theme.color.surfaceTertiary }}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
                 >
-                  <Feather name="phone" size={18} color={clientPhone.trim() ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                  <Feather name="phone" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
                 </Pressable>
                 <Pressable
                   testID="client-sms"
                   disabled={!clientPhone.trim()}
                   onPress={() => Linking.openURL(`sms:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? theme.color.brand : theme.color.surfaceTertiary }}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
                 >
-                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? theme.color.onBrand : theme.color.onSurfaceSecondary} />
+                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
                 </Pressable>
               </View>
             </Field>
             <Field label="E-mail">
               <TextInput testID="client-email" value={clientEmail} onChangeText={setClientEmail}
-                placeholder="klient@example.com" placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
                 keyboardType="email-address" autoCapitalize="none" style={s.input} />
             </Field>
             <Field label="Notatki o kliencie">
               <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
-                placeholder="Preferencje, historia współpracy..." placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholder="Preferencje, historia współpracy..." placeholderTextColor={v2.color.textMuted}
                 style={[s.input, { height: 60, textAlignVertical: "top" }]} multiline />
             </Field>
           </Section>
@@ -662,75 +666,75 @@ export default function EventDetail() {
             {/* Auto forecast — Przewidywane rozliczenie */}
             <View style={{
               marginBottom: 14, padding: 14, borderRadius: 14,
-              borderWidth: 1, borderColor: theme.color.brand + "55",
-              backgroundColor: theme.color.brand + "0A",
+              borderWidth: 1, borderColor: v2.color.forest + "55",
+              backgroundColor: v2.color.forest + "0A",
             }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Feather name="target" size={13} color={theme.color.brand} />
-                <Text style={{ color: theme.color.brand, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
+                <Feather name="target" size={13} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
                   PRZEWIDYWANE ROZLICZENIE
                 </Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Wartość / rezerwacja</Text>
-                <Text style={{ color: theme.color.success, fontSize: 12, fontWeight: "700" }}>
+                <Text style={{ color: v2.color.text, fontSize: 12 }}>Wartość / rezerwacja</Text>
+                <Text style={{ color: v2.color.success, fontSize: 12, fontWeight: "700" }}>
                   +{discountedValue.toFixed(0)} zł
                 </Text>
               </View>
               {cateringCost > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Koszt cateringu (auto)</Text>
-                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Koszt cateringu (auto)</Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
                     −{cateringCost.toFixed(0)} zł
                   </Text>
                 </View>
               )}
               {grillCost > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
                     Koszt grilla ({grillCostPerPerson} zł × {peopleNum || 0})
                   </Text>
-                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
                     −{grillCost.toFixed(0)} zł
                   </Text>
                 </View>
               )}
               {beveragesCost > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
                     Napoje (8 zł × {peopleNum || 0})
                   </Text>
-                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
                     −{beveragesCost.toFixed(0)} zł
                   </Text>
                 </View>
               )}
               {otherPlannedCosts > 0 && (
                 <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: theme.color.onSurface, fontSize: 12 }}>Pozostałe koszty</Text>
-                  <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "700" }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Pozostałe koszty</Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
                     −{otherPlannedCosts.toFixed(0)} zł
                   </Text>
                 </View>
               )}
-              <View style={{ height: 1, backgroundColor: theme.color.brand + "44", marginVertical: 6 }} />
+              <View style={{ height: 1, backgroundColor: v2.color.forest + "44", marginVertical: 6 }} />
               <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
-                <Text style={{ color: theme.color.error, fontSize: 13, fontWeight: "800" }}>
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
+                <Text style={{ color: v2.color.error, fontSize: 13, fontWeight: "800" }}>
                   −{totalPlannedCost.toFixed(0)} zł
                 </Text>
               </View>
               <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: theme.color.onSurface, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
+                <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
                 <Text style={{
-                  color: plannedProfit >= 0 ? theme.color.brand : theme.color.error,
+                  color: plannedProfit >= 0 ? v2.color.forest : v2.color.error,
                   fontSize: 18, fontWeight: "800",
                 }}>
                   {plannedProfit >= 0 ? "+" : ""}{plannedProfit.toFixed(0)} zł
                 </Text>
               </View>
               {discountedValue > 0 && (
-                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 4 }}>
+                <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 4 }}>
                   Marża: {((plannedProfit / discountedValue) * 100).toFixed(1)}%
                 </Text>
               )}
@@ -739,14 +743,14 @@ export default function EventDetail() {
               <View style={{ flex: 2 }}>
                 <Field label="Całkowita cena imprezy">
                   <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
-                    placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholder="0" placeholderTextColor={v2.color.textMuted}
                     keyboardType="decimal-pad" style={s.input} />
                 </Field>
               </View>
               <View style={{ flex: 1 }}>
                 <Field label="Rabat %">
                   <TextInput testID="discount-pct" value={discountPct} onChangeText={setDiscountPct}
-                    placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholder="0" placeholderTextColor={v2.color.textMuted}
                     keyboardType="decimal-pad" style={s.input} />
                 </Field>
               </View>
@@ -758,12 +762,12 @@ export default function EventDetail() {
                 const discAmt = total * (disc / 100);
                 const afterDisc = total - discAmt;
                 return (
-                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: theme.color.brand + "10", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: v2.color.forest + "10", borderWidth: 1, borderColor: v2.color.forest + "44" }}>
                     <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                      <Text style={{ fontSize: 11, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5 }}>
+                      <Text style={{ fontSize: 11, color: v2.color.textMuted, letterSpacing: 0.5 }}>
                         RABAT −{disc.toFixed(0)}% ({discAmt.toFixed(2)} zł)
                       </Text>
-                      <Text style={{ fontSize: 16, fontWeight: "800", color: theme.color.brand }}>
+                      <Text style={{ fontSize: 16, fontWeight: "800", color: v2.color.forest }}>
                         {afterDisc.toFixed(2)} zł
                       </Text>
                     </View>
@@ -782,11 +786,11 @@ export default function EventDetail() {
                     onPress={() => setDepositPaid(o.v)}
                     style={{
                       flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-                      backgroundColor: active ? (o.v ? theme.color.success : theme.color.surfaceTertiary) : theme.color.surfaceTertiary,
-                      borderWidth: 1, borderColor: active ? (o.v ? theme.color.success : theme.color.borderStrong) : theme.color.border,
+                      backgroundColor: active ? (o.v ? v2.color.success : v2.color.cardMuted) : v2.color.cardMuted,
+                      borderWidth: 1, borderColor: active ? (o.v ? v2.color.success : v2.color.borderStrong) : v2.color.border,
                     }}
                   >
-                    <Text style={{ color: active && o.v ? "#022C22" : theme.color.onSurface, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
+                    <Text style={{ color: active && o.v ? "#022C22" : v2.color.text, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
                   </Pressable>
                 );
               })}
@@ -796,14 +800,14 @@ export default function EventDetail() {
                 <View style={{ flex: 1 }}>
                   <Field label="Kwota zaliczki">
                     <TextInput testID="deposit-amount" value={depositAmount} onChangeText={setDepositAmount}
-                      placeholder="0" placeholderTextColor={theme.color.onSurfaceSecondary}
+                      placeholder="0" placeholderTextColor={v2.color.textMuted}
                       keyboardType="decimal-pad" style={s.input} />
                   </Field>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Field label="Data wpłaty">
                     <TextInput testID="deposit-date" value={depositDate} onChangeText={setDepositDate}
-                      placeholder="YYYY-MM-DD" placeholderTextColor={theme.color.onSurfaceSecondary}
+                      placeholder="YYYY-MM-DD" placeholderTextColor={v2.color.textMuted}
                       style={s.input} />
                   </Field>
                 </View>
@@ -812,10 +816,10 @@ export default function EventDetail() {
             {parseAmt(priceTotal) > 0 && (
               <View style={{
                 marginTop: 14, padding: 14, borderRadius: 12,
-                backgroundColor: theme.color.surfaceTertiary,
-                borderWidth: 1, borderColor: theme.color.brand,
+                backgroundColor: v2.color.cardMuted,
+                borderWidth: 1, borderColor: v2.color.forest,
               }}>
-                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
                 {(() => {
                   const total = parseAmt(priceTotal);
                   const disc = parseAmt(discountPct);
@@ -823,7 +827,7 @@ export default function EventDetail() {
                   const remaining = afterDisc - (depositPaid ? parseAmt(depositAmount) : 0);
                   return (
                     <Text style={{
-                      color: remaining > 0 ? theme.color.brand : theme.color.success,
+                      color: remaining > 0 ? v2.color.forest : v2.color.success,
                       fontSize: 24, fontWeight: "800", marginTop: 4,
                     }}>
                       {remaining.toFixed(2)} zł
@@ -838,7 +842,7 @@ export default function EventDetail() {
           {!isNew && (
             <Section title="Wpłaty klienta">
               <EventPayments eventId={String(id)} priceTotalOverride={parseAmt(priceTotal)} />
-              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
+              <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
                 💡 Pole „Zaliczka wpłacona" powyżej pozostaje na razie dla kompatybilności — nowe wpłaty rejestruj tutaj.
               </Text>
             </Section>
@@ -861,57 +865,57 @@ export default function EventDetail() {
               style={{
                 flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                 paddingVertical: 12, borderRadius: 10,
-                backgroundColor: theme.color.surfaceTertiary, borderWidth: 1, borderColor: theme.color.brand,
+                backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.forest,
               }}
             >
               {weatherLoading ? (
-                <ActivityIndicator color={theme.color.brand} size="small" />
+                <ActivityIndicator color={v2.color.forest} size="small" />
               ) : (
                 <>
-                  <Feather name="cloud" size={16} color={theme.color.brand} />
-                  <Text style={{ color: theme.color.brand, fontWeight: "700", fontSize: 13 }}>
+                  <Feather name="cloud" size={16} color={v2.color.forest} />
+                  <Text style={{ color: v2.color.forest, fontWeight: "700", fontSize: 13 }}>
                     {weather ? "Odśwież prognozę" : "Sprawdź prognozę pogody"}
                   </Text>
                 </>
               )}
             </Pressable>
             {weather && !weather.available && (
-              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
+              <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
                 {weather.message || "Prognoza niedostępna"}
               </Text>
             )}
             {weather && weather.available && (
-              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: theme.color.surfaceTertiary, borderWidth: 1, borderColor: theme.color.border }}>
+              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Feather name={weather.icon || "cloud"} size={40} color={theme.color.brand} />
+                  <Feather name={weather.icon || "cloud"} size={40} color={v2.color.forest} />
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "800" }}>
+                    <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "800" }}>
                       {weather.temp_min !== null ? `${weather.temp_min}°` : "—"}
                       {" – "}
                       {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
                     </Text>
-                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 }}>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>
                       {weather.description}  ·  {weather.time_window}
                     </Text>
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
                   <View>
-                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
-                    <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
                   </View>
                   <View>
-                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
-                    <Text style={{ color: theme.color.onSurface, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
                   </View>
                   <View>
-                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
-                    <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
                   </View>
                 </View>
                 {weather.warning && (
-                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: theme.color.warning }}>
-                    <Text style={{ color: theme.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
+                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: v2.color.warning }}>
+                    <Text style={{ color: v2.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
                   </View>
                 )}
               </View>
@@ -928,7 +932,7 @@ export default function EventDetail() {
                     value={people}
                     onChangeText={(v) => { setPeople(v); setAutoPrice(true); }}
                     placeholder="np. 25"
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholderTextColor={v2.color.textMuted}
                     keyboardType="number-pad"
                     style={s.input}
                   />
@@ -941,7 +945,7 @@ export default function EventDetail() {
                     value={revenue}
                     onChangeText={(v) => { setRevenue(v); setAutoPrice(false); }}
                     placeholder="0"
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholderTextColor={v2.color.textMuted}
                     keyboardType="decimal-pad"
                     style={s.input}
                   />
@@ -959,8 +963,8 @@ export default function EventDetail() {
                       onPress={() => { setPackageSet(sel ? "" : zs.id); setAutoPrice(true); }}
                       style={[s.zestawBtn, sel && s.zestawBtnActive]}
                     >
-                      <Text style={[s.zestawName, sel && { color: theme.color.onBrand }]}>{zs.name}</Text>
-                      <Text style={[s.zestawPrice, sel && { color: theme.color.onBrand }]}>{zs.price_per_person} zł/os.</Text>
+                      <Text style={[s.zestawName, sel && { color: '#fff' }]}>{zs.name}</Text>
+                      <Text style={[s.zestawPrice, sel && { color: '#fff' }]}>{zs.price_per_person} zł/os.</Text>
                     </Pressable>
                   );
                 })}
@@ -1023,7 +1027,7 @@ export default function EventDetail() {
                       setAutoPrice(true);
                     }}
                     placeholder="0"
-                    placeholderTextColor={theme.color.onSurfaceSecondary}
+                    placeholderTextColor={v2.color.textMuted}
                     keyboardType="decimal-pad"
                     style={s.extraQtyInput}
                   />
@@ -1040,17 +1044,17 @@ export default function EventDetail() {
 
             {/* Oferta obiadowa — quick picker with auto-margin */}
             <View style={{ marginTop: 20, marginBottom: 6, flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Feather name="coffee" size={14} color={theme.color.brand} />
+              <Feather name="coffee" size={14} color={v2.color.forest} />
               <Text style={[s.label, { marginTop: 0 }]}>Oferta obiadowa (opcjonalnie)</Text>
             </View>
-            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 8 }}>
+            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8 }}>
               Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
             </Text>
             {DINNER_SECTIONS.map(sec => {
               const items = DINNER_MENU.filter(m => m.section === sec.id);
               return (
                 <View key={sec.id} style={{ marginBottom: 8 }}>
-                  <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" }}>{sec.title}</Text>
+                  <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" }}>{sec.title}</Text>
                   {items.map(it => {
                     const q = dinnerQty[it.id] || 0;
                     const price = discountedPrice(it.base_price);
@@ -1058,8 +1062,8 @@ export default function EventDetail() {
                     return (
                       <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 8 }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, color: theme.color.onSurface }}>{it.name}</Text>
-                          <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary }}>{price} zł / {it.unit}</Text>
+                          <Text style={{ fontSize: 13, color: v2.color.text }}>{it.name}</Text>
+                          <Text style={{ fontSize: 10, color: v2.color.textMuted }}>{price} zł / {it.unit}</Text>
                         </View>
                         <TextInput
                           testID={`dinner-qty-${it.id}`}
@@ -1070,11 +1074,11 @@ export default function EventDetail() {
                             setAutoPrice(true);
                           }}
                           placeholder="0"
-                          placeholderTextColor={theme.color.onSurfaceSecondary}
+                          placeholderTextColor={v2.color.textMuted}
                           keyboardType="decimal-pad"
                           style={s.extraQtyInput}
                         />
-                        <Text style={{ minWidth: 60, textAlign: "right", fontWeight: "700", color: line ? theme.color.brand : theme.color.onSurfaceSecondary, fontSize: 12 }}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
+                        <Text style={{ minWidth: 60, textAlign: "right", fontWeight: "700", color: line ? v2.color.forest : v2.color.textMuted, fontSize: 12 }}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
                       </View>
                     );
                   })}
@@ -1082,10 +1086,10 @@ export default function EventDetail() {
               );
             })}
             {dinnerRevenue > 0 && (
-              <View style={{ marginTop: 12, backgroundColor: theme.color.brand + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: theme.color.brand + "44" }}>
+              <View style={{ marginTop: 12, backgroundColor: v2.color.forest + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: v2.color.forest + "44" }}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                  <Text style={{ color: theme.color.onSurface, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
-                  <Text style={{ color: theme.color.brand, fontSize: 16, fontWeight: "800" }}>{dinnerRevenue.toFixed(0)} zł</Text>
+                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
+                  <Text style={{ color: v2.color.forest, fontSize: 16, fontWeight: "800" }}>{dinnerRevenue.toFixed(0)} zł</Text>
                 </View>
                 <Text style={[s.label, { marginTop: 8 }]}>Koszt zakupu (opcjonalne nadpisanie — puste = auto)</Text>
                 <TextInput
@@ -1093,20 +1097,20 @@ export default function EventDetail() {
                   value={dinnerCost}
                   onChangeText={setDinnerCost}
                   placeholder={`Auto: ${dinnerAutoCostVal.toFixed(2)} zł`}
-                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  placeholderTextColor={v2.color.textMuted}
                   keyboardType="decimal-pad"
                   style={s.input}
                 />
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <View style={{ flex: 1, backgroundColor: theme.color.surface, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.divider }}>
-                    <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5, textTransform: "uppercase" }}>Zysk</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerProfit >= 0 ? theme.color.brand : theme.color.error }}>
+                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
+                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Zysk</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerProfit >= 0 ? v2.color.forest : v2.color.error }}>
                       {dinnerProfit.toFixed(0)} zł
                     </Text>
                   </View>
-                  <View style={{ flex: 1, backgroundColor: theme.color.surface, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.divider }}>
-                    <Text style={{ fontSize: 10, color: theme.color.onSurfaceSecondary, letterSpacing: 0.5, textTransform: "uppercase" }}>Marża</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerMargin >= 0 ? theme.color.brand : theme.color.error }}>
+                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
+                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Marża</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerMargin >= 0 ? v2.color.forest : v2.color.error }}>
                       {dinnerMargin.toFixed(1)}%
                     </Text>
                   </View>
@@ -1115,9 +1119,9 @@ export default function EventDetail() {
             )}
             {/* Wyślij do cateringu (Yubari) */}
             {Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
-              <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: theme.color.brand + "18", borderWidth: 1, borderColor: theme.color.brand }}>
-                <Feather name="send" size={16} color={theme.color.brand} />
-                <Text style={{ color: theme.color.brand, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
+              <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest + "18", borderWidth: 1, borderColor: v2.color.forest }}>
+                <Feather name="send" size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
               </Pressable>
             ) : null}
             {costs.map((c, i) => (
@@ -1127,7 +1131,7 @@ export default function EventDetail() {
                   value={c.label}
                   onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, label: v } : x))}
                   placeholder="np. Catering"
-                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  placeholderTextColor={v2.color.textMuted}
                   style={[s.input, { flex: 2 }]}
                 />
                 <TextInput
@@ -1135,17 +1139,17 @@ export default function EventDetail() {
                   value={String(c.amount || "")}
                   onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, amount: parseAmt(v) } : x))}
                   placeholder="0"
-                  placeholderTextColor={theme.color.onSurfaceSecondary}
+                  placeholderTextColor={v2.color.textMuted}
                   keyboardType="decimal-pad"
                   style={[s.input, { flex: 1 }]}
                 />
                 <Pressable testID={`cost-del-${i}`} onPress={() => setCosts(costs.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                  <Feather name="x" size={16} color={theme.color.onSurfaceSecondary} />
+                  <Feather name="x" size={16} color={v2.color.textMuted} />
                 </Pressable>
               </View>
             ))}
             <Pressable testID="cost-add-btn" onPress={() => setCosts([...costs, { label: "", amount: 0 }])} style={s.addRow}>
-              <Feather name="plus" size={16} color={theme.color.brand} />
+              <Feather name="plus" size={16} color={v2.color.forest} />
               <Text style={s.addRowText}>Dodaj koszt</Text>
             </Pressable>
           </Section>
@@ -1165,7 +1169,7 @@ export default function EventDetail() {
                     </View>
                     <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
                     <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                      <Feather name="x" size={16} color={theme.color.onSurfaceSecondary} />
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
                     </Pressable>
                   </View>
                   <View style={s.shiftTimeRow}>
@@ -1181,7 +1185,7 @@ export default function EventDetail() {
                           return { ...next, hours: h || x.hours };
                         }))}
                         placeholder="18:00"
-                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        placeholderTextColor={v2.color.textMuted}
                         style={s.timeInput}
                       />
                     </View>
@@ -1197,7 +1201,7 @@ export default function EventDetail() {
                           return { ...next, hours: h || x.hours };
                         }))}
                         placeholder="22:00"
-                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        placeholderTextColor={v2.color.textMuted}
                         style={s.timeInput}
                       />
                     </View>
@@ -1208,7 +1212,7 @@ export default function EventDetail() {
                         value={String(sh.hours || "")}
                         onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
                         placeholder="4"
-                        placeholderTextColor={theme.color.onSurfaceSecondary}
+                        placeholderTextColor={v2.color.textMuted}
                         keyboardType="decimal-pad"
                         style={s.timeInput}
                       />
@@ -1219,7 +1223,7 @@ export default function EventDetail() {
             })}
             {availStaff.length > 0 ? (
               <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
-                <Feather name="plus" size={16} color={theme.color.brand} />
+                <Feather name="plus" size={16} color={v2.color.forest} />
                 <Text style={s.addRowText}>Dodaj pracownika</Text>
               </Pressable>
             ) : staffAll.length === 0 ? (
@@ -1235,13 +1239,13 @@ export default function EventDetail() {
               testID="event-checklist-link"
             >
               <View style={s.checklistIconBox}>
-                <Feather name="check-square" size={20} color={theme.color.brand} />
+                <Feather name="check-square" size={20} color={v2.color.forest} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={s.checklistLabel}>Zadania imprezy</Text>
                 <Text style={s.checklistSub}>Checklista przygotowań · widoczna dla pracowników</Text>
               </View>
-              <Feather name="chevron-right" size={20} color={theme.color.onSurfaceSecondary} />
+              <Feather name="chevron-right" size={20} color={v2.color.textMuted} />
             </Pressable>
           )}
 
@@ -1255,7 +1259,7 @@ export default function EventDetail() {
           </View>
 
           <Pressable testID="save-as-template-btn" onPress={saveAsTemplate} disabled={!name.trim()} style={[s.tplSaveBtn, !name.trim() && { opacity: 0.5 }]}>
-            <Feather name="bookmark" size={16} color={theme.color.brand} />
+            <Feather name="bookmark" size={16} color={v2.color.forest} />
             <Text style={s.tplLoadText}>Zapisz jako szablon</Text>
           </Pressable>
         </ScrollView>
@@ -1263,7 +1267,7 @@ export default function EventDetail() {
 
       <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
         <Pressable testID="event-save-btn" onPress={save} disabled={saving || !name.trim() || !date} style={[s.saveBtn, (saving || !name.trim() || !date) && { opacity: 0.5 }]}>
-          {saving ? <ActivityIndicator color={theme.color.onBrand} /> : <Text style={s.saveBtnText}>{isNew ? "Utwórz imprezę" : "Zapisz zmiany"}</Text>}
+          {saving ? <ActivityIndicator color={'#fff'} /> : <Text style={s.saveBtnText}>{isNew ? "Utwórz imprezę" : "Zapisz zmiany"}</Text>}
         </Pressable>
       </View>
 
@@ -1280,7 +1284,7 @@ export default function EventDetail() {
                   <Text style={s.shiftName}>{st.name}</Text>
                   <Text style={s.shiftRate}>{st.role || "—"}  ·  {formatPLN(st.hourly_rate)}/godz.</Text>
                 </View>
-                <Feather name="plus" size={18} color={theme.color.brand} />
+                <Feather name="plus" size={18} color={v2.color.forest} />
               </Pressable>
             ))}
           </ScrollView>
@@ -1296,14 +1300,14 @@ export default function EventDetail() {
             {templates.map(tpl => (
               <View key={tpl.id} style={s.pickerRow}>
                 <Pressable testID={`tpl-apply-${tpl.id}`} style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 10 }} onPress={() => applyTemplate(tpl)}>
-                  <View style={s.avatar}><Feather name="bookmark" size={16} color={theme.color.onBrandTertiary} /></View>
+                  <View style={s.avatar}><Feather name="bookmark" size={16} color={v2.color.forest} /></View>
                   <View style={{ flex: 1 }}>
                     <Text style={s.shiftName}>{tpl.name}</Text>
                     <Text style={s.shiftRate}>{tpl.venue || "—"}  ·  {formatPLN(tpl.revenue || 0)}</Text>
                   </View>
                 </Pressable>
                 <Pressable testID={`tpl-del-${tpl.id}`} onPress={() => deleteTemplate(tpl.id)} hitSlop={10} style={{ padding: 6 }}>
-                  <Feather name="trash-2" size={16} color={theme.color.onSurfaceSecondary} />
+                  <Feather name="trash-2" size={16} color={v2.color.textMuted} />
                 </Pressable>
               </View>
             ))}
@@ -1318,9 +1322,9 @@ export default function EventDetail() {
           <Text style={s.sheetTitle}>Kategoria imprezy</Text>
           <ScrollView>
             <Pressable testID="cat-clear" style={s.pickerRow} onPress={() => { setCategory(""); setCatPickerOpen(false); }}>
-              <View style={s.avatar}><Feather name="x" size={16} color={theme.color.onBrandTertiary} /></View>
+              <View style={s.avatar}><Feather name="x" size={16} color={v2.color.forest} /></View>
               <Text style={[s.shiftName, { flex: 1 }]}>Bez kategorii</Text>
-              {!category && <Feather name="check" size={18} color={theme.color.brand} />}
+              {!category && <Feather name="check" size={18} color={v2.color.forest} />}
             </Pressable>
             {CATEGORY_GROUPS.map(g => (
               <View key={g.key} style={{ marginTop: 10 }}>
@@ -1334,9 +1338,9 @@ export default function EventDetail() {
                       style={[s.pickerRow, sel && { backgroundColor: "rgba(212,175,55,0.08)" }]}
                       onPress={() => { setCategory(it.id); setCatPickerOpen(false); }}
                     >
-                      <View style={s.avatar}><Feather name="tag" size={14} color={theme.color.onBrandTertiary} /></View>
+                      <View style={s.avatar}><Feather name="tag" size={14} color={v2.color.forest} /></View>
                       <Text style={[s.shiftName, { flex: 1 }]}>{it.label}</Text>
-                      {sel && <Feather name="check" size={18} color={theme.color.brand} />}
+                      {sel && <Feather name="check" size={18} color={v2.color.forest} />}
                     </Pressable>
                   );
                 })}
@@ -1350,13 +1354,13 @@ export default function EventDetail() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setOfferOpen(false)} />
           <View style={{
-            backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            backgroundColor: v2.color.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
             paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 20,
-            borderWidth: 1, borderColor: theme.color.border, maxHeight: "85%",
+            borderWidth: 1, borderColor: v2.color.border, maxHeight: "85%",
           }}>
-            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 }} />
-            <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>Wyślij ofertę klientowi</Text>
-            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 }} />
+            <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "700", marginBottom: 6 }}>Wyślij ofertę klientowi</Text>
+            <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 12 }}>
               Dane imprezy wypełnią PDF automatycznie: {date}
               {peopleNum ? ` · ${peopleNum} os.` : ""}
               {packageSet ? ` · ${findAdultSet(packageSet)?.name || packageSet}` : ""}
@@ -1368,7 +1372,7 @@ export default function EventDetail() {
                 value={offerTo}
                 onChangeText={setOfferTo}
                 placeholder="klient@przyklad.pl"
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 style={s.input}
                 autoCapitalize="none"
                 keyboardType="email-address"
@@ -1379,7 +1383,7 @@ export default function EventDetail() {
                 value={offerClient}
                 onChangeText={setOfferClient}
                 placeholder="Jan Kowalski"
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 style={s.input}
               />
               <Text style={[s.label, { marginTop: 12 }]}>Powitanie (opcjonalnie)</Text>
@@ -1387,7 +1391,7 @@ export default function EventDetail() {
                 value={offerGreeting}
                 onChangeText={setOfferGreeting}
                 placeholder={"Domyślnie: „Dzień dobry " + (offerClient || "Panie/Pani") + ",”\n\nMożesz np. wpisać:\nCześć Aniu, dzięki za spotkanie — poniżej oferta o której mówiliśmy."}
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 style={[s.input, { minHeight: 70, textAlignVertical: "top" }]}
                 multiline
               />
@@ -1397,7 +1401,7 @@ export default function EventDetail() {
                 value={offerNote}
                 onChangeText={setOfferNote}
                 placeholder="Dodatkowe informacje..."
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 style={[s.input, { minHeight: 80, textAlignVertical: "top" }]}
                 multiline
               />
@@ -1405,18 +1409,18 @@ export default function EventDetail() {
                 onPress={previewOfferPdf}
                 disabled={offerPreviewing}
                 style={{
-                  marginTop: 12, borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: theme.color.brand,
-                  backgroundColor: theme.color.brand + "12",
+                  marginTop: 12, borderRadius: 12, paddingVertical: 13, borderWidth: 1, borderColor: v2.color.forest,
+                  backgroundColor: v2.color.forest + "12",
                   flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                   opacity: offerPreviewing ? 0.5 : 1,
                 }}
               >
                 {offerPreviewing ? (
-                  <ActivityIndicator color={theme.color.brand} />
+                  <ActivityIndicator color={v2.color.forest} />
                 ) : (
                   <>
-                    <Feather name="eye" size={16} color={theme.color.brand} />
-                    <Text style={{ color: theme.color.brand, fontWeight: "800", fontSize: 14 }}>Zobacz podgląd PDF</Text>
+                    <Feather name="eye" size={16} color={v2.color.forest} />
+                    <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 14 }}>Zobacz podgląd PDF</Text>
                   </>
                 )}
               </Pressable>
@@ -1425,21 +1429,21 @@ export default function EventDetail() {
                 onPress={sendOfferForEvent}
                 disabled={offerSending || !offerTo.trim()}
                 style={{
-                  marginTop: 10, backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15,
+                  marginTop: 10, backgroundColor: v2.color.forest, borderRadius: 12, paddingVertical: 15,
                   flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
                   opacity: (offerSending || !offerTo.trim()) ? 0.5 : 1,
                 }}
               >
                 {offerSending ? (
-                  <ActivityIndicator color={theme.color.onBrand} />
+                  <ActivityIndicator color={'#fff'} />
                 ) : (
                   <>
-                    <Feather name="send" size={16} color={theme.color.onBrand} />
-                    <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 15 }}>Wyślij ofertę PDF</Text>
+                    <Feather name="send" size={16} color={'#fff'} />
+                    <Text style={{ color: '#fff', fontWeight: "800", fontSize: 15 }}>Wyślij ofertę PDF</Text>
                   </>
                 )}
               </Pressable>
-              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
+              <Text style={{ color: v2.color.textMuted, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
                 Wysyłamy z: biesiadapodlasem@gmail.com
               </Text>
             </ScrollView>
@@ -1452,13 +1456,13 @@ export default function EventDetail() {
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
           <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)" }} onPress={() => setCateringOpen(false)} />
           <View style={{
-            backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            backgroundColor: v2.color.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
             paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 20,
-            borderWidth: 1, borderColor: theme.color.border, maxHeight: "85%",
+            borderWidth: 1, borderColor: v2.color.border, maxHeight: "85%",
           }}>
-            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 }} />
-            <Text style={{ color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 4 }}>Zamówienie do cateringu</Text>
-            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 12, marginBottom: 12 }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 }} />
+            <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "700", marginBottom: 4 }}>Zamówienie do cateringu</Text>
+            <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 12 }}>
               Impreza: <Text style={{ fontWeight: "700" }}>{name || "?"}</Text>
               {date ? ` · ${date}` : ""}
               {timeStart ? ` · godz. ${timeStart}` : ""}
@@ -1470,7 +1474,7 @@ export default function EventDetail() {
                 value={cateringTo}
                 onChangeText={setCateringTo}
                 placeholder="yubari.restauracja@gmail.com"
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 style={s.input}
@@ -1480,7 +1484,7 @@ export default function EventDetail() {
                 value={cateringPickup}
                 onChangeText={setCateringPickup}
                 placeholder="np. 14:30"
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 style={s.input}
               />
               <Text style={[s.label, { marginTop: 10 }]}>Wstęp (powitanie)</Text>
@@ -1488,7 +1492,7 @@ export default function EventDetail() {
                 value={cateringGreeting}
                 onChangeText={setCateringGreeting}
                 placeholder="Cześć Lorena, poniżej wysyłam zamówienie."
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 multiline
                 numberOfLines={2}
                 style={[s.input, { minHeight: 50 }]}
@@ -1498,22 +1502,22 @@ export default function EventDetail() {
                 value={cateringNotes}
                 onChangeText={setCateringNotes}
                 placeholder="np. alergie, preferencje"
-                placeholderTextColor={theme.color.onSurfaceSecondary}
+                placeholderTextColor={v2.color.textMuted}
                 multiline
                 numberOfLines={3}
                 style={[s.input, { minHeight: 60 }]}
               />
               {/* Podgląd zawartości zamówienia */}
-              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: theme.color.surface, borderWidth: 1, borderColor: theme.color.divider }}>
-                <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", fontWeight: "700", marginBottom: 6 }}>Zamawiam:</Text>
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: v2.color.bg, borderWidth: 1, borderColor: v2.color.divider }}>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, letterSpacing: 1, textTransform: "uppercase", fontWeight: "700", marginBottom: 6 }}>Zamawiam:</Text>
                 {DINNER_SECTIONS.map(sec => {
                   const items = DINNER_MENU.filter(m => m.section === sec.id && (dinnerQty[m.id] || 0) > 0);
                   if (items.length === 0) return null;
                   return (
                     <View key={sec.id} style={{ marginBottom: 6 }}>
-                      <Text style={{ color: theme.color.brand, fontSize: 11, fontWeight: "700", marginBottom: 2 }}>{sec.title}</Text>
+                      <Text style={{ color: v2.color.forest, fontSize: 11, fontWeight: "700", marginBottom: 2 }}>{sec.title}</Text>
                       {items.map(it => (
-                        <Text key={it.id} style={{ color: theme.color.onSurface, fontSize: 12, marginLeft: 6 }}>• {it.name} — {dinnerQty[it.id]} porcji</Text>
+                        <Text key={it.id} style={{ color: v2.color.text, fontSize: 12, marginLeft: 6 }}>• {it.name} — {dinnerQty[it.id]} porcji</Text>
                       ))}
                     </View>
                   );
@@ -1523,18 +1527,18 @@ export default function EventDetail() {
                 onPress={sendCateringForEvent}
                 disabled={cateringSending}
                 style={{
-                  marginTop: 14, borderRadius: 14, backgroundColor: theme.color.brand,
+                  marginTop: 14, borderRadius: 14, backgroundColor: v2.color.forest,
                   paddingVertical: 14, alignItems: "center", justifyContent: "center",
                   opacity: cateringSending ? 0.5 : 1,
                 }}
               >
                 {cateringSending ? (
-                  <ActivityIndicator color={theme.color.onBrand} />
+                  <ActivityIndicator color={'#fff'} />
                 ) : (
-                  <Text style={{ color: theme.color.onBrand, fontWeight: "800", fontSize: 15 }}>Wyślij zamówienie</Text>
+                  <Text style={{ color: '#fff', fontWeight: "800", fontSize: 15 }}>Wyślij zamówienie</Text>
                 )}
               </Pressable>
-              <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
+              <Text style={{ color: v2.color.textMuted, fontSize: 11, textAlign: "center", marginTop: 10, fontStyle: "italic" }}>
                 Wysyłamy z: biesiadapodlasem@gmail.com
               </Text>
             </ScrollView>
@@ -1563,151 +1567,153 @@ function Field({ label, children }: any) {
 }
 function SummaryRow({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
   const isProfit = bold;
-  const color = isProfit ? (value >= 0 ? theme.color.brand : theme.color.error) : (value < 0 ? theme.color.error : theme.color.onSurface);
+  const color = isProfit ? (value >= 0 ? v2.color.forest : v2.color.error) : (value < 0 ? v2.color.error : v2.color.text);
   return (
     <View style={s.sumRow}>
-      <Text style={[s.sumLabel, bold && { color: theme.color.onSurface, fontWeight: "700", fontSize: 16 }]}>{label}</Text>
+      <Text style={[s.sumLabel, bold && { color: v2.color.text, fontWeight: "700", fontSize: 16 }]}>{label}</Text>
       <Text style={[s.sumVal, { color }, bold && { fontSize: 20, fontWeight: "800" }]}>{formatPLN(value)}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
+  root: { flex: 1, backgroundColor: v2.color.bg },
   header: {
-    flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 10,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 14,
+    backgroundColor: v2.color.forestDeep, gap: 6,
   },
-  headerTitle: { flex: 1, textAlign: "center", color: theme.color.onSurface, fontSize: 17, fontWeight: "700" },
-  backBtn: { width: 36, height: 36, borderRadius: 999, backgroundColor: theme.color.surfaceSecondary, alignItems: "center", justifyContent: "center" },
+  headerBrand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800" },
+  headerTitle: { color: "#fff", fontSize: 15, fontWeight: "800", marginTop: 2, maxWidth: 220 },
+  backBtn: { width: 36, height: 36, borderRadius: 999, backgroundColor: "rgba(255,255,255,0.18)", alignItems: "center", justifyContent: "center" },
   section: {
-    backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16, marginBottom: 14,
-    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: v2.color.card, borderRadius: v2.radius.xl, padding: 16, marginBottom: 14,
+    borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm,
   },
-  sectionTitle: { color: theme.color.brand, fontSize: 12, letterSpacing: 2, fontWeight: "700", marginBottom: 12 },
-  label: { color: theme.color.onSurfaceSecondary, fontSize: 12, letterSpacing: 0.5, marginBottom: 6 },
+  sectionTitle: { color: v2.color.forest, fontSize: 11, letterSpacing: 2, fontWeight: "800", marginBottom: 12, textTransform: "uppercase" },
+  label: { color: v2.color.textSubtle, fontSize: 10, letterSpacing: 0.5, marginBottom: 6, fontWeight: "700", textTransform: "uppercase" },
   input: {
-    backgroundColor: theme.color.surfaceTertiary, borderRadius: 10, color: theme.color.onSurface,
-    paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: v2.color.bg, borderRadius: v2.radius.md, color: v2.color.text,
+    paddingHorizontal: 12, paddingVertical: 12, fontSize: 15, borderWidth: 1, borderColor: v2.color.border,
   },
   costRow: { flexDirection: "row", gap: 8, alignItems: "center", marginBottom: 8 },
-  iconBtn: { width: 36, height: 36, borderRadius: 999, backgroundColor: theme.color.surfaceTertiary, alignItems: "center", justifyContent: "center" },
-  addRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderWidth: 1, borderColor: theme.color.brandTertiary, borderRadius: 10, borderStyle: "dashed", marginTop: 4 },
-  addRowText: { color: theme.color.brand, fontWeight: "700" },
-  hint: { color: theme.color.onSurfaceSecondary, fontSize: 13, textAlign: "center", padding: 12 },
+  iconBtn: { width: 36, height: 36, borderRadius: 999, backgroundColor: v2.color.cardMuted, alignItems: "center", justifyContent: "center" },
+  addRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderWidth: 1, borderColor: v2.color.forest, borderRadius: v2.radius.md, borderStyle: "dashed", marginTop: 4 },
+  addRowText: { color: v2.color.forest, fontWeight: "700" },
+  hint: { color: v2.color.textMuted, fontSize: 13, textAlign: "center", padding: 12 },
   shiftRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
-  avatar: { width: 38, height: 38, borderRadius: 999, backgroundColor: theme.color.brandTertiary, alignItems: "center", justifyContent: "center" },
-  avatarText: { color: theme.color.onBrandTertiary, fontWeight: "700", fontSize: 12 },
-  shiftName: { color: theme.color.onSurface, fontWeight: "600", fontSize: 14 },
-  shiftRate: { color: theme.color.onSurfaceSecondary, fontSize: 12, marginTop: 2 },
-  hoursInput: { width: 70, backgroundColor: theme.color.surfaceTertiary, borderRadius: 10, color: theme.color.onSurface, paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, textAlign: "center", borderWidth: 1, borderColor: theme.color.border },
+  avatar: { width: 38, height: 38, borderRadius: 999, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
+  avatarText: { color: v2.color.forest, fontWeight: "700", fontSize: 12 },
+  shiftName: { color: v2.color.text, fontWeight: "700", fontSize: 14 },
+  shiftRate: { color: v2.color.textMuted, fontSize: 12, marginTop: 2 },
+  hoursInput: { width: 70, backgroundColor: v2.color.bg, borderRadius: v2.radius.sm, color: v2.color.text, paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, textAlign: "center", borderWidth: 1, borderColor: v2.color.border },
   shiftBlock: {
-    backgroundColor: theme.color.surfaceTertiary, borderRadius: 12, padding: 12, marginBottom: 10,
-    borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: v2.color.cardMuted, borderRadius: v2.radius.md, padding: 12, marginBottom: 10,
+    borderWidth: 1, borderColor: v2.color.border,
   },
   shiftTimeRow: { flexDirection: "row", gap: 8, marginTop: 10 },
   timeInput: {
-    backgroundColor: theme.color.surface, borderRadius: 10, color: theme.color.onSurface,
-    paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, borderWidth: 1, borderColor: theme.color.border,
+    backgroundColor: v2.color.card, borderRadius: v2.radius.sm, color: v2.color.text,
+    paddingHorizontal: 10, paddingVertical: 10, fontSize: 14, borderWidth: 1, borderColor: v2.color.border,
     textAlign: "center",
   },
-  miniLabel: { color: theme.color.onSurfaceSecondary, fontSize: 10, letterSpacing: 0.5, marginBottom: 4 },
+  miniLabel: { color: v2.color.textSubtle, fontSize: 10, letterSpacing: 0.5, marginBottom: 4, fontWeight: "700" },
   shiftHoursBadge: {
-    color: theme.color.brand, fontWeight: "800", fontSize: 14,
-    borderWidth: 1, borderColor: theme.color.brand, borderRadius: 999,
+    color: v2.color.forest, fontWeight: "800", fontSize: 14,
+    borderWidth: 1, borderColor: v2.color.forest, borderRadius: 999,
     paddingHorizontal: 10, paddingVertical: 4,
+    backgroundColor: v2.color.mint,
   },
   pricingCard: {
     flexDirection: "row", alignItems: "center", gap: 10,
-    backgroundColor: "rgba(212,175,55,0.08)",
-    borderWidth: 1, borderColor: theme.color.brandTertiary,
-    borderRadius: 12, padding: 12, marginTop: 4,
+    backgroundColor: v2.color.mint,
+    borderWidth: 1, borderColor: v2.color.forest,
+    borderRadius: v2.radius.md, padding: 12, marginTop: 4,
   },
-  pricingBreakdown: { color: theme.color.onSurface, fontSize: 12, fontWeight: "600" },
-  pricingHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  pricingBreakdown: { color: v2.color.text, fontSize: 12, fontWeight: "700" },
+  pricingHint: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
   pricingApply: {
-    backgroundColor: theme.color.brand, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+    backgroundColor: v2.color.forest, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
   },
-  pricingApplyText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 13 },
+  pricingApplyText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   zestawRow: { flexDirection: "row", gap: 8, marginTop: 6 },
   zestawBtn: {
-    flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: 12,
-    borderWidth: 1, borderColor: theme.color.brandTertiary, backgroundColor: theme.color.surfaceTertiary,
+    flex: 1, alignItems: "center", paddingVertical: 12, borderRadius: v2.radius.md,
+    borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.cardMuted,
   },
-  zestawBtnActive: { backgroundColor: theme.color.brand, borderColor: theme.color.brand },
-  zestawName: { color: theme.color.onSurface, fontSize: 12, fontWeight: "800" },
-  zestawPrice: { color: theme.color.brand, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  zestawBtnActive: { backgroundColor: v2.color.forest, borderColor: v2.color.forest },
+  zestawName: { color: v2.color.text, fontSize: 12, fontWeight: "800" },
+  zestawPrice: { color: v2.color.forest, fontSize: 13, fontWeight: "800", marginTop: 2 },
   zestawDetails: {
-    marginTop: 10, padding: 12, borderRadius: 12,
-    backgroundColor: "rgba(212,175,55,0.06)", borderWidth: 1, borderColor: theme.color.brandTertiary,
+    marginTop: 10, padding: 12, borderRadius: v2.radius.md,
+    backgroundColor: v2.color.mint, borderWidth: 1, borderColor: v2.color.forest,
   },
-  zestawDetailsTitle: { color: theme.color.brand, fontSize: 11, letterSpacing: 1, fontWeight: "800", marginBottom: 4 },
-  zestawItem: { color: theme.color.onSurface, fontSize: 12, marginBottom: 2 },
+  zestawDetailsTitle: { color: v2.color.forest, fontSize: 11, letterSpacing: 1, fontWeight: "800", marginBottom: 4 },
+  zestawItem: { color: v2.color.text, fontSize: 12, marginBottom: 2 },
   extraRow: {
     flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8,
-    borderBottomWidth: 1, borderBottomColor: theme.color.divider,
+    borderBottomWidth: 1, borderBottomColor: v2.color.divider,
   },
-  extraName: { color: theme.color.onSurface, fontSize: 13, fontWeight: "700" },
-  extraHint: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  extraName: { color: v2.color.text, fontSize: 13, fontWeight: "700" },
+  extraHint: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
   extraQtyInput: {
-    width: 60, backgroundColor: theme.color.surfaceTertiary, borderRadius: 8,
-    color: theme.color.onSurface, paddingHorizontal: 8, paddingVertical: 8, fontSize: 13,
-    textAlign: "center", borderWidth: 1, borderColor: theme.color.border,
+    width: 60, backgroundColor: v2.color.bg, borderRadius: v2.radius.sm,
+    color: v2.color.text, paddingHorizontal: 8, paddingVertical: 8, fontSize: 13,
+    textAlign: "center", borderWidth: 1, borderColor: v2.color.border,
   },
-  extraLine: { color: theme.color.brand, fontSize: 13, fontWeight: "700", width: 62, textAlign: "right" },
-  summary: { backgroundColor: theme.color.surfaceSecondary, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: theme.color.brandTertiary },
+  extraLine: { color: v2.color.forest, fontSize: 13, fontWeight: "800", width: 62, textAlign: "right" },
+  summary: { backgroundColor: v2.color.forestDeep, borderRadius: v2.radius.xl, padding: 16, borderWidth: 1, borderColor: v2.color.forest, ...v2.shadow.md },
   sumRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 4 },
-  sumLabel: { color: theme.color.onSurfaceSecondary, fontSize: 13 },
-  sumVal: { fontSize: 14, fontWeight: "600" },
-  sep: { height: 1, backgroundColor: theme.color.divider, marginVertical: 8 },
+  sumLabel: { color: v2.color.sage, fontSize: 13 },
+  sumVal: { fontSize: 14, fontWeight: "700", color: "#fff" },
+  sep: { height: 1, backgroundColor: "rgba(255,255,255,0.12)", marginVertical: 8 },
   footer: {
-    position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(12,12,14,0.92)",
-    padding: 16, borderTopWidth: 1, borderTopColor: theme.color.divider,
+    position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: v2.color.card,
+    padding: 16, borderTopWidth: 1, borderTopColor: v2.color.border, ...v2.shadow.md,
   },
-  saveBtn: { backgroundColor: theme.color.brand, borderRadius: 12, paddingVertical: 15, alignItems: "center" },
-  saveBtnText: { color: theme.color.onBrand, fontWeight: "800", fontSize: 15, letterSpacing: 0.5 },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
-  sheet: { backgroundColor: theme.color.surfaceSecondary, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, maxHeight: "70%", borderWidth: 1, borderColor: theme.color.border },
-  grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: theme.color.borderStrong, marginBottom: 12 },
-  sheetTitle: { color: theme.color.onSurface, fontSize: 18, fontWeight: "700", marginBottom: 12 },
-  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.color.divider },
+  saveBtn: { backgroundColor: v2.color.forest, borderRadius: v2.radius.md, paddingVertical: 15, alignItems: "center" },
+  saveBtnText: { color: "#fff", fontWeight: "800", fontSize: 15, letterSpacing: 0.5 },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)" },
+  sheet: { backgroundColor: v2.color.card, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 12, maxHeight: "70%", borderWidth: 1, borderColor: v2.color.border },
+  grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 },
+  sheetTitle: { color: v2.color.text, fontSize: 18, fontWeight: "800", marginBottom: 12 },
+  pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: v2.color.divider },
   imageBox: {
-    height: 160, borderRadius: 16, backgroundColor: theme.color.surfaceSecondary,
-    overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: theme.color.border,
+    height: 160, borderRadius: v2.radius.xl, backgroundColor: v2.color.cardMuted,
+    overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: v2.color.border,
   },
   imagePlaceholder: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
-  imagePlaceholderText: { color: theme.color.onSurface, fontWeight: "700", marginTop: 4 },
-  imagePlaceholderSub: { color: theme.color.onSurfaceSecondary, fontSize: 12 },
+  imagePlaceholderText: { color: v2.color.text, fontWeight: "800", marginTop: 4 },
+  imagePlaceholderSub: { color: v2.color.textMuted, fontSize: 12 },
   imageEditRow: { position: "absolute", left: 12, right: 12, bottom: 12, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
-  imageBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: theme.color.brand, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
-  imageBadgeText: { color: theme.color.onBrand, fontWeight: "700", fontSize: 12 },
+  imageBadge: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: v2.color.forest, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999 },
+  imageBadgeText: { color: "#fff", fontWeight: "800", fontSize: 12 },
   imageRemoveBtn: { width: 32, height: 32, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center" },
   tplLoadBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 12, marginBottom: 14, borderRadius: 12, borderWidth: 1,
-    borderColor: theme.color.brandTertiary, backgroundColor: "rgba(212,175,55,0.06)",
+    paddingVertical: 12, marginBottom: 14, borderRadius: v2.radius.md, borderWidth: 1,
+    borderColor: v2.color.forest, backgroundColor: v2.color.mint,
   },
-  tplLoadText: { color: theme.color.brand, fontWeight: "700", fontSize: 14 },
+  tplLoadText: { color: v2.color.forest, fontWeight: "800", fontSize: 14 },
   tplSaveBtn: {
     flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-    paddingVertical: 12, marginTop: 14, borderRadius: 12, borderWidth: 1,
-    borderColor: theme.color.brandTertiary,
+    paddingVertical: 12, marginTop: 14, borderRadius: v2.radius.md, borderWidth: 1,
+    borderColor: v2.color.forest,
   },
   groupHeader: {
-    color: theme.color.brand, fontSize: 11, letterSpacing: 2, fontWeight: "800",
-    marginTop: 4, marginBottom: 4, paddingHorizontal: 4,
+    color: v2.color.forest, fontSize: 11, letterSpacing: 2, fontWeight: "800",
+    marginTop: 4, marginBottom: 4, paddingHorizontal: 4, textTransform: "uppercase",
   },
   checklistLink: {
     flexDirection: "row", alignItems: "center", gap: 12,
-    padding: 14, marginTop: 14, borderRadius: 14,
-    borderWidth: 1, borderColor: theme.color.brand + "44",
-    backgroundColor: theme.color.brand + "0A",
+    padding: 14, marginTop: 14, borderRadius: v2.radius.lg,
+    borderWidth: 1, borderColor: v2.color.forest + "44",
+    backgroundColor: v2.color.mint,
   },
   checklistIconBox: {
     width: 42, height: 42, borderRadius: 12,
     alignItems: "center", justifyContent: "center",
-    backgroundColor: theme.color.brand + "18",
+    backgroundColor: v2.color.forest + "20",
   },
-  checklistLabel: { color: theme.color.onSurface, fontSize: 15, fontWeight: "700" },
-  checklistSub: { color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 },
+  checklistLabel: { color: v2.color.text, fontSize: 15, fontWeight: "800" },
+  checklistSub: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
 });

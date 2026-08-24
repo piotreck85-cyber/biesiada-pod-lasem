@@ -456,7 +456,7 @@ export default function Kalendarz() {
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                 <Text style={s.agendaTitle}>{new Date(selected + "T00:00:00").toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</Text>
-                <Pressable onPress={() => router.push({ pathname: "/event/new", params: { date: selected } } as any)}>
+                <Pressable onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } } as any)}>
                   <Text style={s.sectionLink}>+ Dodaj</Text>
                 </Pressable>
               </View>
@@ -464,7 +464,7 @@ export default function Kalendarz() {
                 <View style={s.emptyBox}>
                   <Feather name="calendar" size={26} color={v2.color.textSubtle} />
                   <Text style={s.emptyText}>Brak imprez tego dnia</Text>
-                  <Pressable style={s.emptyBtn} onPress={() => router.push({ pathname: "/event/new", params: { date: selected } } as any)}>
+                  <Pressable style={s.emptyBtn} onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } } as any)}>
                     <Feather name="plus" size={13} color={v2.color.forest} />
                     <Text style={s.emptyBtnText}>Dodaj imprezę</Text>
                   </Pressable>
