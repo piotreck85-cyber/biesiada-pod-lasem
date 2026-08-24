@@ -33,6 +33,38 @@ export default function Koszty() {
   const [filterCat, setFilterCat] = useState<string>(""); // "" = all
   const [saving, setSaving] = useState(false);
   const [scope, setScope] = useState<"month" | "all">("month");
+  const [aiCatLoading, setAiCatLoading] = useState(false);
+
+  const uncatCount = useMemo(() => items.filter(e => !e.category).length, [items]);
+
+  const runAiCategorize = useCallback(async () => {
+    if (aiCatLoading) return;
+    Alert.alert(
+      "Skategoryzować AI?",
+      `AI przeanalizuje ${uncatCount} kosztów bez kategorii i przypisze im kategorie na podstawie opisów. Możesz potem poprawić ręcznie.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Skategoryzuj",
+          onPress: async () => {
+            setAiCatLoading(true);
+            try {
+              const r: any = await api.expensesAiCategorize({ limit: 300 });
+              const catsMsg = Object.entries(r.categories_used || {})
+                .map(([k, v]) => `• ${expenseCategoryLabel(k)}: ${v}`).join("\n");
+              Alert.alert(
+                `AI skategoryzowało ${r.updated || 0} kosztów`,
+                catsMsg || "Brak zmian",
+              );
+              await load();
+            } catch (e: any) {
+              Alert.alert("Błąd", e?.message || "Nie udało się");
+            } finally { setAiCatLoading(false); }
+          },
+        },
+      ],
+    );
+  }, [aiCatLoading, uncatCount, load]);
 
   const load = useCallback(async () => {
     try {
@@ -159,6 +191,30 @@ export default function Koszty() {
         </View>
         <View style={s.summaryBadge}><Text style={s.summaryBadgeText}>{visible.length} pozycji</Text></View>
       </View>
+
+      {/* AI Categorize CTA — visible when there are uncategorized items */}
+      {uncatCount > 0 ? (
+        <Pressable testID="ai-categorize-btn" onPress={runAiCategorize} disabled={aiCatLoading}
+          style={{
+            flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10,
+            padding: 12, borderRadius: 12, borderWidth: 1,
+            borderColor: "#8B5CF6", backgroundColor: "rgba(139,92,246,0.08)",
+            opacity: aiCatLoading ? 0.6 : 1,
+          }}>
+          {aiCatLoading
+            ? <ActivityIndicator size="small" color="#8B5CF6" />
+            : <Feather name="cpu" size={16} color="#8B5CF6" />}
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: theme.color.onSurface, fontWeight: "800", fontSize: 13 }}>
+              {aiCatLoading ? "AI analizuje…" : `🤖 Skategoryzuj AI (${uncatCount} bez kategorii)`}
+            </Text>
+            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>
+              GPT 5.6 przypisze kategorie na podstawie opisów — możesz potem poprawić ręcznie
+            </Text>
+          </View>
+          {!aiCatLoading && <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />}
+        </Pressable>
+      ) : null}
 
       {/* Category totals breakdown — only when no filter active */}
       {!filterCat && Object.keys(totalsByCat).length > 0 && totalAll > 0 ? (

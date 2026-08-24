@@ -5604,6 +5604,129 @@ async def ai_send_offer_email(body: AISendOfferIn, user=Depends(require_admin)):
     return {"ok": True, "attached_pdf": attach_pdf, "subject": subject}
 
 
+class AICategorizeIn(BaseModel):
+    ids: Optional[List[str]] = None       # jeśli podane, kategoryzuj tylko te; jeśli None → wszystkie bez kategorii
+    limit: Optional[int] = 200            # max ilość do przetworzenia w jednym wywołaniu
+    dry_run: Optional[bool] = False
+
+
+_EXPENSE_CATEGORY_IDS = ["zakupy_spozywcze", "rachunki", "podatki", "pensje", "wyplaty_szefow", "inwestycje", "ogolne_zaopatrzenie"]
+
+
+@api.post("/expenses/ai-categorize")
+async def expenses_ai_categorize(body: AICategorizeIn, user=Depends(require_admin)):
+    """Kategoryzuje koszty bez kategorii przy pomocy AI (GPT 5.6 Terra)."""
+    key = _ai_get_key()
+
+    q: dict = {"owner_id": ws(user), "$or": [{"category": None}, {"category": ""}, {"category": {"$exists": False}}]}
+    if body.ids:
+        q = {"owner_id": ws(user), "id": {"$in": body.ids}}
+    items = await db.expenses.find(q, {"_id": 0}).sort("date", 1).to_list(max(1, min(int(body.limit or 200), 500)))
+    if not items:
+        return {"processed": 0, "updated": 0, "categories_used": {}, "sample": []}
+
+    # Group by normalized description to reduce AI calls (dedup similar entries)
+    import re as _re
+    def norm(t: str) -> str:
+        t = (t or "").lower()
+        t = _re.sub(r'\d+[.,]?\d*\s*(?:zł|zl)?', '', t)
+        t = _re.sub(r'\s+', ' ', t).strip()
+        return t[:80]
+
+    groups: Dict[str, List[dict]] = {}
+    for it in items:
+        k = norm(it.get("description") or it.get("label") or "")
+        groups.setdefault(k, []).append(it)
+
+    prompts = list(groups.keys())
+    if not prompts:
+        return {"processed": 0, "updated": 0, "categories_used": {}}
+
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Twoja rola: klasyfikator kosztów firmy cateringowej. Otrzymujesz listę opisów kosztów i "
+        "musisz przypisać KAŻDEMU dokładnie jedną z kategorii (używaj TYLKO tych ID): "
+        f"{', '.join(_EXPENSE_CATEGORY_IDS)}. "
+        "Zasady: "
+        "- Biedronka, Biedra, Lidl, Auchan, Makro, Kaufland, spożywcze → zakupy_spozywcze; "
+        "- Prąd, woda, gaz, telefon, internet, śmieci → rachunki; "
+        "- Podatek, ZUS, US, VAT → podatki; "
+        "- Imiona pracowników + kwota (Marta, Weronika, Zuzia, Patrycja, Komorowski, Heniek, Andrzej, sprzątanie, pensja) → pensje; "
+        "- Wypłata / Wyplata dla właściciela (Piotrek, Jarek) → wyplaty_szefow; "
+        "- Rata, kredyt, leasing, remont, meble, sprzęt → inwestycje; "
+        "- Środki czystości, naczynia jednorazowe, żurek, zaopatrzenie, materiały, deski, zaprawa, olx, allegro, alpaki, konie → ogolne_zaopatrzenie. "
+        'Odpowiedź MUSI być poprawnym JSON obiektem: { "assignments": [ { "index": 0, "category": "..." }, ... ] } '
+        "Index odpowiada pozycji na liście (0-based). Bez dodatkowego tekstu, tylko JSON."
+    )
+    user_text = "LISTA OPISÓW:\n" + "\n".join(f"{i}. {p}" for i, p in enumerate(prompts))
+
+    session_id = f"cat-{ws(user)}-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text=user_text))
+    except Exception as e:
+        logging.exception("AI categorize failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+
+    import re as _re4
+    text = str(raw or "").strip()
+    m2 = _re4.search(r"\{.*\}", text, _re4.DOTALL)
+    parsed: dict = {}
+    if m2:
+        try: parsed = _json.loads(m2.group(0))
+        except Exception: parsed = {}
+
+    assignments = parsed.get("assignments") if isinstance(parsed, dict) else None
+    if not isinstance(assignments, list):
+        raise HTTPException(502, "AI zwróciło nieprawidłowy format")
+
+    # Build map: normalized description → category
+    prompt_to_cat: Dict[str, str] = {}
+    for a in assignments:
+        if not isinstance(a, dict): continue
+        idx = a.get("index"); cat = str(a.get("category") or "").strip()
+        if idx is None or cat not in _EXPENSE_CATEGORY_IDS: continue
+        try: prompt_to_cat[prompts[int(idx)]] = cat
+        except Exception: continue
+
+    # Apply updates
+    updated = 0
+    cat_used: Dict[str, int] = {}
+    sample: List[dict] = []
+    for norm_desc, cat in prompt_to_cat.items():
+        for it in groups.get(norm_desc, []):
+            if body.dry_run:
+                updated += 1
+                cat_used[cat] = cat_used.get(cat, 0) + 1
+                if len(sample) < 20:
+                    sample.append({"id": it.get("id"), "date": it.get("date"),
+                                    "description": (it.get("description") or it.get("label") or "")[:60],
+                                    "new_category": cat})
+            else:
+                r = await db.expenses.update_one(
+                    {"owner_id": ws(user), "id": it.get("id")},
+                    {"$set": {"category": cat, "ai_categorized_at": datetime.now(timezone.utc).isoformat()}}
+                )
+                if r.modified_count > 0:
+                    updated += 1
+                    cat_used[cat] = cat_used.get(cat, 0) + 1
+                    if len(sample) < 20:
+                        sample.append({"id": it.get("id"), "date": it.get("date"),
+                                        "description": (it.get("description") or it.get("label") or "")[:60],
+                                        "new_category": cat})
+
+    return {
+        "processed": len(items),
+        "unique_descriptions": len(prompts),
+        "updated": updated,
+        "categories_used": cat_used,
+        "sample": sample,
+        "dry_run": bool(body.dry_run),
+    }
+
+
 @api.post("/ai/cost-coach")
 async def ai_cost_coach(body: AICostCoachIn, user=Depends(require_admin)):
     """Comiesięczna analiza kosztów: kategorie, zmiany m/m, sugestie cięć."""

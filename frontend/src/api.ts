@@ -349,4 +349,6 @@ export const api = {
   }) => request("/ai/send-offer-email", { method: "POST", body: JSON.stringify(payload) }),
   listKnownClients: (q?: string) =>
     request(`/clients/known${q ? `?q=${encodeURIComponent(q)}` : ""}`),
+  expensesAiCategorize: (opts?: { ids?: string[]; limit?: number; dry_run?: boolean }) =>
+    request("/expenses/ai-categorize", { method: "POST", body: JSON.stringify(opts || {}) }),
 };

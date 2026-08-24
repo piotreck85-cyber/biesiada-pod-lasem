@@ -166,3 +166,19 @@ Polish mobile app for event organizers to manage:
 - Suma kosztów w pliku = suma w aplikacji: **133 422,63 zł ✅**
 - Suma wypłat w pliku = suma w aplikacji: **57 020 zł ✅**
 - Audit report: `whatsapp_costs_piotreck_20260824_171815/audit_report.json`
+
+### AI Kategoryzacja Kosztów — Aug 2026
+- Nowy backend endpoint: `POST /api/expenses/ai-categorize`
+  - Body: `{ ids?, limit?, dry_run? }`
+  - Bierze wszystkie koszty bez kategorii dla owner_id
+  - Deduplikuje po znormalizowanym opisie (usuwa kwoty) — oszczędza calle AI
+  - Wywołuje GPT 5.6 Terra z systemem zasad (Biedra→spożywcze, Rata→inwestycje, Imię→pensje itp.)
+  - Aktualizuje wszystkie duplikaty jednym batchem
+  - Zwraca licznik updated + rozkład kategorii
+- Frontend: `(tabs)/koszty.tsx` — dodany przycisk **„🤖 Skategoryzuj AI (X bez kategorii)"**
+  - Widoczny tylko gdy uncatCount > 0
+  - Confirm dialog przed odpaleniem
+  - Loading state z ActivityIndicator
+  - Alert z rozkładem kategorii po zakończeniu
+- Test na piotreck85 workspace (333 kosztów → 100% skategoryzowane): rachunki 11, podatki 10, pensje 34, inwestycje 7, zakupy_spozywcze 75, ogolne_zaopatrzenie 196
+- **Kategoryzacja ręczna** działa od zawsze — klik na koszt → edytuj → wybierz kategorię z chip'ów w modalu
