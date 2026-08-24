@@ -264,3 +264,34 @@ Polish mobile app for event organizers to manage:
 - FlatList props: `initialNumToRender=12`, `maxToRenderPerBatch=10`, `windowSize=7`, `removeClippedSubviews`
 - Ta sama optymalizacja dla wages FlatList (10/8/5)
 - `grafik.tsx`: `todayEvent` i `upcoming` opakowane w `useMemo`
+
+### Etap 4 UI + Tab Bar V2.0 + Praca Ekipy + Presety Cateringowe — Aug 2026
+
+**1. Etap 4 UI — Pracownicy V2.0:**
+- Header ekranu Pracownicy przerobiony na V2.0: ciemna zieleń (v2.color.forestDeep) + brand ZESPÓŁ + tytuł "Twój zespół"
+- Ikony w headerze (workspace, history, menu) w białym kółku z rgba(255,255,255,0.15)
+- Root background: v2.color.bg (jasny mint)
+
+**2. Global Tab Bar V2.0 (`(tabs)/_layout.tsx`):**
+- Aktywna zakładka: mint pill background (v2.color.mint) + zielona ikona (v2.color.forest)
+- Nieaktywne: brak tła, ikona v2.color.textSubtle
+- Tab bar bg: v2.color.card, border v2.color.border
+- Etykieta: fontWeight 800, letterSpacing 0.3, uppercase, textColor forest gdy active
+- Uwaga: dla pracowników nazwa Grafik → **"Moja praca"**, ikona `briefcase`
+
+**3. Nowy ekran „Moja praca" (`(tabs)/grafik.tsx`):**
+- Header V2.0 (dark forest) + "MOJA PRACA" brand + "Cześć, {imię} 👋"
+- Floating clock card z guzikiem ROZPOCZYNAM PRACĘ / KOŃCZĘ PRACĘ + link do historii obecności
+- Sekcja **Dzisiaj**: karta z detalami imprezy (czas, osoby, rola, lokalizacja), notatki publiczne (notes_public), **inline checklist** z paskiem postępu, 3 pierwsze zadania z ✓/○, „+ N więcej"
+- Sekcja **Jutro**: identyczna karta dla jutrzejszej imprezy (kolor niebieski w oznaczeniu)
+- Sekcja **Nadchodzące**: lista imprez dalej niż jutro (max 10)
+- Empty states dla dni bez pracy z ikoną coffee/moon + zachęcającym tekstem
+- Klik na checklistę = router.push(`/checklist/{id}`) → pełny widok
+
+**4. Presety cateringowe (`src/cateringPresets.ts` + integracja):**
+- 5 gotowych presetów: Standardowy · Popularny · Elegancki · Regionalny · Bez zupy
+- Struktura: `items_per_person` (dla dinnerMenu.ts IDs) + `offer_items_per_person` (dla offers.ts DINNER_EXTRAS IDs)
+- Helpers: `buildPresetQty()` i `buildPresetOfferExtras()` — mnożą per-person × liczba osób
+- **event/[id].tsx**: sekcja „Szybki wybór" w rozwiniętej ofercie obiadowej, poziomy scroll z kartami, wypełnia dinnerQty
+- **oferta.tsx**: identyczna sekcja w modalu wysyłki oferty, wypełnia emailExtras
+- Walidacja: jeśli liczba osób = 0, Alert „Wpisz liczbę osób"

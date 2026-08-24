@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
 import { BIRTHDAY_PACKAGES, WORKSHOPS, ADULT_SETS, ADULT_EXTRAS, DINNER_EXTRAS, WORKSHOP_INFO, SOURCE_URL, BirthdayPackage, Workshop } from "@/src/offers";
 import { DINNER_MENU, DINNER_SECTIONS, DINNER_DISCOUNT, discountedPrice, grillProfitForecast } from "@/src/dinnerMenu";
+import { CATERING_PRESET_TEMPLATES, buildPresetOfferExtras } from "@/src/cateringPresets";
 import { api } from "@/src/api";
 import { useMenuSettings } from "@/src/menuSettings";
 
@@ -745,6 +746,44 @@ export default function Oferta() {
                       </Pressable>
                     );
                   })()}
+                  {emailDinnerExpanded && (
+                    <View style={{ marginTop: 12, marginBottom: 4 }}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                        <Feather name="zap" size={12} color={theme.color.brand} />
+                        <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" }}>Szybki wybór</Text>
+                        <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11 }}>· na {parseInt(emailPeople, 10) || 0} osób</Text>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+                        {CATERING_PRESET_TEMPLATES.map(tpl => (
+                          <Pressable
+                            key={tpl.id}
+                            testID={`offer-catering-preset-${tpl.id}`}
+                            onPress={() => {
+                              const ppl = parseInt(emailPeople, 10) || 0;
+                              if (ppl <= 0) {
+                                Alert.alert("Wpisz liczbę osób", "Ustaw ilu jest gości, żeby zastosować preset.");
+                                return;
+                              }
+                              const next = buildPresetOfferExtras(tpl.id, ppl);
+                              setEmailExtras(prev => ({ ...prev, ...next }));
+                            }}
+                            style={{
+                              minWidth: 180, maxWidth: 240,
+                              padding: 10, borderRadius: 12,
+                              backgroundColor: theme.color.brand + "18",
+                              borderWidth: 1, borderColor: theme.color.brand + "55",
+                            }}
+                          >
+                            <Text style={{ color: theme.color.brand, fontWeight: "800", fontSize: 13 }}>{tpl.label}</Text>
+                            <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 2 }} numberOfLines={2}>{tpl.description}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                      <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, marginTop: 6, fontStyle: "italic" }}>
+                        Preset dodaje porcje × liczba osób.
+                      </Text>
+                    </View>
+                  )}
                   {emailDinnerExpanded && (["Zupa", "Danie główne", "Dodatek"] as const).map(section => (
                     <View key={section}>
                       <Text style={[s.fieldLabel, { marginTop: 16 }]}>Menu obiadowe · {section}</Text>

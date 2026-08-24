@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, FlatList, TextInput, Modal,
-  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert, StatusBar,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, initials } from "@/src/theme";
+import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 
@@ -303,19 +304,20 @@ export default function Pracownicy() {
 
   return (
     <View style={[s.root, { paddingTop: insets.top }]} testID="staff-screen">
+      <StatusBar barStyle="light-content" />
       <View style={s.header}>
         <View style={{ flex: 1 }}>
-          <Text style={s.brand}>Pracownicy</Text>
+          <Text style={s.brand}>ZESPÓŁ</Text>
           <Text style={s.title}>Twój zespół</Text>
         </View>
         <Pressable testID="workspace-btn" onPress={() => setWsModalOpen(true)} hitSlop={10} style={s.headerIcon}>
-          <Feather name="users" size={18} color={theme.color.brand} />
+          <Feather name="users" size={16} color="#fff" />
         </Pressable>
         <Pressable testID="history-btn" onPress={openHistory} hitSlop={10} style={s.headerIcon}>
-          <Feather name="clock" size={18} color={theme.color.brand} />
+          <Feather name="clock" size={16} color="#fff" />
         </Pressable>
         <Pressable testID="header-menu-btn" onPress={() => setMenuOpen(true)} hitSlop={10} style={s.headerIcon}>
-          <Feather name="more-vertical" size={18} color={theme.color.onSurface} />
+          <Feather name="more-vertical" size={16} color="#fff" />
         </Pressable>
       </View>
 
@@ -987,10 +989,10 @@ export default function Pracownicy() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.color.surface },
-  header: { paddingHorizontal: 20, paddingBottom: 8, paddingTop: 8, flexDirection: "row", alignItems: "flex-end" },
-  brand: { color: theme.color.onSurfaceSecondary, letterSpacing: 3, fontSize: 11, fontWeight: "700", marginBottom: 4 },
-  title: { color: theme.color.onSurface, fontSize: 24, fontWeight: "700" },
+  root: { flex: 1, backgroundColor: v2.color.bg },
+  header: { paddingHorizontal: 20, paddingBottom: 14, paddingTop: 8, flexDirection: "row", alignItems: "flex-end", backgroundColor: v2.color.forestDeep, gap: 6 },
+  brand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800", marginBottom: 4 },
+  title: { color: v2.color.onDark, fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
   // ---- Mode toggle ----
   modeRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 8,
@@ -1042,10 +1044,9 @@ const s = StyleSheet.create({
   //
   logoutBtn: { padding: 8, backgroundColor: theme.color.surfaceSecondary, borderRadius: 999 },
   headerIcon: {
-    width: 38, height: 38, borderRadius: 999,
-    backgroundColor: theme.color.surfaceSecondary,
-    borderWidth: 1, borderColor: theme.color.border,
-    alignItems: "center", justifyContent: "center", marginLeft: 8,
+    width: 36, height: 36, borderRadius: 999,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center", justifyContent: "center", marginLeft: 4,
   },
   menuBackdrop: {
     flex: 1, backgroundColor: "rgba(0,0,0,0.2)",

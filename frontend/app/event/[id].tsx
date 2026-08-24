@@ -16,6 +16,7 @@ import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
 import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers";
 import { DINNER_MENU, DINNER_SECTIONS, discountedPrice, DINNER_DISCOUNT, dinnerAutoCost } from "@/src/dinnerMenu";
+import { CATERING_PRESET_TEMPLATES, buildPresetQty } from "@/src/cateringPresets";
 import EventPayments from "@/src/components/EventPayments";
 
 type Cost = { label: string; amount: number };
@@ -1182,6 +1183,46 @@ export default function EventDetail() {
             <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8, marginTop: 10 }}>
               Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
             </Text>
+
+            {/* Catering presets — quick fill */}
+            <View style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <Feather name="zap" size={12} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" }}>Szybki wybór</Text>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11 }}>· na {parseAmt(people) || 0} osób</Text>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+                {CATERING_PRESET_TEMPLATES.map(tpl => (
+                  <Pressable
+                    key={tpl.id}
+                    testID={`catering-preset-${tpl.id}`}
+                    onPress={() => {
+                      const p = parseAmt(people) || 0;
+                      if (p <= 0) {
+                        Alert.alert("Wpisz liczbę osób", "Ustaw ilu jest gości, żeby zastosować preset.");
+                        return;
+                      }
+                      const nextQty = buildPresetQty(tpl.id, p);
+                      setDinnerQty(prev => ({ ...prev, ...nextQty }));
+                      setAutoPrice(true);
+                    }}
+                    style={{
+                      minWidth: 180, maxWidth: 240,
+                      padding: 10, borderRadius: 12,
+                      backgroundColor: v2.color.mint,
+                      borderWidth: 1, borderColor: v2.color.forest + "44",
+                    }}
+                  >
+                    <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>{tpl.label}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }} numberOfLines={2}>{tpl.description}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 6, fontStyle: "italic" }}>
+                Preset dodaje porcje × liczba osób. Możesz potem edytować ręcznie.
+              </Text>
+            </View>
+
             {DINNER_SECTIONS.map(sec => {
               const items = DINNER_MENU.filter(m => m.section === sec.id);
               return (
