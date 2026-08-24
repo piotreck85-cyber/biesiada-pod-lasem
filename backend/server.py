@@ -5416,6 +5416,194 @@ class AICostCoachIn(BaseModel):
     month: Optional[int] = None  # 1-12
 
 
+# Ścieżka do PDF-a oferty cateringowej (załącznik dla imprez firmowych)
+_OFFER_PDF_PATH = "/app/backend/assets/offers/Biesiada_pod_Lasem_Oferta_Gastronomiczna_2026.pdf"
+
+
+class AISendOfferIn(BaseModel):
+    to_email: str
+    client_name: Optional[str] = ""
+    subject: Optional[str] = ""
+    body_text: str
+    event_kind: str = "okolicznosciowa"  # okolicznosciowa | firmowa
+    mode: str = "offer"                   # offer | summary
+    event_id: Optional[str] = ""
+    attach_offer_pdf: Optional[bool] = None  # override — domyślnie True dla firmowa+offer
+
+
+class AISummaryIn(BaseModel):
+    event_id: str
+
+
+def _detect_event_kind(text: str) -> str:
+    """Prosta heurystyka wykrywająca typ imprezy z tekstu (brief / opis)."""
+    t = (text or "").lower()
+    corp = ["firm", "korpo", "integrac", "spółk", "sp. z o.o", "biznes", "b2b", "pracowni", "wieczor"]
+    if any(k in t for k in corp): return "firmowa"
+    return "okolicznosciowa"
+
+
+@api.get("/clients/known")
+async def list_known_clients(user=Depends(require_admin), q: Optional[str] = None, limit: int = 200):
+    """Zwraca zdedublowaną listę klientów wyciągniętych z pola events.client_*."""
+    match: dict = {"owner_id": ws(user)}
+    if q:
+        match["$or"] = [
+            {"client_name":  {"$regex": q, "$options": "i"}},
+            {"client_email": {"$regex": q, "$options": "i"}},
+            {"client_phone": {"$regex": q, "$options": "i"}},
+        ]
+    pipe = [
+        {"$match": match},
+        {"$match": {"$or": [
+            {"client_email": {"$exists": True, "$nin": ["", None]}},
+            {"client_phone": {"$exists": True, "$nin": ["", None]}},
+        ]}},
+        {"$sort": {"date": -1}},
+        {"$group": {
+            "_id": {"$toLower": {"$ifNull": ["$client_email", "$client_phone"]}},
+            "name":  {"$first": "$client_name"},
+            "email": {"$first": "$client_email"},
+            "phone": {"$first": "$client_phone"},
+            "last_event_date": {"$first": "$date"},
+            "count": {"$sum": 1},
+        }},
+        {"$sort": {"last_event_date": -1}},
+        {"$limit": max(1, min(limit, 500))},
+        {"$project": {"_id": 0, "name": 1, "email": 1, "phone": 1, "last_event_date": 1, "count": 1}},
+    ]
+    rows: List[dict] = []
+    async for r in db.events.aggregate(pipe):
+        if not (r.get("email") or r.get("phone")): continue
+        rows.append(r)
+    return rows
+
+
+@api.post("/ai/detect-kind")
+async def ai_detect_kind(body: dict, user=Depends(require_admin)):
+    """Zwraca sugerowany typ imprezy z briefu (bez wywołania LLM — lokalna heurystyka)."""
+    text = str(body.get("brief") or body.get("text") or "")
+    return {"event_kind": _detect_event_kind(text)}
+
+
+@api.post("/ai/generate-summary")
+async def ai_generate_summary(body: AISummaryIn, user=Depends(require_admin)):
+    """Generuje podsumowanie szczegółów imprezy (potwierdzenie do klienta) — tekst gotowy do maila."""
+    key = _ai_get_key()
+    ev = await db.events.find_one({"owner_id": ws(user), "id": body.event_id}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Nie znaleziono imprezy")
+
+    # Wpłaty
+    paid_agg = await db.event_payments.aggregate([
+        {"$match": {"owner_id": ws(user), "event_id": ev.get("id")}},
+        {"$group": {"_id": None, "sum": {"$sum": "$amount"}}},
+    ]).to_list(1)
+    paid = float(paid_agg[0]["sum"]) if paid_agg else 0.0
+    price = float(ev.get("price_total") or ev.get("revenue") or 0)
+    remaining = max(0.0, price - paid)
+
+    ctx = (
+        f"Klient: {ev.get('client_name') or '—'}\n"
+        f"Data: {ev.get('date') or '—'}\n"
+        f"Godziny: {ev.get('time_start') or '—'} - {ev.get('time_end') or '—'}\n"
+        f"Nazwa imprezy: {ev.get('name') or '—'}\n"
+        f"Kategoria: {ev.get('category') or '—'}\n"
+        f"Liczba gości: {ev.get('guests') or 0}\n"
+        f"Ustalona cena: {price:.0f} zł\n"
+        f"Wpłacono: {paid:.0f} zł\n"
+        f"Do zapłaty: {remaining:.0f} zł\n"
+        f"Notatki: {ev.get('notes') or '—'}\n"
+    )
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Twoje zadanie: napisz gotowy do wysłania e-mail POTWIERDZAJĄCY szczegóły imprezy dla klienta. "
+        "Ton: profesjonalny, uprzejmy, per Pan/Pani. Format: 1) powitanie 2) potwierdzenie daty i godzin "
+        "3) lista uzgodnionych szczegółów (goście, cena, wpłacona zaliczka, pozostała kwota) 4) prośba o "
+        "kontakt w razie zmian. Bez podpisu — właściciel doda ręcznie. Sam tekst, bez markdown-a."
+    )
+    session_id = f"summary-{ws(user)}-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text=ctx))
+    except Exception as e:
+        logging.exception("AI summary failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+    return {"summary": str(raw or "").strip(), "event": {
+        "date": ev.get("date"), "name": ev.get("name"), "guests": ev.get("guests"),
+        "price": price, "paid": paid, "remaining": remaining,
+        "client_name": ev.get("client_name"), "client_email": ev.get("client_email"),
+    }}
+
+
+@api.post("/ai/send-offer-email")
+async def ai_send_offer_email(body: AISendOfferIn, user=Depends(require_admin)):
+    """Wysyła wygenerowany tekst oferty/podsumowania na e-mail klienta. Załącznik PDF dla imprez firmowych."""
+    from offer_email import send_offer_email
+
+    email = (body.to_email or "").strip()
+    text = (body.body_text or "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(400, "Nieprawidłowy adres e-mail")
+    if len(text) < 20:
+        raise HTTPException(400, "Za krótka treść wiadomości")
+
+    kind = (body.event_kind or "okolicznosciowa").lower()
+    mode = (body.mode or "offer").lower()
+    attach_pdf = body.attach_offer_pdf if body.attach_offer_pdf is not None else (kind == "firmowa" and mode == "offer")
+
+    subject = (body.subject or "").strip()
+    if not subject:
+        if mode == "summary":
+            subject = "Podsumowanie szczegółów imprezy — Biesiada pod Lasem"
+        else:
+            subject = "Oferta — Biesiada pod Lasem"
+
+    extra_attachments = []
+    if attach_pdf and os.path.exists(_OFFER_PDF_PATH):
+        extra_attachments.append({
+            "path": _OFFER_PDF_PATH,
+            "filename": "Biesiada_pod_Lasem_Oferta_Gastronomiczna_2026.pdf",
+            "mime": "application/pdf",
+        })
+
+    # Personalizacja: dodaj powitanie z imieniem jeśli brief nie zawiera
+    who = (body.client_name or "").strip()
+    if who and "dzień dobry" not in text.lower() and "witam" not in text.lower():
+        text = f"Dzień dobry {who},\n\n{text}"
+
+    try:
+        send_offer_email(
+            to_email=email,
+            subject=subject,
+            body_text=text,
+            extra_attachments=extra_attachments,
+        )
+    except Exception as e:
+        logging.exception("Email send failed")
+        raise HTTPException(502, f"Nie udało się wysłać maila: {str(e)[:200]}")
+
+    # Log do bazy — dla audytu
+    log_doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "to_email": email,
+        "client_name": who or None,
+        "subject": subject,
+        "event_kind": kind,
+        "mode": mode,
+        "event_id": body.event_id or None,
+        "attached_offer_pdf": attach_pdf,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try: await db.ai_email_logs.insert_one(dict(log_doc))
+    except Exception: pass
+
+    return {"ok": True, "attached_pdf": attach_pdf, "subject": subject}
+
+
 @api.post("/ai/cost-coach")
 async def ai_cost_coach(body: AICostCoachIn, user=Depends(require_admin)):
     """Comiesięczna analiza kosztów: kategorie, zmiany m/m, sugestie cięć."""

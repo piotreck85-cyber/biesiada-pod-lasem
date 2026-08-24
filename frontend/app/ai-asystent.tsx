@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, Pressable, TextInput,
-  ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
+  ActivityIndicator, KeyboardAvoidingView, Platform, Alert, Modal,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -158,6 +158,16 @@ function OfferTab() {
   const [loading, setLoading] = useState(false);
   const [offer, setOffer] = useState("");
   const [err, setErr] = useState<string | null>(null);
+  // Send state
+  const [eventKind, setEventKind] = useState<"okolicznosciowa" | "firmowa">("okolicznosciowa");
+  const [autoDetected, setAutoDetected] = useState<boolean>(false);
+  const [toEmail, setToEmail] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientsQ, setClientsQ] = useState("");
+  const [sending, setSending] = useState(false);
+  const [subject, setSubject] = useState("");
 
   const generate = async () => {
     if (brief.trim().length < 5) {
@@ -168,6 +178,12 @@ function OfferTab() {
     try {
       const r: any = await api.aiGenerateOffer(brief.trim(), tone);
       setOffer(String(r?.offer || ""));
+      // Autodetect kind
+      try {
+        const k: any = await api.aiDetectKind(brief.trim());
+        if (k?.event_kind === "firmowa") { setEventKind("firmowa"); setAutoDetected(true); }
+        else { setEventKind("okolicznosciowa"); setAutoDetected(true); }
+      } catch {}
     } catch (e: any) {
       setErr(String(e?.message || "Błąd AI"));
     } finally { setLoading(false); }
@@ -179,7 +195,45 @@ function OfferTab() {
     Alert.alert("Skopiowano", "Tekst oferty jest w schowku.");
   };
 
-  const clear = () => { setBrief(""); setOffer(""); setErr(null); };
+  const clear = () => { setBrief(""); setOffer(""); setErr(null); setToEmail(""); setClientName(""); setSubject(""); setAutoDetected(false); };
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    try { const r: any = await api.listKnownClients(); setClients(Array.isArray(r) ? r : []); } catch { setClients([]); }
+  };
+  const searchClients = async (q: string) => {
+    setClientsQ(q);
+    try { const r: any = await api.listKnownClients(q); setClients(Array.isArray(r) ? r : []); } catch { setClients([]); }
+  };
+  const pickClient = (c: any) => {
+    setToEmail(c.email || "");
+    setClientName(c.name || "");
+    setPickerOpen(false);
+  };
+
+  const send = async () => {
+    const email = toEmail.trim();
+    if (!email || !email.includes("@")) { Alert.alert("Zły adres", "Podaj poprawny e-mail klienta."); return; }
+    if (offer.trim().length < 20) { Alert.alert("Brak treści", "Najpierw wygeneruj ofertę."); return; }
+    setSending(true);
+    try {
+      const r: any = await api.aiSendOfferEmail({
+        to_email: email,
+        client_name: clientName.trim(),
+        subject: subject.trim(),
+        body_text: offer.trim(),
+        event_kind: eventKind,
+        mode: "offer",
+      });
+      Alert.alert("Wysłano ✅",
+        `Oferta poszła na ${email}${r?.attached_pdf ? "\n\n📎 Załączono ofertę cateringową (PDF)" : ""}`
+      );
+    } catch (e: any) {
+      Alert.alert("Nie udało się wysłać", String(e?.message || "Sprawdź konfigurację e-mail"));
+    } finally { setSending(false); }
+  };
+
+  const willAttachPdf = eventKind === "firmowa";
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
@@ -224,19 +278,128 @@ function OfferTab() {
         )}
 
         {offer.length > 0 && (
-          <View style={s.offerBox}>
-            <View style={s.offerHead}>
-              <Feather name="file-text" size={16} color={v2.color.forest} />
-              <Text style={s.offerTitle}>Gotowy tekst oferty</Text>
-              <View style={{ flex: 1 }} />
-              <Pressable onPress={copy} style={s.copyBtn}>
-                <Feather name="copy" size={12} color={v2.color.forest} />
-                <Text style={s.copyBtnText}>Kopiuj</Text>
+          <>
+            <View style={s.offerBox}>
+              <View style={s.offerHead}>
+                <Feather name="file-text" size={16} color={v2.color.forest} />
+                <Text style={s.offerTitle}>Gotowy tekst oferty</Text>
+                <View style={{ flex: 1 }} />
+                <Pressable onPress={copy} style={s.copyBtn}>
+                  <Feather name="copy" size={12} color={v2.color.forest} />
+                  <Text style={s.copyBtnText}>Kopiuj</Text>
+                </Pressable>
+              </View>
+              <TextInput
+                value={offer}
+                onChangeText={setOffer}
+                multiline
+                style={sendS.offerEditable}
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* SEND SECTION */}
+            <View style={sendS.sendCard}>
+              <View style={sendS.sendHead}>
+                <Feather name="send" size={16} color={v2.color.forest} />
+                <Text style={s.offerTitle}>Wyślij do klienta</Text>
+              </View>
+
+              <Text style={s.fieldLabel}>Typ imprezy</Text>
+              <View style={s.chipRow}>
+                {([
+                  ["okolicznosciowa", "Okolicznościowa"],
+                  ["firmowa",         "Firmowa (wieczorna) 📎"],
+                ] as const).map(([k, l]) => (
+                  <Pressable key={k} onPress={() => { setEventKind(k as any); setAutoDetected(false); }}
+                    style={[s.chip, eventKind === k && s.chipActive]}>
+                    <Text style={[s.chipText, eventKind === k && s.chipTextActive]}>{l}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={sendS.hintSmall}>
+                {autoDetected && <Text style={{ color: v2.color.info, fontWeight: "800" }}>🤖 AI wykryło z briefu · </Text>}
+                {willAttachPdf ? "📎 Do maila zostanie dołączony PDF Oferty Gastronomicznej 2026" : "Wysyłam sam tekst — bez załącznika"}
+              </Text>
+
+              <Text style={[s.fieldLabel, { marginTop: 14 }]}>Adres e-mail klienta</Text>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                <TextInput
+                  value={toEmail}
+                  onChangeText={setToEmail}
+                  placeholder="klient@example.com"
+                  placeholderTextColor={v2.color.textSubtle}
+                  style={[sendS.inputRow, { flex: 1 }]}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                <Pressable onPress={openPicker} style={sendS.pickBtn}>
+                  <Feather name="users" size={14} color={v2.color.forest} />
+                </Pressable>
+              </View>
+
+              <Text style={[s.fieldLabel, { marginTop: 10 }]}>Imię klienta (opcjonalnie)</Text>
+              <TextInput
+                value={clientName}
+                onChangeText={setClientName}
+                placeholder="np. Anna Kowalska"
+                placeholderTextColor={v2.color.textSubtle}
+                style={sendS.inputRow}
+              />
+
+              <Text style={[s.fieldLabel, { marginTop: 10 }]}>Temat (opcjonalnie)</Text>
+              <TextInput
+                value={subject}
+                onChangeText={setSubject}
+                placeholder='Domyślnie: „Oferta — Biesiada pod Lasem"'
+                placeholderTextColor={v2.color.textSubtle}
+                style={sendS.inputRow}
+              />
+
+              <Pressable onPress={send} disabled={sending || !toEmail || offer.trim().length < 20}
+                style={[s.primaryBtn, { marginTop: 14, opacity: sending || !toEmail || offer.trim().length < 20 ? 0.6 : 1 }]}>
+                {sending ? <ActivityIndicator color="#fff" /> : <Feather name="send" size={14} color="#fff" />}
+                <Text style={s.primaryBtnText}>{sending ? "Wysyłam…" : "Wyślij e-mail"}</Text>
               </Pressable>
             </View>
-            <Text style={s.offerText}>{offer}</Text>
-          </View>
+          </>
         )}
+
+        {/* Client picker modal */}
+        <Modal visible={pickerOpen} animationType="slide" transparent onRequestClose={() => setPickerOpen(false)}>
+          <View style={sendS.modalBg}>
+            <View style={sendS.modalSheet}>
+              <View style={sendS.modalHead}>
+                <Text style={s.offerTitle}>Wybierz klienta</Text>
+                <Pressable onPress={() => setPickerOpen(false)}>
+                  <Feather name="x" size={20} color={v2.color.text} />
+                </Pressable>
+              </View>
+              <TextInput
+                value={clientsQ}
+                onChangeText={searchClients}
+                placeholder="Szukaj po nazwisku / e-mailu…"
+                placeholderTextColor={v2.color.textSubtle}
+                style={sendS.inputRow}
+              />
+              <ScrollView style={{ maxHeight: 420, marginTop: 10 }}>
+                {clients.length === 0 ? (
+                  <Text style={[s.emptyText, { padding: 20 }]}>Brak zapisanych klientów</Text>
+                ) : clients.map((c, i) => (
+                  <Pressable key={i} onPress={() => pickClient(c)} style={sendS.clientRow}>
+                    <View style={sendS.avatar}>
+                      <Text style={sendS.avatarText}>{(c.name || c.email || "?")[0]?.toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={sendS.clientName}>{c.name || "Bez nazwy"}</Text>
+                      <Text style={sendS.clientMeta}>{c.email || "brak e-mail"} · {c.count || 1} imprez</Text>
+                    </View>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -599,4 +762,21 @@ const coachS = StyleSheet.create({
   suggAction: { fontSize: 11, fontWeight: "800", marginTop: 4 },
   impactPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   impactText: { fontSize: 10, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.3 },
+});
+
+const sendS = StyleSheet.create({
+  offerEditable: { color: v2.color.text, fontSize: 14, lineHeight: 21, minHeight: 120, padding: 0 },
+  sendCard: { marginTop: 14, padding: 14, borderRadius: v2.radius.xl, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.borderStrong },
+  sendHead: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 12 },
+  hintSmall: { color: v2.color.textMuted, fontSize: 11, marginTop: 6, lineHeight: 15 },
+  inputRow: { height: 44, paddingHorizontal: 12, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border, backgroundColor: v2.color.bg, color: v2.color.text, fontSize: 14 },
+  pickBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center", borderRadius: v2.radius.md, backgroundColor: v2.color.mint },
+  modalBg: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalSheet: { backgroundColor: v2.color.card, borderTopLeftRadius: v2.radius.xl, borderTopRightRadius: v2.radius.xl, padding: 16, maxHeight: "80%" },
+  modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  clientRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderBottomWidth: 1, borderBottomColor: v2.color.divider },
+  avatar: { width: 34, height: 34, borderRadius: 999, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
+  avatarText: { color: v2.color.forest, fontSize: 14, fontWeight: "800" },
+  clientName: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  clientMeta: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
 });

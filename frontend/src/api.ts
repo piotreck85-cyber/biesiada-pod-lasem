@@ -331,4 +331,22 @@ export const api = {
     request(`/ai/chat/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`, { method: "DELETE" }),
   aiCostCoach: (year?: number, month?: number) =>
     request("/ai/cost-coach", { method: "POST", body: JSON.stringify({ year, month }) }),
+
+  // AI Oferta: wysyłka, podsumowanie, wykrywanie typu, klienci
+  aiDetectKind: (brief: string) =>
+    request("/ai/detect-kind", { method: "POST", body: JSON.stringify({ brief }) }),
+  aiGenerateSummary: (eventId: string) =>
+    request("/ai/generate-summary", { method: "POST", body: JSON.stringify({ event_id: eventId }) }),
+  aiSendOfferEmail: (payload: {
+    to_email: string;
+    client_name?: string;
+    subject?: string;
+    body_text: string;
+    event_kind: "okolicznosciowa" | "firmowa";
+    mode: "offer" | "summary";
+    event_id?: string;
+    attach_offer_pdf?: boolean;
+  }) => request("/ai/send-offer-email", { method: "POST", body: JSON.stringify(payload) }),
+  listKnownClients: (q?: string) =>
+    request(`/clients/known${q ? `?q=${encodeURIComponent(q)}` : ""}`),
 };

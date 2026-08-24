@@ -69,3 +69,19 @@ Polish mobile app for event organizers to manage:
   - Podział kategorii z paskami progress i zmianami vs poprzedni miesiąc
   - 3-5 konkretnych sugestii z pigułkami impact (wysoki/średni/niski)
   - Nawigacja +/- między miesiącami
+
+### Wysyłka Oferty AI e-mailem — Aug 2026
+- **Nowa sekcja „Wyślij do klienta"** w zakładce Oferty AI Asystenta (pojawia się po wygenerowaniu oferty)
+- **Toggle typu imprezy** — „Okolicznościowa" vs „Firmowa (Wieczorna) 📎"
+- **Auto-detekcja typu** — AI wykrywa z briefu słowa kluczowe (firma, integracja, wieczorna, b2b, korpo, pracowniczy…) i sam ustawia toggle; pigułka „🤖 AI wykryło z briefu"
+- **PDF Oferty Gastronomicznej 2026** (`/app/backend/assets/offers/`) — automatyczny załącznik TYLKO dla imprez firmowych
+- **Picker klientów** — modal z listą znanych klientów zdedublowaną z pola `events.client_*` (endpoint `GET /api/clients/known`)
+- **Edytowalny tekst oferty** — użytkownik może dopracować AI-treść przed wysłaniem
+- **Konfigurowalny temat** — domyślnie „Oferta — Biesiada pod Lasem", user może nadpisać
+- **Personalizacja** — jeśli podano imię klienta, backend prependuje „Dzień dobry {Imię}"
+- **Logi wysyłek** — kolekcja `ai_email_logs` (do audytu)
+- **Backend endpointy** (nowe): 
+  - `GET /api/clients/known` — lista znanych klientów
+  - `POST /api/ai/detect-kind` — heurystyczna detekcja typu z briefu
+  - `POST /api/ai/generate-summary` — AI podsumowanie szczegółów imprezy (dla mode="summary")
+  - `POST /api/ai/send-offer-email` — wysyłka przez istniejący SMTP + załączniki
