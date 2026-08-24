@@ -8,6 +8,8 @@ import { useAuth } from "@/src/auth";
 type Tile = { key: string; label: string; sub: string; icon: any; route: string; color: string };
 
 const TILES: Tile[] = [
+  { key: "ai",       label: "AI Asystent ✨", sub: "wskazówki dnia · generator ofert · czat z AI",
+    icon: "cpu", route: "/ai-asystent", color: "#285338" },
   { key: "zakupy",   label: "Zakupy i magazyn", sub: "lista zakupów · magazyn · przepisy · daty ważności",
     icon: "shopping-cart", route: "/zakupy", color: "#10B981" },
   { key: "majatek",  label: "Wyposażenie i majątek", sub: "narzędzia · dekoracje · wartość majątku",

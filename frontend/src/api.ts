@@ -317,4 +317,16 @@ export const api = {
   // Toggle staff role (Wspólnik / Pracownik)
   updateStaffType: (staffId: string, staffType: "employee" | "partner") =>
     request(`/staff/${staffId}`, { method: "PUT", body: JSON.stringify({ staff_type: staffType }) }),
+
+  // ---------- AI Asystent (GPT 5.6 Terra) ----------
+  aiAssistantTips: (periodDays: number = 14) =>
+    request("/ai/assistant-tips", { method: "POST", body: JSON.stringify({ period_days: periodDays }) }),
+  aiGenerateOffer: (brief: string, tone: "profesjonalny" | "ciepły" | "krótki" = "profesjonalny") =>
+    request("/ai/generate-offer", { method: "POST", body: JSON.stringify({ brief, tone }) }),
+  aiChat: (sessionId: string, message: string) =>
+    request("/ai/chat", { method: "POST", body: JSON.stringify({ session_id: sessionId, message }) }),
+  aiChatHistory: (sessionId?: string) =>
+    request(`/ai/chat/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`),
+  aiChatClear: (sessionId?: string) =>
+    request(`/ai/chat/history${sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ""}`, { method: "DELETE" }),
 };

@@ -67,6 +67,14 @@ from fastapi.responses import HTMLResponse
 # ---------- Static recipes / ingredient breakdown ----------
 from recipes import RECIPES as DEFAULT_RECIPES, FIXED_PER_EVENT, merge_recipes, RECIPE_LABELS
 
+# ---------- AI (OpenAI GPT via Emergent LLM Key) ----------
+try:
+    from emergentintegrations.llm.chat import LlmChat, UserMessage, TextDelta, StreamDone
+    _AI_AVAILABLE = True
+except Exception as _ai_err:
+    _AI_AVAILABLE = False
+    logging.warning(f"emergentintegrations not available: {_ai_err}")
+
 
 async def _get_gcal_conn(user_id: str) -> Optional[dict]:
     """Return the google connection doc for a user (or None)."""
@@ -5121,6 +5129,285 @@ async def delete_partner_settlement(sid: str, user=Depends(require_admin)):
     if doc:
         await log_change(user, "delete", "partner_settlement", sid,
                          f"Usunięto wypłatę wspólnika {doc.get('partner_name','')}")
+    return {"ok": True, "deleted": r.deleted_count}
+
+
+# ================================================================
+# ---------- AI Asystent (GPT 5.6 Terra via Emergent LLM Key) ----
+# ================================================================
+# 3 funkcje na wspólnym ekranie „AI Asystent":
+#  1. Asystent Biesiady — analiza nadchodzących imprez → wskazówki dnia
+#  2. Generator ofert — brief klienta → gotowy tekst oferty
+#  3. AI Czat — swobodny czat z kontekstem danych z apki (streaming)
+#
+# Wszystkie odpowiedzi po polsku. Model: gpt-5.6-terra (OpenAI).
+
+_AI_MODEL_PROVIDER = "openai"
+_AI_MODEL_NAME = "gpt-5.6-terra"
+
+_AI_SYSTEM_BASE = (
+    'Jesteś asystentem właściciela firmy cateringowej "Biesiada pod lasem". '
+    'Odpowiadasz zwięźle, po polsku, w tonie rzeczowym i przyjaznym. '
+    'Bazujesz WYŁĄCZNIE na danych podanych w kontekście — nie zmyślaj liczb ani nazwisk. '
+    'Kwoty formatuj w złotych (np. "2 500 zł"). Daty w formacie "15 września 2026".'
+)
+
+
+class AITipsIn(BaseModel):
+    period_days: Optional[int] = 14  # ile dni do przodu analizujemy
+
+
+class AIOfferIn(BaseModel):
+    brief: str                        # krótki opis od użytkownika
+    tone: Optional[str] = "profesjonalny"  # profesjonalny | ciepły | krótki
+
+
+class AIChatIn(BaseModel):
+    session_id: str
+    message: str
+
+
+def _ai_get_key() -> str:
+    key = os.environ.get("EMERGENT_LLM_KEY") or ""
+    if not key:
+        raise HTTPException(500, "Brak klucza AI (EMERGENT_LLM_KEY). Skontaktuj się z administratorem.")
+    if not _AI_AVAILABLE:
+        raise HTTPException(500, "Biblioteka AI niedostępna. Uruchom ponownie serwer.")
+    return key
+
+
+async def _ai_build_events_context(user: dict, days: int = 14) -> str:
+    """Buduje kompaktowy tekstowy kontekst nadchodzących imprez dla LLM."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    until = (datetime.now(timezone.utc).date() + timedelta(days=max(1, min(days, 60)))).isoformat()
+    q = {"owner_id": ws(user), "date": {"$gte": today, "$lte": until}}
+    events = await db.events.find(q, {"_id": 0}).sort("date", 1).to_list(100)
+    if not events:
+        return "Brak nadchodzących imprez w najbliższych dniach."
+
+    # Suma wpłat per event (event_payments)
+    ids = [e.get("id") for e in events if e.get("id")]
+    paid_by_event: Dict[str, float] = {}
+    if ids:
+        pipeline = [
+            {"$match": {"owner_id": ws(user), "event_id": {"$in": ids}}},
+            {"$group": {"_id": "$event_id", "sum": {"$sum": "$amount"}}},
+        ]
+        async for row in db.event_payments.aggregate(pipeline):
+            paid_by_event[row["_id"]] = float(row.get("sum") or 0)
+
+    lines = []
+    for e in events:
+        price = float(e.get("price_total") or e.get("revenue") or 0)
+        paid = paid_by_event.get(e.get("id"), 0.0)
+        remaining = max(0.0, price - paid)
+        staff = len(e.get("shifts") or [])
+        guests = int(e.get("guests") or 0)
+        status = (e.get("status") or "").strip()
+        lines.append(
+            f"- {e.get('date')} | {e.get('name') or 'Impreza'} | {guests} os. "
+            f"| cena {price:.0f} zł | wpłacono {paid:.0f} zł | pozostało {remaining:.0f} zł "
+            f"| obsada {staff} osób | status: {status or '—'}"
+        )
+    return "NADCHODZĄCE IMPREZY:\n" + "\n".join(lines)
+
+
+async def _ai_build_stats_context(user: dict) -> str:
+    """Kontekst „biznesowy" — statystyki roku i miesiąca dla czatu."""
+    now = datetime.now(timezone.utc)
+    year = now.year
+    month = now.month
+    # Wpłaty w tym miesiącu
+    m_start = f"{year:04d}-{month:02d}-01"
+    m_end = f"{year:04d}-{month:02d}-31"
+    pipeline_pay = [
+        {"$match": {"owner_id": ws(user), "date": {"$gte": m_start, "$lte": m_end}}},
+        {"$group": {"_id": None, "sum": {"$sum": "$amount"}, "n": {"$sum": 1}}},
+    ]
+    pay_agg = await db.event_payments.aggregate(pipeline_pay).to_list(1)
+    pay_month = pay_agg[0] if pay_agg else {"sum": 0, "n": 0}
+    # Wydatki w tym miesiącu (koszty firmowe)
+    exp_agg = await db.expenses.aggregate([
+        {"$match": {"owner_id": ws(user), "date": {"$gte": m_start, "$lte": m_end}}},
+        {"$group": {"_id": None, "sum": {"$sum": "$amount"}, "n": {"$sum": 1}}},
+    ]).to_list(1)
+    exp_month = exp_agg[0] if exp_agg else {"sum": 0, "n": 0}
+    # Imprezy w tym miesiącu
+    ev_count = await db.events.count_documents({"owner_id": ws(user), "date": {"$gte": m_start, "$lte": m_end}})
+    ev_next_30 = await db.events.count_documents({
+        "owner_id": ws(user),
+        "date": {"$gte": now.date().isoformat(),
+                  "$lte": (now.date() + timedelta(days=30)).isoformat()},
+    })
+    ev_year = await db.events.count_documents({"owner_id": ws(user), "date": {"$gte": f"{year}-01-01", "$lte": f"{year}-12-31"}})
+    profit = float(pay_month.get("sum") or 0) - float(exp_month.get("sum") or 0)
+    return (
+        f"KONTEKST BIZNESOWY (rok {year}):\n"
+        f"- Imprezy w tym miesiącu ({month:02d}): {ev_count}\n"
+        f"- Imprezy w ciągu 30 dni: {ev_next_30}\n"
+        f"- Imprezy w tym roku: {ev_year}\n"
+        f"- Wpłaty klientów w tym miesiącu: {float(pay_month.get('sum') or 0):.0f} zł ({int(pay_month.get('n') or 0)} wpłat)\n"
+        f"- Koszty firmowe w tym miesiącu: {float(exp_month.get('sum') or 0):.0f} zł ({int(exp_month.get('n') or 0)} dok.)\n"
+        f"- Wynik miesiąca (realny): {profit:.0f} zł"
+    )
+
+
+@api.post("/ai/assistant-tips")
+async def ai_assistant_tips(body: AITipsIn, user=Depends(require_admin)):
+    """Zwraca 3-5 krótkich wskazówek dnia bazując na nadchodzących imprezach."""
+    key = _ai_get_key()
+    ctx = await _ai_build_events_context(user, days=body.period_days or 14)
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Twoje zadanie: przeanalizuj podane imprezy i zwróć od 3 do 5 KRÓTKICH, KONKRETNYCH wskazówek "
+        "dla właściciela na dziś (max 15 słów każda). Skup się na: brakujących zaliczkach, brakującej "
+        "obsadzie, ryzyku (mało czasu), pilnych telefonach. "
+        "Odpowiedź MUSI być w formacie JSON: "
+        '{ "tips": [ { "severity": "error|warning|info", "text": "...", "action": "..." } ] } '
+        'Bez dodatkowego tekstu, tylko JSON. Pole "action" to krótki opis co zrobić (np. "Zadzwoń do klienta").'
+    )
+    session_id = f"tips-{ws(user)}-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text=ctx))
+    except Exception as e:
+        logging.exception("AI tips failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+    # Parsuj JSON
+    import re as _re2
+    text = str(raw or "").strip()
+    m = _re2.search(r"\{.*\}", text, _re2.DOTALL)
+    parsed: dict = {}
+    if m:
+        try:
+            parsed = _json.loads(m.group(0))
+        except Exception:
+            parsed = {}
+    tips = parsed.get("tips") if isinstance(parsed, dict) else None
+    if not isinstance(tips, list):
+        # fallback: zwróć surowe zdanie
+        tips = [{"severity": "info", "text": text[:200] or "Brak sugestii.", "action": ""}]
+    # sanityzacja
+    out = []
+    for t in tips[:5]:
+        if not isinstance(t, dict): continue
+        sev = (t.get("severity") or "info").lower()
+        if sev not in ("error", "warning", "info", "success"): sev = "info"
+        out.append({
+            "severity": sev,
+            "text": str(t.get("text") or "").strip()[:220],
+            "action": str(t.get("action") or "").strip()[:80],
+        })
+    return {"tips": out, "generated_at": datetime.now(timezone.utc).isoformat()}
+
+
+@api.post("/ai/generate-offer")
+async def ai_generate_offer(body: AIOfferIn, user=Depends(require_admin)):
+    """Generuje gotowy tekst oferty w oparciu o krótki brief."""
+    key = _ai_get_key()
+    brief = (body.brief or "").strip()
+    if len(brief) < 5:
+        raise HTTPException(400, "Podaj krótki opis imprezy (min. 5 znaków).")
+    tone = (body.tone or "profesjonalny").lower()
+    tone_desc = {
+        "profesjonalny": "Ton profesjonalny, uprzejmy, formalny (per Pan/Pani).",
+        "ciepły":        "Ton ciepły, przyjazny, personalny (per Ty).",
+        "krótki":        "Ton krótki i konkretny. Max 6 zdań.",
+    }.get(tone, "Ton profesjonalny, uprzejmy.")
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Twoje zadanie: na podstawie briefu klienta napisz gotowy tekst oferty cateringowej po polsku "
+        "gotowy do wysłania SMS-em lub e-mailem. "
+        f"{tone_desc} "
+        "Struktura odpowiedzi: 1) powitanie 2) opis pakietu (2-4 zdania) 3) cena orientacyjna "
+        "(jeśli w briefie jest liczba gości, przyjmij 250-350 zł/os. — podaj widełki) 4) prośba o kontakt. "
+        "Bez podpisu z imieniem — właściciel doda ręcznie. Bez markdown-a, sam tekst."
+    )
+    session_id = f"offer-{ws(user)}-{uuid.uuid4()}"
+    chat = LlmChat(api_key=key, session_id=session_id, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text=f"Brief klienta: {brief}"))
+    except Exception as e:
+        logging.exception("AI offer failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+    return {"offer": str(raw or "").strip(), "generated_at": datetime.now(timezone.utc).isoformat()}
+
+
+@api.post("/ai/chat")
+async def ai_chat(body: AIChatIn, user=Depends(require_admin)):
+    """
+    Prosty czat z pamięcią sesji (przechowywaną w ai_chat_messages).
+    Zwraca odpowiedź jednorazowo (nie SSE) — MVP.
+    """
+    key = _ai_get_key()
+    msg = (body.message or "").strip()
+    if not msg:
+        raise HTTPException(400, "Wiadomość nie może być pusta.")
+    sid = (body.session_id or "").strip() or f"chat-{ws(user)}-{uuid.uuid4()}"
+
+    # Załaduj kontekst danych właściciela
+    events_ctx = await _ai_build_events_context(user, days=30)
+    stats_ctx = await _ai_build_stats_context(user)
+    system = (
+        _AI_SYSTEM_BASE + " "
+        "Odpowiadasz na pytania właściciela o jego imprezy, przychody, koszty i statystyki. "
+        "Bazuj wyłącznie na podanym kontekście danych. Jeśli w kontekście brak informacji, "
+        'otwarcie powiedz "nie mam danych, żeby to policzyć" — NIE zmyślaj. '
+        "Odpowiedzi krótkie (max 4-5 zdań), zwięzłe, po polsku.\n\n" + stats_ctx + "\n\n" + events_ctx
+    )
+
+    # Zapis wiadomości user do bazy
+    user_msg_doc = {
+        "id": str(uuid.uuid4()),
+        "session_id": sid,
+        "owner_id": ws(user),
+        "role": "user",
+        "content": msg,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.ai_chat_messages.insert_one(dict(user_msg_doc))
+
+    chat = LlmChat(api_key=key, session_id=sid, system_message=system).with_model(
+        _AI_MODEL_PROVIDER, _AI_MODEL_NAME
+    )
+    try:
+        raw = await chat.send_message(UserMessage(text=msg))
+    except Exception as e:
+        logging.exception("AI chat failed")
+        raise HTTPException(502, f"Błąd AI: {str(e)[:200]}")
+
+    reply = str(raw or "").strip()
+    assistant_msg_doc = {
+        "id": str(uuid.uuid4()),
+        "session_id": sid,
+        "owner_id": ws(user),
+        "role": "assistant",
+        "content": reply,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.ai_chat_messages.insert_one(dict(assistant_msg_doc))
+    return {"session_id": sid, "reply": reply}
+
+
+@api.get("/ai/chat/history")
+async def ai_chat_history(user=Depends(require_admin), session_id: Optional[str] = None, limit: int = 50):
+    """Zwraca historię wiadomości w sesji (do rehydratacji ekranu)."""
+    q: dict = {"owner_id": ws(user)}
+    if session_id: q["session_id"] = session_id
+    rows = await db.ai_chat_messages.find(q, {"_id": 0}).sort("created_at", 1).to_list(max(1, min(limit, 200)))
+    return rows
+
+
+@api.delete("/ai/chat/history")
+async def ai_chat_clear(user=Depends(require_admin), session_id: Optional[str] = None):
+    """Czyści historię czatu (całą lub jedną sesję)."""
+    q: dict = {"owner_id": ws(user)}
+    if session_id: q["session_id"] = session_id
+    r = await db.ai_chat_messages.delete_many(q)
     return {"ok": True, "deleted": r.deleted_count}
 
 

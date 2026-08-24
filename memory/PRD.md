@@ -45,3 +45,13 @@ Polish mobile app for event organizers to manage:
 - Date range selectors + quick chips (This week / Prev week)
 - Shows per-staff hours × rate = amount for unpaid time entries only
 - "Oznacz wypłacone" marks time_entries as paid AND auto-creates a company expense
+
+### AI Asystent (GPT 5.6 Terra) — Aug 2026
+- Nowy ekran `/ai-asystent` z 3 zakładkami:
+  - **Wskazówki dnia** — AI analizuje nadchodzące imprezy (7/14/30 dni) i zwraca 3-5 akcyjnych sugestii z ikonami severity (error/warning/info)
+  - **Generator ofert** — brief klienta → gotowy tekst w 3 tonach (profesjonalny/ciepły/krótki); przycisk "Kopiuj" do schowka
+  - **Czat** — pytania o dane biznesowe z pamięcią sesji, sugestie startowe, bąbelki chat, prawdziwy kontekst (imprezy + statystyki miesiąca)
+- Backend: 5 endpointów `POST/GET/DELETE /api/ai/*` w server.py przy użyciu emergentintegrations
+- Model: `gpt-5.6-terra` (OpenAI via EMERGENT_LLM_KEY)
+- Historia czatu w kolekcji `ai_chat_messages` (owner-scoped, session-scoped)
+- Dostęp z Więcej → "AI Asystent ✨"
