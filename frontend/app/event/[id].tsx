@@ -263,8 +263,25 @@ export default function EventDetail() {
 
   const remove = async () => {
     if (isNew) return;
-    await api.deleteEvent(id as string);
-    router.back();
+    Alert.alert(
+      "Usunąć imprezę?",
+      `Ta operacja jest nieodwracalna.\n\n${name || "Impreza"}${date ? "\n" + date : ""}\n\nCzy na pewno chcesz usunąć?`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: "Usuń",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteEvent(id as string);
+              router.back();
+            } catch (e: any) {
+              Alert.alert("Błąd", e?.message || "Nie udało się usunąć imprezy.");
+            }
+          },
+        },
+      ],
+    );
   };
 
   const addStaff = (staffId: string) => {
@@ -336,6 +353,63 @@ export default function EventDetail() {
   const [offerGreeting, setOfferGreeting] = useState("");
   const [offerSending, setOfferSending] = useState(false);
   const [offerPreviewing, setOfferPreviewing] = useState(false);
+
+  // ---- Send SUMMARY email (AI-generated confirmation of details) ----
+  const [summaryOpen, setSummaryOpen] = useState(false);
+  const [summaryTo, setSummaryTo] = useState("");
+  const [summaryClient, setSummaryClient] = useState("");
+  const [summaryText, setSummaryText] = useState("");
+  const [summarySubject, setSummarySubject] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summarySending, setSummarySending] = useState(false);
+
+  const openSummaryModal = async () => {
+    if (isNew) {
+      Alert.alert("Zapisz najpierw", "Zapisz imprezę, aby móc wysłać podsumowanie.");
+      return;
+    }
+    setSummaryOpen(true);
+    setSummaryLoading(true);
+    setSummaryText("");
+    setSummarySubject("Podsumowanie szczegółów imprezy — Biesiada pod Lasem");
+    try {
+      const r: any = await api.aiGenerateSummary(id as string);
+      setSummaryText(String(r?.summary || ""));
+      const ev = r?.event || {};
+      setSummaryTo(ev.client_email || "");
+      setSummaryClient(ev.client_name || "");
+    } catch (e: any) {
+      Alert.alert("Błąd AI", e?.message || "Nie udało się wygenerować podsumowania");
+    } finally { setSummaryLoading(false); }
+  };
+
+  const sendSummaryEmail = async () => {
+    if (!summaryTo.trim() || !summaryTo.includes("@")) {
+      Alert.alert("Zły adres", "Podaj poprawny adres e-mail klienta.");
+      return;
+    }
+    if (summaryText.trim().length < 20) {
+      Alert.alert("Brak treści", "Poczekaj aż AI wygeneruje treść lub napisz ją sam.");
+      return;
+    }
+    setSummarySending(true);
+    try {
+      await api.aiSendOfferEmail({
+        to_email: summaryTo.trim(),
+        client_name: summaryClient.trim(),
+        subject: summarySubject.trim(),
+        body_text: summaryText.trim(),
+        event_kind: "okolicznosciowa",
+        mode: "summary",
+        event_id: id as string,
+        attach_offer_pdf: false,
+      });
+      setSummaryOpen(false);
+      Alert.alert("Wysłano ✓", `Podsumowanie poszło na ${summaryTo.trim()}.`);
+    } catch (e: any) {
+      Alert.alert("Nie udało się wysłać", e?.message || "Spróbuj ponownie.");
+    } finally { setSummarySending(false); }
+  };
 
   const openOfferModal = () => {
     setOfferTo("");
@@ -488,6 +562,11 @@ export default function EventDetail() {
           <Text style={s.headerTitle} numberOfLines={1}>{isNew ? "Utwórz nową" : (name || "Edytuj imprezę")}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 4 }}>
+          {!isNew ? (
+            <Pressable testID="event-send-summary-btn" onPress={openSummaryModal} hitSlop={12} style={s.backBtn}>
+              <Feather name="file-text" size={17} color="#fff" />
+            </Pressable>
+          ) : null}
           {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
               <Feather name="mail" size={18} color="#fff" />
@@ -1447,6 +1526,100 @@ export default function EventDetail() {
                 Wysyłamy z: biesiadapodlasem@gmail.com
               </Text>
             </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Summary Email Modal (AI-generated confirmation) */}
+      <Modal visible={summaryOpen} transparent animationType="slide" onRequestClose={() => setSummaryOpen(false)}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} onPress={() => setSummaryOpen(false)} />
+          <View style={{
+            backgroundColor: v2.color.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+            paddingHorizontal: 20, paddingTop: 12, paddingBottom: insets.bottom + 20,
+            borderWidth: 1, borderColor: v2.color.border, maxHeight: "88%",
+          }}>
+            <View style={{ alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 }} />
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <View style={{ width: 32, height: 32, borderRadius: 999, backgroundColor: v2.color.forest, alignItems: "center", justifyContent: "center" }}>
+                <Feather name="file-text" size={16} color="#fff" />
+              </View>
+              <Text style={s.sheetTitle}>Podsumowanie dla klienta ✉️</Text>
+            </View>
+            <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 12 }}>
+              AI wygeneruje potwierdzenie szczegółów — możesz je edytować przed wysyłką.
+            </Text>
+
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 480 }}>
+              <Text style={s.label}>Adres e-mail klienta</Text>
+              <TextInput
+                testID="summary-to-input"
+                value={summaryTo}
+                onChangeText={setSummaryTo}
+                placeholder="klient@example.com"
+                placeholderTextColor={v2.color.textSubtle}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={s.input}
+              />
+
+              <Text style={[s.label, { marginTop: 10 }]}>Imię klienta (opcjonalnie)</Text>
+              <TextInput
+                value={summaryClient}
+                onChangeText={setSummaryClient}
+                placeholder="np. Anna Kowalska"
+                placeholderTextColor={v2.color.textSubtle}
+                style={s.input}
+              />
+
+              <Text style={[s.label, { marginTop: 10 }]}>Temat</Text>
+              <TextInput
+                value={summarySubject}
+                onChangeText={setSummarySubject}
+                placeholder="Podsumowanie szczegółów imprezy"
+                placeholderTextColor={v2.color.textSubtle}
+                style={s.input}
+              />
+
+              <Text style={[s.label, { marginTop: 10 }]}>
+                Treść{summaryLoading ? " — AI generuje…" : ""}
+              </Text>
+              {summaryLoading ? (
+                <View style={{ padding: 20, alignItems: "center", backgroundColor: v2.color.bg, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border }}>
+                  <ActivityIndicator color={v2.color.forest} />
+                  <Text style={{ color: v2.color.textMuted, marginTop: 8, fontSize: 12 }}>AI analizuje szczegóły imprezy…</Text>
+                </View>
+              ) : (
+                <TextInput
+                  testID="summary-body-input"
+                  value={summaryText}
+                  onChangeText={setSummaryText}
+                  multiline
+                  style={[s.input, { minHeight: 200 }]}
+                  textAlignVertical="top"
+                />
+              )}
+            </ScrollView>
+
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 14 }}>
+              <Pressable
+                onPress={() => setSummaryOpen(false)}
+                style={{ flex: 1, paddingVertical: 13, alignItems: "center", borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.borderStrong, backgroundColor: v2.color.card }}>
+                <Text style={{ color: v2.color.text, fontWeight: "800" }}>Anuluj</Text>
+              </Pressable>
+              <Pressable
+                testID="summary-send-btn"
+                onPress={sendSummaryEmail}
+                disabled={summarySending || summaryLoading || !summaryTo || summaryText.trim().length < 20}
+                style={[s.saveBtn, { flex: 2, opacity: (summarySending || summaryLoading || !summaryTo || summaryText.trim().length < 20) ? 0.5 : 1 }]}>
+                {summarySending ? <ActivityIndicator color="#fff" /> : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Feather name="send" size={14} color="#fff" />
+                    <Text style={s.saveBtnText}>Wyślij podsumowanie</Text>
+                  </View>
+                )}
+              </Pressable>
+            </View>
           </View>
         </KeyboardAvoidingView>
       </Modal>

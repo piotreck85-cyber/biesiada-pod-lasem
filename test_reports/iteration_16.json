@@ -1,0 +1,34 @@
+{
+  "summary": "Frontend regression + new summary feature testing complete. V2.0 restyle of Centrum Imprezy (event/[id].tsx) verified — all logic intact. LOGIN + navigation OK. Header row shows all 4 icons (back, file-text, mail, kosz). Data loads (name/date/times/category/notes). Edit-name → 'Zapisz zmiany' persists (verified by re-loading event). Category modal opens (Bez kategorii / Firmowe / Okolicznościowe / Urodzinki *). Status buttons (5) visible & tagged (status-rezerwacja/status-potwierdzona etc.). Deposit-amount field editable + save works. WPŁATY KLIENTA — 'Dodaj wpłatę' modal opens with all fields (Kwota / Data / Metoda: Przelew|Gotówka|BLIK|Karta|Inne / Rodzaj: Zaliczka|Wpłata|Wpłata końcowa / Notatka). NEW SUMMARY FEATURE — full flow passed: event-send-summary-btn opens 'Podsumowanie dla klienta ✉️' modal → 'AI analizuje szczegóły imprezy…' ActivityIndicator shown → AI returned Polish text (~273 chars, correct structure with Dzień dobry / potwierdzamy organizację / szczegóły / kwoty) in ~1s → summary-to-input editable & keyboard='email-address' → summary-send-btn disabled while empty then enabled after email fill → click sent successfully → modal auto-closed → MongoDB ai_email_logs collection contains a new doc with mode='summary', to_email='biesiadapodlasem@gmail.com', event_id='6b641d04-...' , subject='Podsumowanie szczegółów imprezy — Biesiada pod Lasem'. KALENDARZ — Pulpit is default, view-miesiac + view-pulpit toggles work, rapid Pulpit↔Miesiąc toggle 5× produced ZERO console errors (removeChild bug fix still holds). CRITICAL BUG FOUND: event-delete-btn (trash icon) triggers immediate api.deleteEvent WITHOUT any confirmation dialog — a single click during header interaction permanently removed event 6b641d04-3819-421d-b459-1df64bebbe1d ('TEST Zapis Pakiet') from MongoDB. The current remove() function at [id].tsx:264-268 is: `if (isNew) return; await api.deleteEvent(id); router.back();` — no Alert.alert confirm step.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "event-delete-btn (Centrum Imprezy header)", "issue": "Kliknięcie ikony kosza (trash-2) natychmiast wywołuje api.deleteEvent BEZ potwierdzenia. Zdarzenie usuwa się bez pytania — łatwe do przypadkowego wykonania. Task 1h spodziewał się confirm dialogu ('Usunąć? Na pewno? Anuluj/Usuń').", "testID": "event-delete-btn", "priority": "CRITICAL"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "event/[id].tsx (WPŁATY KLIENTA)", "issues": ["Sub-komponent EventPayments (src/components/EventPayments.tsx) nadal używa starego theme.color.* zamiast v2.color.* — modal 'Nowa wpłata' i lista wpłat nie są spójne wizualnie z jasnym V2.0 headerem (dark/mixed styling). Nie było w scope V2.0 rewrite (tylko event/[id].tsx), ale warto zunifikować."]}
+    ],
+    "react_native_issues": [
+      {"component": "Deprecated style props (istniejące od iter 15)", "issue": "Console warnings: '\"shadow*\" style props are deprecated. Use \"boxShadow\"' oraz 'props.pointerEvents is deprecated. Use style.pointerEvents'. Nieblokujące, ale trzeba wyczyścić."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "PRIORITY 1: W /app/frontend/app/event/[id].tsx (linie 264-268) dodać Alert.alert('Usunąć imprezę?', 'Ta operacja jest nieodwracalna.', [{text:'Anuluj', style:'cancel'}, {text:'Usuń', style:'destructive', onPress: async () => { await api.deleteEvent(id); router.back(); }}]) — obecnie nie ma żadnego confirmu i pojedyncze kliknięcie kosza kasuje imprezę.",
+    "Odtworzyć testową imprezę '6b641d04-3819-421d-b459-1df64bebbe1d' (TEST Zapis Pakiet, 2026-08-16, deposit 500 zł) skasowaną podczas walidacji brakującego confirmu — LUB potraktować to jako oczekiwane skasowanie test-danych.",
+    "(nice-to-have) Przemigrować EventPayments.tsx z theme.color na v2.color żeby modal 'Nowa wpłata' i lista wpłat pasowały do jasnego stylu Centrum Imprezy V2.0."
+  ],
+  "critical_code_review_comments": [
+    "server.py (5734 linii) — dalej znacznie ponad limit 700 linii; wskazana dekompozycja (routery: ai, alerts, weather, calendar, payments, staff).",
+    "event/[id].tsx (1875 linii) — również powyżej 700-liniowego progu; można wydzielić modały (Offer/Summary/Catering) do osobnych plików.",
+    "remove() bez confirmu = destrukcyjna akcja jednym tapem — patrz action item 1."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run per request)", "frontend": "92% (12/13 test items passed; 1 CRITICAL bug — brak confirmu przy delete)"},
+  "seed_data_creation": "Wysłano 1 real mail testowy na biesiadapodlasem@gmail.com (self-test wg treści zadania). W bazie ai_email_logs dodane 2 wpisy (widoczne: przy poprzednim curl + z niniejszego runu z event_id=6b641d04). Impreza 6b641d04-3819-421d-b459-1df64bebbe1d skasowana podczas testu delete-confirmu.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Konto testowe: test@eventa.pl / test123. testIDs: event-send-summary-btn (nowa ikona file-text), summary-to-input, summary-body-input, summary-send-btn, event-delete-btn, view-pulpit, view-miesiac, event-name-input, deposit-amount, event-category-btn, add-payment-btn, status-{rezerwacja|potwierdzona|zrealizowana|...}. Endpoint AI /api/ai/generate-summary działa szybko (~1s) z modelem gpt-5-mini. /api/ai/send-offer-email z mode='summary' wysyła mail i loguje do ai_email_logs. Uwaga: /api/ai/send-offer-email realnie wysyła mail przez SMTP — używać biesiadapodlasem@gmail.com jako safe self-test.",
+  "rca_of_issue": "BUG delete-bez-confirmu — root cause: funkcja remove() w event/[id].tsx (l. 264-268) po V2.0 rewrite została zachowana jak w wersji sprzed dodania Alert.alert. Repro: otwórz /event/{id} → tap event-delete-btn → wpis znika z bazy events natychmiast (potwierdzone: event 6b641d04-3819-421d-b459-1df64bebbe1d = None po jednym kliknięciu). Mitigation: opakować api.deleteEvent w Alert.alert 2-przyciskowy confirm (patrz action item 1)."
+}

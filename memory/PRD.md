@@ -96,3 +96,19 @@ Polish mobile app for event organizers to manage:
 - **Logika, endpointy, baza danych, funkcje — bez zmian** (0 zmian w handlers/state/effects)
 - Import `theme` zastąpiony przez `formatPLN, initials` + `v2` z designTokensV2
 - Fix routingu w kalendarz.tsx: `/event/new` → `/event/[id]` z `id: "new"` (spójne z resztą apki)
+
+### Wysyłka Podsumowania AI (Centrum Imprezy) + Fix Delete Confirm — Aug 2026
+- **Nowy przycisk „Wyślij podsumowanie"** w headerze Centrum Imprezy (ikona file-text, obok mail/kosz)
+- Dostępny TYLKO dla zapisanych imprez (nie dla nowych)
+- **Modal „Podsumowanie dla klienta ✉️"**:
+  - AI generuje polski tekst potwierdzający na podstawie danych imprezy (data, gości, cena, zaliczka, do zapłaty)
+  - Auto-fill: `to_email` i `client_name` z pól imprezy jeśli istnieją
+  - Edytowalny tekst i temat przed wysyłką
+  - Wykorzystuje endpointy: `POST /api/ai/generate-summary` (nowy) + `POST /api/ai/send-offer-email` z `mode="summary"`
+  - Bez załącznika PDF (`attach_offer_pdf: false`)
+  - Log w `ai_email_logs`
+
+### 🐛 Krytyczny bugfix — Delete bez confirmu
+- Test Report iteration 16 wykrył: `event-delete-btn` kasował imprezę **bez pytania**
+- Naprawione: `Alert.alert("Usunąć imprezę?")` z dwoma przyciskami [Anuluj / Usuń (destructive)]
+- Zabezpiecza przed przypadkowym skasowaniem
