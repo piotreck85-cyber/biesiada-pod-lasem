@@ -23,21 +23,26 @@ export default function EventMockup() {
   useLocalSearchParams<{ id?: string }>();
   const [tab, setTab] = useState<TabKey>("info");
 
-  // Sample data
+  // Sample data — bez fikcji, oznaczone jako mockup
   const evt = {
-    name: "Wesele Nowak", date: "30 sierpnia 2026", day: "sobota",
+    name: "Przykładowa impreza", date: "30 sierpnia 2026", day: "sobota",
     time: "14:00 – 22:00", guests: 80, package: "Biesiada Premium",
-    client: "Anna Nowak", phone: "+48 500 123 456",
-    price: 12500, deposit: 500, remaining: 12000,
-    payments: 500, costs_est: 4200, profit_est: 8300,
-    staff: [
-      { name: "Piotr K.",  role: "Szef",       initials: "PK", color: "#437A56" },
-      { name: "Zuzia S.",  role: "Kelnerka",   initials: "ZS", color: "#8BAA92" },
-      { name: "Marek W.",  role: "Grill",      initials: "MW", color: "#285338" },
-    ],
-    checklist_done: 14, checklist_total: 18,
+    client: "— (podgląd mockupu)", phone: "—",
+    price: 12500,
+    deposit_required: 2500,     // 20% ceny
+    deposit_paid: 500,          // częściowa zaliczka
+    other_payments: 0,
+    payments_total: 500,
+    remaining: 12000,
+    costs_est: 4200, profit_est: 8300,
+    staff: [] as any[],
+    checklist_done: 0, checklist_total: 0,
     weather: { icon: "sun", temp: "24°C", desc: "Słonecznie" },
   };
+  const depositStatus =
+    evt.deposit_paid <= 0 ? { text: "Brak zaliczki", tone: v2.color.error } :
+    evt.deposit_paid < evt.deposit_required ? { text: "Zaliczka niepełna", tone: v2.color.warning } :
+    { text: "Zaliczka opłacona", tone: v2.color.success };
 
   return (
     <View style={{ flex: 1, backgroundColor: v2.color.bg }}>
@@ -54,9 +59,9 @@ export default function EventMockup() {
             </View>
           </View>
           <View style={{ marginTop: 40 }}>
-            <View style={s.warnPill}>
-              <View style={[s.dot, { backgroundColor: v2.color.warning }]} />
-              <Text style={s.warnText}>Wymaga uwagi — brak zaliczki</Text>
+            <View style={[s.warnPill, { backgroundColor: depositStatus.tone + "30" }]}>
+              <View style={[s.dot, { backgroundColor: depositStatus.tone }]} />
+              <Text style={s.warnText}>{depositStatus.text}</Text>
             </View>
             <Text style={s.heroTitle}>{evt.name}</Text>
             <Text style={s.heroSub}>{evt.date} · {evt.day} · {evt.time}</Text>
@@ -174,22 +179,54 @@ export default function EventMockup() {
         {tab === "finance" && (
           <>
             <View style={s.priceCard}>
-              <Text style={s.sectionLabel}>CENA IMPREZY</Text>
+              <Text style={s.sectionLabel}>CENA CAŁKOWITA</Text>
               <Text style={s.bigPrice}>{formatPLN(evt.price)}</Text>
+
+              <View style={s.divider} />
+
+              {/* WPŁATY — rozdzielone */}
+              <Text style={[s.sectionLabel, { marginBottom: 6 }]}>WPŁATY</Text>
+              <View style={s.finRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.finLabel}>Wymagana zaliczka</Text>
+                  <Text style={s.finSubtle}>20% ceny · umowa</Text>
+                </View>
+                <Text style={s.finValue}>{formatPLN(evt.deposit_required)}</Text>
+              </View>
+              <View style={s.finRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.finLabel}>Wpłacona zaliczka</Text>
+                  {evt.deposit_paid > 0 && evt.deposit_paid < evt.deposit_required && (
+                    <Text style={[s.finSubtle, { color: v2.color.warning }]}>
+                      brakuje {formatPLN(evt.deposit_required - evt.deposit_paid)}
+                    </Text>
+                  )}
+                </View>
+                <Text style={[s.finValue, { color: evt.deposit_paid > 0 ? v2.color.success : v2.color.error }]}>
+                  {evt.deposit_paid > 0 ? formatPLN(evt.deposit_paid) : "❌ brak"}
+                </Text>
+              </View>
+              <View style={s.finRow}>
+                <Text style={s.finLabel}>Inne wpłaty</Text>
+                <Text style={s.finValue}>{formatPLN(evt.other_payments)}</Text>
+              </View>
+              <View style={[s.finRow, { paddingTop: 6, borderTopWidth: 1, borderTopColor: v2.color.divider, marginTop: 4 }]}>
+                <Text style={[s.finLabel, { fontWeight: "800", color: v2.color.text }]}>Suma wpłat</Text>
+                <Text style={[s.finValue, { color: v2.color.success }]}>{formatPLN(evt.payments_total)}</Text>
+              </View>
+
               <View style={s.divider} />
               <View style={s.finRow}>
-                <Text style={s.finLabel}>Wpłacono</Text>
-                <Text style={[s.finValue, { color: v2.color.success }]}>{formatPLN(evt.payments)}</Text>
-              </View>
-              <View style={s.finRow}>
                 <Text style={s.finLabel}>Pozostało do zapłaty</Text>
-                <Text style={[s.finValue, { color: v2.color.warning }]}>{formatPLN(evt.remaining)}</Text>
+                <Text style={[s.finValue, { color: v2.color.warning, fontSize: 16 }]}>{formatPLN(evt.remaining)}</Text>
               </View>
+
+              <View style={s.divider} />
+              <Text style={[s.sectionLabel, { marginBottom: 6 }]}>RENTOWNOŚĆ (PLAN)</Text>
               <View style={s.finRow}>
                 <Text style={s.finLabel}>Przewidywany koszt</Text>
                 <Text style={s.finValue}>{formatPLN(evt.costs_est)}</Text>
               </View>
-              <View style={s.divider} />
               <View style={s.finRow}>
                 <Text style={[s.finLabel, { fontWeight: "800", color: v2.color.text }]}>Przewidywany zysk</Text>
                 <Text style={s.bigProfit}>{formatPLN(evt.profit_est)}</Text>
@@ -295,6 +332,7 @@ const s = StyleSheet.create({
   priceCard: { padding: 20, borderRadius: v2.radius.lg, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border },
   bigPrice: { color: v2.color.forest, fontSize: 30, fontWeight: "800", letterSpacing: -1, marginTop: 4 },
   divider: { height: 1, backgroundColor: v2.color.divider, marginVertical: 12 },
+  finSubtle: { color: v2.color.textSubtle, fontSize: 10, marginTop: 2 },
   finRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 8 },
   finLabel: { color: v2.color.textMuted, fontSize: 13 },
   finValue: { color: v2.color.text, fontSize: 14, fontWeight: "700" },

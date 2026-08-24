@@ -40,7 +40,7 @@ export default function DzisiajMockup() {
         <View style={s.avatarBtn}><Text style={s.avatarTxt}>Z</Text></View>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 130, gap: 14 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 100, gap: 14 }}>
         {/* Event card */}
         <View style={s.eventCard}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
@@ -49,7 +49,7 @@ export default function DzisiajMockup() {
               <Text style={s.locationText}>Sala biesiadna</Text>
             </View>
           </View>
-          <Text style={s.eventName}>Wesele Nowak</Text>
+          <Text style={s.eventName}>Przykładowa impreza</Text>
           <View style={s.eventMetaRow}>
             <View style={s.metaItem}>
               <Feather name="clock" size={13} color={v2.color.textMuted} />
@@ -104,11 +104,13 @@ export default function DzisiajMockup() {
         })}
       </ScrollView>
 
-      {/* FAB */}
-      <Pressable style={[s.fab, { bottom: insets.bottom + 20 }]}>
-        <Feather name="alert-triangle" size={20} color="#fff" />
-        <Text style={s.fabText}>Zgłoś problem</Text>
-      </Pressable>
+      {/* Sticky bottom bar — nie zasłania checklisty dzięki paddingBottom w ScrollView */}
+      <View style={[s.bottomBar, { paddingBottom: insets.bottom + 8 }]}>
+        <Pressable style={s.reportBtn}>
+          <Feather name="alert-triangle" size={20} color="#fff" />
+          <Text style={s.reportBtnText}>Zgłoś problem</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -149,12 +151,16 @@ const s = StyleSheet.create({
   taskTitle: { flex: 1, color: v2.color.text, fontSize: 15, fontWeight: "600" },
   taskTitleDone: { color: v2.color.textMuted, textDecorationLine: "line-through" },
 
-  fab: {
-    position: "absolute", left: 20, right: 20,
-    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
-    paddingVertical: 16, borderRadius: v2.radius.pill,
-    backgroundColor: v2.color.error,
-    shadowColor: "#DC2626", shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 6,
+  bottomBar: {
+    position: "absolute", left: 0, right: 0, bottom: 0,
+    backgroundColor: v2.color.card,
+    borderTopWidth: 1, borderTopColor: v2.color.border,
+    paddingHorizontal: 16, paddingTop: 10,
   },
-  fabText: { color: "#fff", fontSize: 15, fontWeight: "800", letterSpacing: 0.3 },
+  reportBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10,
+    paddingVertical: 14, borderRadius: v2.radius.pill,
+    backgroundColor: v2.color.error,
+  },
+  reportBtnText: { color: "#fff", fontSize: 15, fontWeight: "800", letterSpacing: 0.3 },
 });
