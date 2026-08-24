@@ -501,15 +501,23 @@ export default function Pracownicy() {
             }
             renderItem={({ item }) => {
               const col = roleColor(item.role || "");
+              const isPartner = item.staff_type === "partner";
               return (
                 <Pressable testID={`staff-row-${item.id}`} style={s.row} onPress={() => openEdit(item)}>
-                  <View style={[s.avatar, { backgroundColor: col.bg }]}>
-                    <Text style={[s.avatarText, { color: col.fg }]}>{initials(item.name)}</Text>
+                  <View style={[s.avatar, { backgroundColor: isPartner ? theme.color.brand + "22" : col.bg }]}>
+                    <Text style={[s.avatarText, { color: isPartner ? theme.color.brand : col.fg }]}>{initials(item.name)}</Text>
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.rowName}>{item.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+                      <Text style={s.rowName}>{item.name}</Text>
+                      {isPartner && (
+                        <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999, backgroundColor: theme.color.brand + "22" }}>
+                          <Text style={{ color: theme.color.brand, fontSize: 9, fontWeight: "800", letterSpacing: 0.4, textTransform: "uppercase" }}>Wspólnik</Text>
+                        </View>
+                      )}
+                    </View>
                     {item.role ? (
-                      <View style={[s.roleBadge, { backgroundColor: col.bg }]}>
+                      <View style={[s.roleBadge, { backgroundColor: col.bg, marginTop: 3 }]}>
                         <Text style={[s.roleBadgeText, { color: col.fg }]}>{item.role}</Text>
                       </View>
                     ) : (
@@ -551,6 +559,43 @@ export default function Pracownicy() {
               <TextInput testID="staff-rate-input" value={rate} onChangeText={setRate} placeholder="50" placeholderTextColor={theme.color.onSurfaceSecondary} keyboardType="decimal-pad" style={s.input} />
               {editing ? (
                 <>
+                  {/* Rola systemowa: Pracownik vs Wspólnik (Faza 4A) */}
+                  <Text style={[s.label, { marginTop: 14 }]}>ROLA</Text>
+                  <View style={{ flexDirection: "row", gap: 6, marginBottom: 4 }}>
+                    {[
+                      { k: "employee", l: "Pracownik", desc: "godzinowe wypłaty jako koszt firmy" },
+                      { k: "partner",  l: "Wspólnik",  desc: "wypłaty osobno, nie są kosztem" },
+                    ].map(opt => {
+                      const active = (editing.staff_type || "employee") === opt.k;
+                      return (
+                        <Pressable
+                          key={opt.k}
+                          testID={`staff-type-${opt.k}`}
+                          onPress={async () => {
+                            if (active) return;
+                            try {
+                              await api.updateStaffType(editing.id, opt.k as any);
+                              await load();
+                              Alert.alert(
+                                opt.k === "partner" ? "✓ Ustawiono jako Wspólnika" : "✓ Ustawiono jako Pracownika",
+                                opt.k === "partner"
+                                  ? `Wypłaty ${editing.name} są teraz rejestrowane w sekcji Rozliczenia wspólników i NIE wchodzą do kosztów firmy.`
+                                  : `Wypłaty ${editing.name} będą traktowane jako zwykły koszt firmy.`
+                              );
+                            } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                          }}
+                          style={[
+                            { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: theme.color.border, backgroundColor: theme.color.surfaceSecondary, alignItems: "center" },
+                            active && { borderColor: theme.color.brand, backgroundColor: theme.color.brand + "22" },
+                          ]}
+                        >
+                          <Text style={{ color: active ? theme.color.brand : theme.color.onSurface, fontSize: 13, fontWeight: "800" }}>{opt.l}</Text>
+                          <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, textAlign: "center", marginTop: 2 }}>{opt.desc}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
                   <Text style={[s.label, { marginTop: 14 }]}>KONTO PRACOWNIKA (login)</Text>
                   {editing.login_email ? (
                     <View style={{ padding: 10, marginBottom: 6, borderRadius: 10, backgroundColor: theme.color.brand + "12", borderWidth: 1, borderColor: theme.color.brand + "44" }}>

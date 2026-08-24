@@ -292,4 +292,29 @@ export const api = {
   },
   financeMonthlySeries: (year?: number) =>
     request(`/finance/monthly-series${year ? `?year=${year}` : ""}`),
+
+  // ---------- Partner Settlements (Faza 4A) ----------
+  listPartnerSettlements: (params?: { partner_id?: string; date_from?: string; date_to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.partner_id) q.set("partner_id", params.partner_id);
+    if (params?.date_from) q.set("date_from", params.date_from);
+    if (params?.date_to) q.set("date_to", params.date_to);
+    return request(`/partner-settlements${q.toString() ? `?${q}` : ""}`);
+  },
+  partnerSettlementsSummary: (params?: { date_from?: string; date_to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.date_from) q.set("date_from", params.date_from);
+    if (params?.date_to) q.set("date_to", params.date_to);
+    return request(`/partner-settlements/summary${q.toString() ? `?${q}` : ""}`);
+  },
+  createPartnerSettlement: (data: { partner_id: string; amount: number; date: string; method?: string; note?: string; kind?: string }) =>
+    request("/partner-settlements", { method: "POST", body: JSON.stringify(data) }),
+  updatePartnerSettlement: (id: string, patch: { amount?: number; date?: string; method?: string; note?: string; kind?: string }) =>
+    request(`/partner-settlements/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  deletePartnerSettlement: (id: string) =>
+    request(`/partner-settlements/${id}`, { method: "DELETE" }),
+
+  // Toggle staff role (Wspólnik / Pracownik)
+  updateStaffType: (staffId: string, staffType: "employee" | "partner") =>
+    request(`/staff/${staffId}`, { method: "PUT", body: JSON.stringify({ staff_type: staffType }) }),
 };

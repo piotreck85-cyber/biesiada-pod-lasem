@@ -75,6 +75,7 @@ export default function TabLayout() {
         <Tabs.Screen name="finanse" options={{ href: null }} />
         <Tabs.Screen name="wiecej"  options={{ href: null }} />
         <Tabs.Screen name="checklist-templates" options={{ href: null }} />
+        <Tabs.Screen name="wspolnicy" options={{ href: null }} />
       </Tabs>
     );
   }
@@ -95,6 +96,7 @@ export default function TabLayout() {
       <Tabs.Screen name="statystyki"  options={{ href: null }} />
       <Tabs.Screen name="majatek"     options={{ href: null }} />
       <Tabs.Screen name="checklist-templates" options={{ href: null }} />
+      <Tabs.Screen name="wspolnicy"   options={{ href: null }} />
       {/* Staff-only screens */}
       <Tabs.Screen name="grafik"   options={{ href: null }} />
       <Tabs.Screen name="obecnosc" options={{ href: null }} />

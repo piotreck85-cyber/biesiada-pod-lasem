@@ -179,8 +179,16 @@ class TokenOut(BaseModel):
 
 class StaffIn(BaseModel):
     name: str
-    role: Optional[str] = ""
+    role: Optional[str] = ""        # STANOWISKO (np. Kelner, Kucharz) — bez zmian
     hourly_rate: float = 0.0
+    staff_type: Optional[str] = "employee"   # NOWE (Faza 4A): "employee" | "partner"
+
+class StaffPatch(BaseModel):
+    # Dla PUT/PATCH — wszystkie pola opcjonalne, żeby móc zmienić np. tylko staff_type
+    name: Optional[str] = None
+    role: Optional[str] = None
+    hourly_rate: Optional[float] = None
+    staff_type: Optional[str] = None
 
 class CostItem(BaseModel):
     label: str
@@ -911,10 +919,17 @@ async def create_staff(body: StaffIn, user=Depends(require_admin)):
     return doc
 
 @api.put("/staff/{staff_id}")
-async def update_staff(staff_id: str, body: StaffIn, user=Depends(require_admin)):
+async def update_staff(staff_id: str, body: StaffPatch, user=Depends(require_admin)):
+    # exclude_unset=True — nie nadpisuj pól które frontend świadomie pominął
+    payload = body.dict(exclude_unset=True)
+    # Jeżeli name został wysłany jako pusty string, nie nadpisuj (bezpiecznik)
+    if "name" in payload and (payload["name"] is None or payload["name"] == ""):
+        payload.pop("name")
+    if not payload:
+        raise HTTPException(400, "Brak zmian")
     res = await db.staff.update_one(
         {"id": staff_id, "owner_id": ws(user)},
-        {"$set": body.dict()},
+        {"$set": payload},
     )
     if res.matched_count == 0:
         raise HTTPException(404, "Pracownik nie znaleziony")
@@ -4961,6 +4976,152 @@ async def finance_monthly_series(user=Depends(require_admin), year: Optional[int
             "events_count": s["events_count"],
         })
     return {"year": year, "months": out}
+
+
+# ---------- Partner Settlements (Faza 4A) ----------
+# Osobna kolekcja wypłat wspólników. NIE są kosztami imprez ani firmy.
+# Wypłaty pracowników godzinowych ZOSTAJĄ w `expenses` (bez zmian).
+
+class PartnerSettlementIn(BaseModel):
+    partner_id: str                  # staff.id z rolą staff_type="partner"
+    amount: float
+    date: str                        # YYYY-MM-DD
+    method: Optional[str] = "Przelew"
+    note: Optional[str] = ""
+    kind: Optional[str] = "wypłata"  # "wypłata" | "zaliczka" | "zwrot"
+
+class PartnerSettlementPatch(BaseModel):
+    amount: Optional[float] = None
+    date: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+    kind: Optional[str] = None
+
+
+@api.get("/partner-settlements")
+async def list_partner_settlements(
+    user=Depends(require_admin),
+    partner_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    q: dict = {"owner_id": ws(user)}
+    if partner_id: q["partner_id"] = partner_id
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    rows = await db.partner_settlements.find(q, {"_id": 0}).sort("date", -1).to_list(1000)
+    return rows
+
+
+@api.get("/partner-settlements/summary")
+async def partner_settlements_summary(
+    user=Depends(require_admin),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    """Zwraca saldo per wspólnik + suma łączna."""
+    q: dict = {"owner_id": ws(user)}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    per_partner: Dict[str, dict] = {}
+    total = 0.0
+    async for s in db.partner_settlements.find(q, {"_id": 0}):
+        pid = s.get("partner_id") or "?"
+        if pid not in per_partner:
+            per_partner[pid] = {"partner_id": pid, "total": 0.0, "count": 0}
+        per_partner[pid]["total"] += float(s.get("amount") or 0)
+        per_partner[pid]["count"] += 1
+        total += float(s.get("amount") or 0)
+    # Get names
+    ids = list(per_partner.keys())
+    if ids:
+        async for st in db.staff.find({"id": {"$in": ids}, "owner_id": ws(user)}, {"_id": 0, "id": 1, "name": 1}):
+            if st["id"] in per_partner:
+                per_partner[st["id"]]["partner_name"] = st.get("name", "")
+    return {
+        "total": round(total, 2),
+        "by_partner": sorted(per_partner.values(), key=lambda x: -x["total"]),
+    }
+
+
+@api.post("/partner-settlements")
+async def create_partner_settlement(body: PartnerSettlementIn, user=Depends(require_admin)):
+    partner = await db.staff.find_one(
+        {"id": body.partner_id, "owner_id": ws(user)}, {"_id": 0}
+    )
+    if not partner:
+        raise HTTPException(404, "Nie znaleziono wspólnika")
+    if partner.get("staff_type") != "partner":
+        raise HTTPException(400, f"Pracownik {partner.get('name')} nie jest wspólnikiem. "
+                                  "Najpierw ustaw jego 'staff_type' na 'partner'.")
+    try:
+        amt = float(body.amount)
+    except Exception:
+        raise HTTPException(400, "Nieprawidłowa kwota")
+    if amt <= 0:
+        raise HTTPException(400, "Kwota musi być większa od zera")
+    if not body.date or len(body.date) < 8:
+        raise HTTPException(400, "Podaj datę wypłaty")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "partner_id": body.partner_id,
+        "partner_name": partner.get("name", ""),
+        "amount": round(amt, 2),
+        "date": body.date,
+        "method": (body.method or "Przelew").strip() or "Przelew",
+        "note": (body.note or "").strip(),
+        "kind": (body.kind or "wypłata").strip().lower(),
+        "created_by": user.get("id"),
+        "created_by_name": user.get("name") or user.get("email", ""),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.partner_settlements.insert_one(dict(doc))
+    await log_change(user, "create", "partner_settlement", doc["id"],
+                     f"Wypłata wspólnika {partner.get('name','')}: {amt:.2f} zł")
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+
+@api.patch("/partner-settlements/{sid}")
+async def update_partner_settlement(sid: str, body: PartnerSettlementPatch, user=Depends(require_admin)):
+    updates: dict = {}
+    if body.amount is not None:
+        try: a = float(body.amount)
+        except Exception: raise HTTPException(400, "Nieprawidłowa kwota")
+        if a <= 0: raise HTTPException(400, "Kwota musi być większa od zera")
+        updates["amount"] = round(a, 2)
+    if body.date is not None:
+        if len(body.date) < 8: raise HTTPException(400, "Podaj datę")
+        updates["date"] = body.date
+    if body.method is not None:
+        updates["method"] = body.method.strip() or "Przelew"
+    if body.note is not None:
+        updates["note"] = body.note.strip()
+    if body.kind is not None:
+        updates["kind"] = body.kind.strip().lower() or "wypłata"
+    if not updates:
+        raise HTTPException(400, "Brak zmian")
+    r = await db.partner_settlements.update_one(
+        {"id": sid, "owner_id": ws(user)}, {"$set": updates}
+    )
+    if r.matched_count == 0:
+        raise HTTPException(404, "Nie znaleziono wypłaty")
+    doc = await db.partner_settlements.find_one({"id": sid}, {"_id": 0})
+    return doc
+
+
+@api.delete("/partner-settlements/{sid}")
+async def delete_partner_settlement(sid: str, user=Depends(require_admin)):
+    doc = await db.partner_settlements.find_one({"id": sid, "owner_id": ws(user)}, {"_id": 0})
+    r = await db.partner_settlements.delete_one({"id": sid, "owner_id": ws(user)})
+    if doc:
+        await log_change(user, "delete", "partner_settlement", sid,
+                         f"Usunięto wypłatę wspólnika {doc.get('partner_name','')}")
+    return {"ok": True, "deleted": r.deleted_count}
 
 
 app.include_router(api)

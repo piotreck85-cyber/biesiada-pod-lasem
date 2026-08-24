@@ -15,13 +15,15 @@ const TILES: Tile[] = [
   { key: "koszty",      label: "Koszty",       icon: "trending-down", route: "/koszty",       color: "#DC2626" },
   { key: "przychody",   label: "Przychody",    icon: "trending-up",   route: "/statystyki?tab=revenue", color: "#10B981" },
   { key: "kasa",        label: "Kasa",         icon: "pie-chart",     route: "/rozliczenie",  color: "#F59E0B" },
-  { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: "#7C3AED" },
+  { key: "wspolnicy",   label: "Rozliczenia wspólników", icon: "users", route: "/wspolnicy",   color: "#7C3AED" },
+  { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: "#0891B2" },
 ];
 
 const SUBTITLE: Record<string, string> = {
   koszty:      "koszty firmowe · koszty wydarzeń · kategorie",
   przychody:   "wpłaty klientów · planowane · historia",
-  kasa:        "stan kasy · wypłaty wspólników · historia",
+  kasa:        "stan kasy · rozliczenia · historia",
+  wspolnicy:   "wypłaty wspólników · saldo per wspólnik",
   statystyki:  "wykresy · miesiąc · rok · eksport",
 };
 
