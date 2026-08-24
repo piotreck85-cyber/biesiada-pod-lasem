@@ -231,7 +231,7 @@ export default function Kalendarz() {
         }} tintColor={v2.color.forest} />}
       >
         {view === "pulpit" && (
-          <>
+          <View>
             {/* KPI 2x2 */}
             <View style={s.kpiGrid}>
               <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/imprezy" as any)}>
@@ -406,11 +406,11 @@ export default function Kalendarz() {
                 </View>
               )}
             </View>
-          </>
+          </View>
         )}
 
         {view === "miesiac" && (
-          <>
+          <View>
             {/* Legend */}
             <View style={s.legend}>
               <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.success }]} /><Text style={s.legendText}>Zapłacone</Text></View>
@@ -424,7 +424,9 @@ export default function Kalendarz() {
             {/* Grid */}
             <View style={s.grid}>
               {cells.map((day, idx) => {
-                if (day === null) return <View key={idx} style={s.cell} />;
+                if (day === null) {
+                  return <View key={`empty-${idx}`} style={s.cell} pointerEvents="none" />;
+                }
                 const iso = fmt(year, month, day);
                 const isToday = iso === today.toISOString().slice(0, 10);
                 const isSelected = iso === selected;
@@ -438,15 +440,16 @@ export default function Kalendarz() {
                   if (price > 0 && dep < price) bestColor = v2.color.warning;
                   else if (bestColor === v2.color.forest) bestColor = v2.color.success;
                 }
+                const hasEvs = evs.length > 0;
                 return (
-                  <Pressable key={idx} onPress={() => setSelected(iso)} testID={`cal-day-${day}`}
+                  <Pressable key={`day-${idx}`} onPress={() => setSelected(iso)} testID={`cal-day-${day}`}
                     style={[s.cell, isSelected && s.cellSelected, isToday && !isSelected && s.cellToday]}>
                     <Text style={[s.day, isSelected && { color: "#fff" }, isToday && !isSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
-                    {evs.length > 0 && (
-                      <View style={s.dotsRow}>
-                        {evs.slice(0, 3).map((_, i) => <View key={i} style={[s.eventDot, { backgroundColor: isSelected ? "#fff" : bestColor }]} />)}
-                      </View>
-                    )}
+                    <View style={s.dotsRow}>
+                      {hasEvs ? evs.slice(0, 3).map((_, i) => (
+                        <View key={`dot-${i}`} style={[s.eventDot, { backgroundColor: isSelected ? "#fff" : bestColor }]} />
+                      )) : null}
+                    </View>
                   </Pressable>
                 );
               })}
@@ -487,7 +490,7 @@ export default function Kalendarz() {
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
                           <Text style={s.dayEventPrice}>{price > 0 ? formatPLN(price) : "—"}</Text>
-                          {noDeposit && <Text style={s.dayEventBrak}>brak zaliczki</Text>}
+                          {noDeposit ? <Text style={s.dayEventBrak}>brak zaliczki</Text> : null}
                         </View>
                       </Pressable>
                     );
@@ -495,7 +498,7 @@ export default function Kalendarz() {
                 </View>
               )}
             </View>
-          </>
+          </View>
         )}
       </ScrollView>
 
