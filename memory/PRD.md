@@ -151,3 +151,18 @@ Polish mobile app for event organizers to manage:
 - **TAB-BAR**: Automatyczne przełączanie na inne taby dla staff vs admin (`_layout.tsx`)
 - **UPRAWNIENIA**: Można granularnie odbierać dostępy (od tej iteracji)
 - **BRAKI**: Panel staff wciąż używa starego stylu V1 (do przerobienia w Etapie 3), brak "Wyślij zaproszenie" mailem (właściciel wpisuje hasło ręcznie)
+
+### Import kosztów z WhatsApp 2026-02..2026-08 — Aug 2026
+- Źródło: Czat WhatsApp „Koszty BPL 2026" (npload user artifact, 368 wiadomości)
+- Parser: WhatsApp export format, wykrywanie kwot z tekstu, wykluczanie parenteses jako notatek
+- **Workspace docelowy**: piotreck85@gmail.com (owner_id 18ea076f)
+- Backup przed importem: `whatsapp_costs_piotreck_20260824_171815/expenses_before.json` (304 pozycji, 146 531 zł)
+- **Usunięto** 304 obecnych expenses (zawierały duplikaty i wcześniejsze importy)
+- **Zaimportowano** 333 koszty (133 422,63 zł) — WhatsApp = jedyne źródło dla okresu
+- **Wypłaty właścicieli** (13 pozycji, 57 020 zł) przeniesione do `partner_settlements` — zgodnie z zasadą, że NIE liczą się do kosztów firmy
+- **Auto-przypisanie do imprez**: 156 kosztów przypisanych do imprezy z tego samego dnia (1 impreza = link), 26 wymaga ręcznej weryfikacji (>1 impreza tego dnia + słowo kluczowe „pensje/catering/spożywcze"), 177 to ogólne koszty firmy bez linku
+- **Kategoryzacja**: pola `category` NULL — user będzie kategoryzował ręcznie każdy koszt
+- Nowe pola na expense: `event_related_needs_review`, `event_candidates` (lista ID), `source`, `import_batch_id`, `sender`
+- Suma kosztów w pliku = suma w aplikacji: **133 422,63 zł ✅**
+- Suma wypłat w pliku = suma w aplikacji: **57 020 zł ✅**
+- Audit report: `whatsapp_costs_piotreck_20260824_171815/audit_report.json`

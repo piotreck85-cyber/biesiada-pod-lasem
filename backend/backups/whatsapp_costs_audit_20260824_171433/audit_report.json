@@ -1,0 +1,50 @@
+{
+ "batch_id": "WHATSAPP_2026_02-08_V1",
+ "deleted_existing": 1,
+ "imported_costs": 333,
+ "imported_owner_payouts": 13,
+ "src_cost_sum": 133422.63,
+ "db_cost_sum": 133422.63,
+ "src_own_sum": 57020.0,
+ "db_own_sum": 57020.0,
+ "assignment_stats": {
+  "single_event": 0,
+  "multi_event_kw": 0,
+  "multi_event_general": 0,
+  "no_event": 333,
+  "unassigned_company": 333
+ },
+ "assigned_events": 0,
+ "unassigned_company": 333,
+ "needs_review": 0,
+ "by_month": {
+  "2026-02": {
+   "n": 3,
+   "sum": 933.0
+  },
+  "2026-03": {
+   "n": 8,
+   "sum": 2808.99
+  },
+  "2026-04": {
+   "n": 10,
+   "sum": 2098.1
+  },
+  "2026-05": {
+   "n": 72,
+   "sum": 25945.57
+  },
+  "2026-06": {
+   "n": 101,
+   "sum": 39509.36
+  },
+  "2026-07": {
+   "n": 71,
+   "sum": 39951.61
+  },
+  "2026-08": {
+   "n": 68,
+   "sum": 22176.0
+  }
+ }
+}

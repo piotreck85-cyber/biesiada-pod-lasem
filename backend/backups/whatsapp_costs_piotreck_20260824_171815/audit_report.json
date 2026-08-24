@@ -1,0 +1,51 @@
+{
+ "batch_id": "WHATSAPP_2026_02-08_V2",
+ "workspace": "18ea076f-3ff4-4ac4-b17b-1ef2f44aadfc",
+ "user": "piotreck85@gmail.com",
+ "deleted_existing": 304,
+ "imported_costs": 333,
+ "imported_owner_payouts": 13,
+ "sum_cost_src": 133422.63,
+ "sum_cost_db": 133422.63,
+ "sum_own_src": 57020.0,
+ "sum_own_db": 57020.0,
+ "assigned": 156,
+ "unassigned": 177,
+ "needs_review": 26,
+ "by_month": {
+  "2026-02": {
+   "n": 3,
+   "sum": 933.0
+  },
+  "2026-03": {
+   "n": 8,
+   "sum": 2808.99
+  },
+  "2026-04": {
+   "n": 10,
+   "sum": 2098.1
+  },
+  "2026-05": {
+   "n": 72,
+   "sum": 25945.57
+  },
+  "2026-06": {
+   "n": 101,
+   "sum": 39509.36
+  },
+  "2026-07": {
+   "n": 71,
+   "sum": 39951.61
+  },
+  "2026-08": {
+   "n": 68,
+   "sum": 22176.0
+  }
+ },
+ "stats": {
+  "no_event": 82,
+  "single_event": 156,
+  "multi_event_general": 69,
+  "multi_event_kw": 26
+ }
+}
