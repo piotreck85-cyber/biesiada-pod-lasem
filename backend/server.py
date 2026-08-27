@@ -6468,8 +6468,27 @@ async def gmail_oauth_start(request: Request, user=Depends(require_admin)):
     scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
     host = request.headers.get("x-forwarded-host") or request.url.netloc
     redirect_uri = _gmail.resolve_redirect_uri(f"{scheme}://{host}")
+    logger.info(f"[gmail/oauth/start] user={user.get('email')} redirect_uri={redirect_uri}")
     auth_url = _gmail.build_authorization_url(state, redirect_uri)
-    return {"auth_url": auth_url, "state": state}
+    return {"auth_url": auth_url, "state": state, "redirect_uri": redirect_uri}
+
+
+@api.get("/gmail/oauth/debug")
+async def gmail_oauth_debug(request: Request):
+    """Diagnostic — shows exactly which redirect_uri will be used. Public, no secrets."""
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    return {
+        "detected_scheme": scheme,
+        "detected_host": host,
+        "redirect_uri_that_will_be_sent_to_google": f"{scheme}://{host}/api/gmail/oauth/callback",
+        "raw_headers": {
+            "host": request.headers.get("host"),
+            "x-forwarded-host": request.headers.get("x-forwarded-host"),
+            "x-forwarded-proto": request.headers.get("x-forwarded-proto"),
+        },
+        "instructions": "Skopiuj wartość 'redirect_uri_that_will_be_sent_to_google' DOKŁADNIE i wklej ją w GCP → Credentials → OAuth 2.0 Client → Authorized redirect URIs.",
+    }
 
 
 @api.get("/gmail/oauth/callback")
