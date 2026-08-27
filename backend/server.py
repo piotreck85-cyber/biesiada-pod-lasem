@@ -6437,6 +6437,35 @@ async def create_manual_discount(body: ManualDiscountIn, user=Depends(require_ad
 app.include_router(api)
 
 
+# ---- Temporary backup download (24h token) ----
+_BACKUP_DOWNLOAD_TOKEN = "5jtcYSznQCkwOnNhOCOFUBuB0ZdZVliR"
+_BACKUP_DOWNLOAD_PATH = "/app/backend/backups/biesiada_backup_20260827_165113.zip"
+_BACKUP_DOWNLOAD_EXPIRES_ISO = "2026-08-28T17:00:00Z"
+
+
+@app.get("/api/_backup_download/{token}")
+async def download_backup(token: str):
+    from fastapi.responses import FileResponse
+    from datetime import datetime, timezone
+    try:
+        exp = datetime.fromisoformat(_BACKUP_DOWNLOAD_EXPIRES_ISO.replace("Z", "+00:00"))
+        if datetime.now(timezone.utc) > exp:
+            raise HTTPException(410, "Link wygasł — poproś agenta o nowy backup.")
+    except Exception:
+        pass
+    if token != _BACKUP_DOWNLOAD_TOKEN:
+        raise HTTPException(404, "not found")
+    import os as _os
+    if not _os.path.exists(_BACKUP_DOWNLOAD_PATH):
+        raise HTTPException(404, "backup file missing")
+    return FileResponse(
+        _BACKUP_DOWNLOAD_PATH,
+        media_type="application/zip",
+        filename="biesiada_backup_20260827.zip",
+    )
+
+
+
 @app.on_event("shutdown")
 async def _shutdown():
     global _scheduler
