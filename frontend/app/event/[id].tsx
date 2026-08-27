@@ -18,6 +18,7 @@ import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers"
 import { DINNER_MENU, DINNER_SECTIONS, discountedPrice, DINNER_DISCOUNT, dinnerAutoCost } from "@/src/dinnerMenu";
 import { CATERING_PRESET_TEMPLATES, buildPresetQty } from "@/src/cateringPresets";
 import EventPayments from "@/src/components/EventPayments";
+import ManualDiscountModal from "@/src/components/ManualDiscountModal";
 
 type Cost = { label: string; amount: number };
 type Shift = { staff_id: string; hours: number };
@@ -81,6 +82,7 @@ export default function EventDetail() {
   const [thanksStatus, setThanksStatus] = useState<any | null>(null); // { sent, log, code, ... }
   const [clientDiscounts, setClientDiscounts] = useState<any[]>([]); // active discounts for this client (new event flow)
   const [appliedDiscount, setAppliedDiscount] = useState<any | null>(null); // if event has applied_discount saved
+  const [manualCodeOpen, setManualCodeOpen] = useState(false);
   const [validUntil, setValidUntil] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
   const [clientPhone, setClientPhone] = useState<string>("");
@@ -906,6 +908,18 @@ export default function EventDetail() {
                 placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
                 keyboardType="email-address" autoCapitalize="none" style={s.input} />
             </Field>
+
+            {/* Manual discount code generator — always available if client info is filled */}
+            {(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
+              <Pressable
+                testID="manual-discount-btn"
+                onPress={() => setManualCodeOpen(true)}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.forest + "55", marginTop: 6 }}
+              >
+                <Feather name="gift" size={13} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 12 }}>Wygeneruj kod rabatowy dla klienta</Text>
+              </Pressable>
+            )}
 
             {/* Active discount banner — for NEW event when client has an active code */}
             {isNew && clientDiscounts.length > 0 && !appliedDiscount && (
@@ -2055,6 +2069,20 @@ export default function EventDetail() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      <ManualDiscountModal
+        visible={manualCodeOpen}
+        onClose={() => setManualCodeOpen(false)}
+        initialClientName={clientName}
+        initialClientEmail={clientEmail}
+        onCreated={async (code) => {
+          // Refresh active discounts so the "Zastosuj" button appears
+          try {
+            const r: any = await api.discountsForClient(clientEmail || code?.client_email || "");
+            setClientDiscounts(r?.active || []);
+          } catch {}
+        }}
+      />
     </View>
   );
 }

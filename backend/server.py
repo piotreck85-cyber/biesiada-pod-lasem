@@ -6350,6 +6350,88 @@ async def list_all_discounts(user=Depends(current_user), status_filter: Optional
     return rows
 
 
+class ManualDiscountIn(BaseModel):
+    client_name: str
+    client_email: Optional[str] = ""
+    amount_pct: Optional[float] = None
+    valid_months: Optional[int] = None
+    note: Optional[str] = ""
+    send_email: bool = False
+
+
+@api.post("/discounts/manual")
+async def create_manual_discount(body: ManualDiscountIn, user=Depends(require_admin)):
+    """Manually generate a discount code for a client (no event required).
+
+    Uses global thank-you-email settings for defaults. If send_email=True and
+    client_email is present, also sends the thank-you template with this code.
+    """
+    client_name = (body.client_name or "").strip()
+    if not client_name:
+        raise HTTPException(400, "Podaj imię/nazwę klienta.")
+    client_email = norm_email(body.client_email or "")
+    if body.send_email and not client_email:
+        raise HTTPException(400, "Aby wysłać e-mail, wpisz adres klienta.")
+
+    settings = await get_thank_you_settings(db, ws(user))
+    pct = float(body.amount_pct if body.amount_pct is not None else settings["discount_pct"])
+    months = int(body.valid_months if body.valid_months is not None else settings["valid_months"])
+    if pct <= 0 or pct > 100:
+        raise HTTPException(400, "Wysokość rabatu musi być w zakresie 1–100%.")
+    if months <= 0 or months > 60:
+        raise HTTPException(400, "Ważność musi być w zakresie 1–60 miesięcy.")
+
+    expiry_iso = compute_expiry_date(months)
+    code_str = await generate_unique_code(db, ws(user))
+    code_doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "code": code_str,
+        "client_email": client_email,
+        "client_name": client_name,
+        "source_event_id": None,
+        "source_event_name": "(kupon ręczny)",
+        "source_event_date": "",
+        "manual": True,
+        "note": (body.note or "").strip(),
+        "amount_pct": pct,
+        "amount_zl": 0.0,
+        "base_package_price": 0.0,
+        "status": "active",
+        "expires_at_date": expiry_iso,
+        "created_at": _tk_now_iso(),
+        "created_by": user.get("email"),
+        "used_at": None,
+        "used_event_id": None,
+    }
+    await db.discount_codes.insert_one(code_doc)
+    code_doc.pop("_id", None)
+    await log_change(user, "create", "discount_code", code_doc["id"], f"Ręczny kupon {code_str} dla {client_name}")
+
+    email_result: dict = {"attempted": False}
+    if body.send_email and client_email:
+        fake_event = {"client_name": client_name}
+        ctx = build_email_context(fake_event, code_str, expiry_iso, settings["google_review_url"])
+        subject = render_template(settings["subject"], ctx)
+        body_text = render_template(settings["body_template"], ctx)
+        email_result["attempted"] = True
+        try:
+            await _send_thanks_email_now(
+                to_email=client_email,
+                subject=subject,
+                body=body_text,
+                reply_to=os.getenv("SMTP_USER"),
+            )
+            email_result["sent"] = True
+            email_result["recipient"] = client_email
+        except Exception as exc:
+            email_result["sent"] = False
+            email_result["error"] = str(exc)[:400]
+
+    return {"code": code_doc, "email": email_result}
+
+
+
 
 
 app.include_router(api)

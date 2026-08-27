@@ -389,4 +389,9 @@ export const api = {
     request(`/events/${eventId}/remove-discount`, { method: "POST" }),
   listDiscounts: (status?: "active" | "used" | "expired") =>
     request(`/discounts/list${status ? `?status_filter=${status}` : ""}`),
+  createManualDiscount: (data: {
+    client_name: string; client_email?: string;
+    amount_pct?: number; valid_months?: number;
+    note?: string; send_email?: boolean;
+  }) => request("/discounts/manual", { method: "POST", body: JSON.stringify(data) }),
 };

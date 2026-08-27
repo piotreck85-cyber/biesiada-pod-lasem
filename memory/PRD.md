@@ -341,3 +341,24 @@ Polish mobile app for event organizers to manage:
 - ✅ Idempotencja: 2. wywołanie zwraca `already_sent`
 - ✅ Aplikacja rabatu na nowej imprezie: 6000 → 5500 (10% z package_price 5000)
 - ✅ Podwójne użycie kodu blokowane (400)
+
+### Kupony ręczne dla stałych klientów — Aug 2026
+
+**Backend:** `POST /api/discounts/manual` (admin)
+- Body: `{client_name*, client_email?, amount_pct?, valid_months?, note?, send_email?}`
+- Waliduje: nazwa wymagana, % 1-100, mc 1-60
+- Tworzy `discount_codes` z `manual: true`, `source_event_id: None`, `note`, `created_by`
+- Jeśli `send_email=true` i jest e-mail → wysyła ten sam szablon podziękowania z nowym kodem
+- Zwraca `{code, email: {attempted, sent?, error?, recipient?}}`
+
+**Frontend:**
+- Nowy komponent `ManualDiscountModal.tsx` (bottom sheet) — reużywalny
+- **Ustawienia → Podziękowanie + rabaty**: przycisk „+ Wygeneruj kod" obok „Historia kodów rabatowych"
+- **event/[id].tsx** → sekcja Klient: przycisk „Wygeneruj kod rabatowy dla klienta" (pokazany gdy jest imię/email klienta i brak aktywnych/zastosowanych kodów)
+  - Modal auto-uzupełnia klienta z eventu
+  - Po wygenerowaniu odświeża listę → banner „Klient posiada aktywny rabat" pojawia się od razu z guzikiem „Zastosuj"
+- Historia kodów: badge „RĘCZNY" dla kodów bez `source_event_id`, notatka pokazana jako „💬 …"
+
+**Testy:**
+- ✅ Kod bez wysyłki (15%, 6 mc, notatka „urodziny") — `POWROT10-PDCN` utworzony
+- ✅ Kod z wysyłką (10%, 12 mc) — mail dostarczony na piotreck85@gmail.com, `POWROT10-2AZW`

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
+import ManualDiscountModal from "@/src/components/ManualDiscountModal";
 
 const DEFAULT_BODY = `Dzień dobry {{client_name}},
 
@@ -38,6 +39,7 @@ export default function ThankYouSettings() {
 
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [tab, setTab] = useState<"active" | "used" | "expired">("active");
+  const [manualOpen, setManualOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -213,7 +215,17 @@ export default function ThankYouSettings() {
 
           {/* Discounts list */}
           <View style={{ marginTop: 24 }}>
-            <Text style={s.sectionTitle}>Historia kodów rabatowych</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <Text style={s.sectionTitle}>Historia kodów rabatowych</Text>
+              <Pressable
+                testID="add-manual-code"
+                onPress={() => setManualOpen(true)}
+                style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: v2.color.forest }}
+              >
+                <Feather name="plus" size={13} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>Wygeneruj kod</Text>
+              </Pressable>
+            </View>
             <View style={s.tabsRow}>
               {(["active", "used", "expired"] as const).map(t => (
                 <Pressable key={t} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabActive]}>
@@ -231,7 +243,14 @@ export default function ThankYouSettings() {
             ) : discounts.map(d => (
               <View key={d.id} style={s.discountRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={s.discountCode}>{d.code}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={s.discountCode}>{d.code}</Text>
+                    {d.manual && (
+                      <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: v2.color.warningBg }}>
+                        <Text style={{ color: v2.color.warning, fontSize: 9, fontWeight: "800", letterSpacing: 0.4 }}>RĘCZNY</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={s.discountMeta}>
                     {d.client_name || "(brak imienia)"} · {d.client_email || "(brak e-maila)"}
                   </Text>
@@ -239,6 +258,7 @@ export default function ThankYouSettings() {
                     {d.amount_pct}% · ważny do {d.expires_at_date}
                     {d.source_event_name ? ` · z: ${d.source_event_name}` : ""}
                   </Text>
+                  {d.note ? <Text style={[s.discountMeta, { fontStyle: "italic", color: v2.color.textSubtle }]}>💬 {d.note}</Text> : null}
                 </View>
                 <View style={[
                   s.statusBadge,
@@ -260,6 +280,12 @@ export default function ThankYouSettings() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ManualDiscountModal
+        visible={manualOpen}
+        onClose={() => setManualOpen(false)}
+        onCreated={() => { setTab("active"); loadDiscounts(); }}
+      />
     </View>
   );
 }
