@@ -295,3 +295,49 @@ Polish mobile app for event organizers to manage:
 - **event/[id].tsx**: sekcja „Szybki wybór" w rozwiniętej ofercie obiadowej, poziomy scroll z kartami, wypełnia dinnerQty
 - **oferta.tsx**: identyczna sekcja w modalu wysyłki oferty, wypełnia emailExtras
 - Walidacja: jeśli liczba osób = 0, Alert „Wpisz liczbę osób"
+
+### Automatyczna wiadomość po imprezie + rabaty 10% — Aug 2026
+
+**Backend (`thank_you.py` + endpointy w `server.py`):**
+- Nowa kolekcja `discount_codes`: {id, code=POWROT10-XXXX, owner_id, client_email(lowercased), source_event_id, amount_pct, amount_zl, base_package_price, expires_at_date (12mc), status: active|used|expired, used_at, used_event_id}
+- Nowa kolekcja `thanks_email_logs`: {id, event_id, recipient, status: sending|sent|failed|no_email, code_id, subject, sent_at, error, resent_at}
+- Ustawienia w `workspace_settings.thank_you_email`: enabled, subject, body_template, google_review_url, discount_pct, valid_months, activated_at (cutoff — brak retroaktywnych wysyłek)
+- Nowe endpointy:
+  - `GET/PUT /api/settings/thank-you-email` (admin only)
+  - `POST /api/events/{id}/complete` — status→zakonczona + generuj kod + wyślij mail (**idempotentny** — replace_one po event_id)
+  - `POST /api/events/{id}/resend-thanks` — ponowna wysyłka TEGO SAMEGO kodu (spec: „ponowna ręczna wysyłka wykorzystuje ten sam kod")
+  - `GET /api/events/{id}/thanks-status` — {sent, log, code}
+  - `GET /api/events/{id}/thanks-preview` — renderowany subject+body
+  - `GET /api/discounts/for-client?email=X` — aktywne kody klienta
+  - `POST /api/events/{id}/apply-discount` — zastosuj kod, oznacz used, odejmij od price_total
+  - `POST /api/events/{id}/remove-discount` — cofnij
+  - `GET /api/discounts/list?status_filter=...` — lista wszystkich
+- Zabezpieczenia:
+  - Idempotencja: przy 2. wywołaniu /complete zwraca `already_sent` (bez nowego kodu ani maila)
+  - Brak e-maila: log z `status=no_email`, brak generowania kodu
+  - Błąd SMTP: log `status=failed`, kod usunięty (żeby nie zostawić „nieaktywnego" rabatu)
+  - Rabat od `package_price` (nie od całości — extras/dinner odejmowane)
+  - Podwójne zastosowanie kodu blokowane (`status=used`)
+
+**Frontend:**
+- `event/[id].tsx`:
+  - Przy zapisie z status=„zakonczona" (transition z innego stanu) → Alert „Zakończyć imprezę? · Zakończ bez wysyłki · Zakończ i wyślij"
+  - Jeśli brak e-maila → tylko „Zakończ" (bez opcji wysyłki)
+  - Panel statusu po zakończeniu: „Wysłano podziękowanie" (kod, odbiorca, data) + guziki Podgląd/Wyślij ponownie
+  - W sekcji Klient dla EDYCJI imprezy: banner „Klient posiada aktywny rabat X%" + guzik „Zastosuj rabat" → alert potwierdzający, aplikuje, odejmuje od ceny
+  - Applied discount: pokaz „Zastosowano rabat POWROT10-XXXX (-500 zł)" z X (usuń)
+  - Debounce 500ms na klienta email → `GET /discounts/for-client`
+- `ustawienia/podziekowanie.tsx` (nowy screen w V2.0):
+  - Włącz/wyłącz automatyczną wysyłkę
+  - Zasady rabatu (%, ważność)
+  - Link do opinii Google (placeholder: g.page/r/CWTSbZ43izysEAE/review)
+  - Temat i treść wiadomości (edycja) + zmienne w helpTextu
+  - Przycisk „Przywróć domyślną treść"
+  - Historia kodów: taby Aktywne/Wykorzystane/Wygasłe
+- Wejście: `Więcej → Podziękowanie po imprezie + rabaty`
+
+**Testy (piotreck85@gmail.com):**
+- ✅ /complete wysłał realny mail (kod POWROT10-XJVA, log.status=sent, sent_at ustawiony)
+- ✅ Idempotencja: 2. wywołanie zwraca `already_sent`
+- ✅ Aplikacja rabatu na nowej imprezie: 6000 → 5500 (10% z package_price 5000)
+- ✅ Podwójne użycie kodu blokowane (400)

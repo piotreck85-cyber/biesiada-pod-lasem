@@ -59,6 +59,11 @@ export default function WiecejScreen() {
             <Text style={s.rowLabel}>Szablony zadań (checklisty)</Text>
             <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
           </Pressable>
+          <Pressable onPress={() => router.push("/ustawienia/podziekowanie" as any)} style={s.row} testID="wiecej-thank-you">
+            <Feather name="mail" size={16} color={theme.color.onSurfaceSecondary} />
+            <Text style={s.rowLabel}>Podziękowanie po imprezie + rabaty</Text>
+            <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
+          </Pressable>
         </View>
 
         <View style={{ marginTop: 24, alignItems: "center" }}>

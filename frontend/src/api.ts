@@ -369,4 +369,24 @@ export const api = {
     request("/expense-categories/custom", { method: "POST", body: JSON.stringify(data) }),
   deleteCustomCategory: (id: string) =>
     request(`/expense-categories/custom/${id}`, { method: "DELETE" }),
+  // Thank-you email + discount codes
+  getThankYouSettings: () => request("/settings/thank-you-email"),
+  saveThankYouSettings: (patch: {
+    enabled?: boolean; subject?: string; body_template?: string;
+    google_review_url?: string; discount_pct?: number; valid_months?: number;
+  }) => request("/settings/thank-you-email", { method: "PUT", body: JSON.stringify(patch) }),
+  eventThanksStatus: (eventId: string) => request(`/events/${eventId}/thanks-status`),
+  eventThanksPreview: (eventId: string) => request(`/events/${eventId}/thanks-preview`),
+  eventComplete: (eventId: string, send_thanks: boolean) =>
+    request(`/events/${eventId}/complete`, { method: "POST", body: JSON.stringify({ send_thanks }) }),
+  eventResendThanks: (eventId: string) =>
+    request(`/events/${eventId}/resend-thanks`, { method: "POST" }),
+  discountsForClient: (email: string) =>
+    request(`/discounts/for-client?email=${encodeURIComponent(email)}`),
+  applyDiscount: (eventId: string, code: string) =>
+    request(`/events/${eventId}/apply-discount`, { method: "POST", body: JSON.stringify({ code }) }),
+  removeDiscount: (eventId: string) =>
+    request(`/events/${eventId}/remove-discount`, { method: "POST" }),
+  listDiscounts: (status?: "active" | "used" | "expired") =>
+    request(`/discounts/list${status ? `?status_filter=${status}` : ""}`),
 };

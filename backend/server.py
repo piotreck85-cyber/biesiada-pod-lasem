@@ -5934,8 +5934,425 @@ async def ai_cost_coach(body: AICostCoachIn, user=Depends(require_admin)):
     }
 
 
-app.include_router(api)
 
+
+
+# ============================================================
+# ---------- Post-Event Thank-You Email + Discount Codes -----
+# ============================================================
+from thank_you import (  # noqa: E402
+    generate_unique_code, get_thank_you_settings, save_thank_you_settings,
+    ensure_feature_activated, render_template, compute_expiry_date,
+    format_expiry_pl, get_package_price_for_discount, compute_discount_amount,
+    build_email_context, norm_email, now_iso as _tk_now_iso,
+    DEFAULT_GOOGLE_REVIEW_URL as _TK_DEFAULT_REVIEW_URL,
+)
+
+
+async def _send_thanks_email_now(*, to_email: str, subject: str, body: str, reply_to: Optional[str] = None) -> None:
+    """Blocking SMTP send wrapped for async use — raises on failure."""
+    from offer_email import send_offer_email
+    import asyncio as _asyncio
+    def _do_send():
+        send_offer_email(
+            to_email=to_email,
+            subject=subject,
+            body_text=body,
+            reply_to=reply_to,
+        )
+    await _asyncio.to_thread(_do_send)
+
+
+@api.get("/settings/thank-you-email")
+async def get_thank_you_email_settings(user=Depends(current_user)):
+    return await get_thank_you_settings(db, ws(user))
+
+
+class ThankYouSettingsIn(BaseModel):
+    enabled: Optional[bool] = None
+    subject: Optional[str] = None
+    body_template: Optional[str] = None
+    google_review_url: Optional[str] = None
+    discount_pct: Optional[float] = None
+    valid_months: Optional[int] = None
+
+
+@api.put("/settings/thank-you-email")
+async def put_thank_you_email_settings(body: ThankYouSettingsIn, user=Depends(require_admin)):
+    patch = {k: v for k, v in body.dict().items() if v is not None}
+    return await save_thank_you_settings(db, ws(user), patch)
+
+
+@api.get("/events/{event_id}/thanks-status")
+async def get_thanks_status(event_id: str, user=Depends(current_user)):
+    """Return current thank-you status for this event: sent/preview data."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    log = await db.thanks_email_logs.find_one({"event_id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    code_doc = None
+    if log and log.get("code_id"):
+        code_doc = await db.discount_codes.find_one({"id": log["code_id"]}, {"_id": 0})
+    return {
+        "sent": bool(log and log.get("status") == "sent"),
+        "log": log or None,
+        "code": code_doc,
+        "client_email": ev.get("client_email") or "",
+        "client_name": ev.get("client_name") or "",
+    }
+
+
+@api.get("/events/{event_id}/thanks-preview")
+async def get_thanks_preview(event_id: str, user=Depends(current_user)):
+    """Render the thank-you email preview (subject + body) for this event.
+    If a code is already generated, uses it; otherwise generates a placeholder preview code (not saved)."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    settings = await get_thank_you_settings(db, ws(user))
+    log = await db.thanks_email_logs.find_one({"event_id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    code_str: str
+    expiry_iso: str
+    if log and log.get("code_id"):
+        code_doc = await db.discount_codes.find_one({"id": log["code_id"]}, {"_id": 0}) or {}
+        code_str = code_doc.get("code") or "POWROT10-XXXX"
+        expiry_iso = code_doc.get("expires_at_date") or compute_expiry_date(settings["valid_months"])
+    else:
+        code_str = "POWROT10-XXXX"  # placeholder for preview
+        expiry_iso = compute_expiry_date(settings["valid_months"])
+    ctx = build_email_context(ev, code_str, expiry_iso, settings["google_review_url"])
+    return {
+        "subject": render_template(settings["subject"], ctx),
+        "body": render_template(settings["body_template"], ctx),
+        "recipient": ev.get("client_email") or "",
+        "code": code_str,
+        "expiry": expiry_iso,
+        "is_preview_code": not (log and log.get("code_id")),
+    }
+
+
+class CompleteEventIn(BaseModel):
+    send_thanks: bool = True
+
+
+@api.post("/events/{event_id}/complete")
+async def complete_event(event_id: str, body: CompleteEventIn, user=Depends(require_admin)):
+    """Mark event as 'zakonczona' AND optionally send the thank-you email + create a discount code.
+
+    Idempotent — a second call for the same event will NOT send a second email or generate a second code.
+    """
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+
+    # Ensure feature is marked as activated (cutoff)
+    await ensure_feature_activated(db, ws(user))
+
+    # Update status
+    if (ev.get("status") or "") != "zakonczona":
+        await db.events.update_one(
+            {"id": event_id, "owner_id": ws(user)},
+            {"$set": {"status": "zakonczona"}},
+        )
+        await log_change(user, "update", "event", event_id, f"Oznaczono jako zakończona: {ev.get('name','')}")
+
+    result = {"status_set": True, "sent": False, "reason": None, "code": None, "log": None}
+
+    if not body.send_thanks:
+        result["reason"] = "skipped"
+        return result
+
+    # Idempotency: check for existing log
+    existing_log = await db.thanks_email_logs.find_one({"event_id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if existing_log and existing_log.get("status") == "sent":
+        result["reason"] = "already_sent"
+        result["log"] = existing_log
+        code_doc = await db.discount_codes.find_one({"id": existing_log.get("code_id")}, {"_id": 0}) if existing_log.get("code_id") else None
+        result["code"] = code_doc
+        return result
+
+    client_email = norm_email(ev.get("client_email"))
+    if not client_email:
+        # Log the missing-email attempt but do not create a code
+        log_doc = {
+            "id": str(uuid.uuid4()),
+            "owner_id": ws(user),
+            "event_id": event_id,
+            "recipient": "",
+            "status": "no_email",
+            "error": "Brak adresu e-mail klienta",
+            "sent_at": None,
+            "created_at": _tk_now_iso(),
+            "code_id": None,
+        }
+        await db.thanks_email_logs.replace_one(
+            {"event_id": event_id, "owner_id": ws(user)},
+            log_doc, upsert=True,
+        )
+        result["reason"] = "no_email"
+        result["log"] = log_doc
+        return result
+
+    # Compute discount amount from package price
+    settings = await get_thank_you_settings(db, ws(user))
+    package_price = get_package_price_for_discount(ev)
+    discount_amt = compute_discount_amount(package_price, settings["discount_pct"])
+    expiry_iso = compute_expiry_date(settings["valid_months"])
+
+    # Generate code
+    code_str = await generate_unique_code(db, ws(user))
+    code_doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "code": code_str,
+        "client_email": client_email,
+        "client_name": (ev.get("client_name") or "").strip(),
+        "source_event_id": event_id,
+        "source_event_name": ev.get("name") or "",
+        "source_event_date": ev.get("date") or "",
+        "amount_pct": float(settings["discount_pct"]),
+        "amount_zl": discount_amt,             # informational — 10% of source package_price
+        "base_package_price": package_price,   # informational
+        "status": "active",                    # active | used | expired
+        "expires_at_date": expiry_iso,
+        "created_at": _tk_now_iso(),
+        "used_at": None,
+        "used_event_id": None,
+    }
+    await db.discount_codes.insert_one(code_doc)
+    code_doc.pop("_id", None)
+
+    # Render + send
+    ctx = build_email_context(ev, code_str, expiry_iso, settings["google_review_url"])
+    subject = render_template(settings["subject"], ctx)
+    body_text = render_template(settings["body_template"], ctx)
+
+    log_doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "event_id": event_id,
+        "recipient": client_email,
+        "status": "sending",
+        "error": None,
+        "sent_at": None,
+        "created_at": _tk_now_iso(),
+        "code_id": code_doc["id"],
+        "code": code_str,
+        "subject": subject,
+    }
+    await db.thanks_email_logs.replace_one(
+        {"event_id": event_id, "owner_id": ws(user)},
+        log_doc, upsert=True,
+    )
+
+    try:
+        await _send_thanks_email_now(
+            to_email=client_email,
+            subject=subject,
+            body=body_text,
+            reply_to=os.getenv("SMTP_USER"),
+        )
+        log_doc["status"] = "sent"
+        log_doc["sent_at"] = _tk_now_iso()
+        await db.thanks_email_logs.replace_one(
+            {"event_id": event_id, "owner_id": ws(user)},
+            log_doc, upsert=True,
+        )
+        result["sent"] = True
+        result["code"] = code_doc
+        result["log"] = log_doc
+    except Exception as exc:
+        # Roll back the code doc? No — keep it (spec: on failure, do NOT show fake sent).
+        # But: no code should be tied to a permanent "sent" state.
+        log_doc["status"] = "failed"
+        log_doc["error"] = str(exc)[:400]
+        await db.thanks_email_logs.replace_one(
+            {"event_id": event_id, "owner_id": ws(user)},
+            log_doc, upsert=True,
+        )
+        # Delete the un-sent code so it doesn't linger as an available discount
+        await db.discount_codes.delete_one({"id": code_doc["id"]})
+        result["reason"] = "send_failed"
+        result["error"] = log_doc["error"]
+        result["log"] = log_doc
+
+    return result
+
+
+@api.post("/events/{event_id}/resend-thanks")
+async def resend_thanks(event_id: str, user=Depends(require_admin)):
+    """Resend the same thank-you email using existing code. Does NOT create a new code."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    log = await db.thanks_email_logs.find_one({"event_id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not log or not log.get("code_id"):
+        raise HTTPException(400, "Ta impreza nie ma jeszcze wysłanego podziękowania — użyj przycisku Zakończ.")
+    code_doc = await db.discount_codes.find_one({"id": log["code_id"]}, {"_id": 0})
+    if not code_doc:
+        raise HTTPException(400, "Kod rabatowy nie istnieje.")
+    client_email = norm_email(ev.get("client_email"))
+    if not client_email:
+        raise HTTPException(400, "Brak adresu e-mail klienta.")
+
+    settings = await get_thank_you_settings(db, ws(user))
+    ctx = build_email_context(ev, code_doc["code"], code_doc["expires_at_date"], settings["google_review_url"])
+    subject = render_template(settings["subject"], ctx)
+    body_text = render_template(settings["body_template"], ctx)
+
+    try:
+        await _send_thanks_email_now(
+            to_email=client_email,
+            subject=subject,
+            body=body_text,
+            reply_to=os.getenv("SMTP_USER"),
+        )
+        log["status"] = "sent"
+        log["resent_at"] = _tk_now_iso()
+        log["error"] = None
+        log["recipient"] = client_email
+        log["subject"] = subject
+        await db.thanks_email_logs.replace_one(
+            {"event_id": event_id, "owner_id": ws(user)},
+            log, upsert=True,
+        )
+        return {"sent": True, "code": code_doc, "log": log}
+    except Exception as exc:
+        log["status"] = "failed"
+        log["error"] = str(exc)[:400]
+        await db.thanks_email_logs.replace_one(
+            {"event_id": event_id, "owner_id": ws(user)},
+            log, upsert=True,
+        )
+        raise HTTPException(500, f"Błąd wysyłki: {exc}")
+
+
+@api.get("/discounts/for-client")
+async def discounts_for_client(email: str = "", user=Depends(current_user)):
+    """Return active (unused, not expired) discount codes for a client email."""
+    e = norm_email(email)
+    if not e:
+        return {"active": [], "used": []}
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    active = await db.discount_codes.find(
+        {"owner_id": ws(user), "client_email": e, "status": "active", "expires_at_date": {"$gte": today}},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+    used = await db.discount_codes.find(
+        {"owner_id": ws(user), "client_email": e, "status": {"$in": ["used", "expired"]}},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    return {"active": active, "used": used}
+
+
+class ApplyDiscountIn(BaseModel):
+    code: str
+
+
+@api.post("/events/{event_id}/apply-discount")
+async def apply_discount_to_event(event_id: str, body: ApplyDiscountIn, user=Depends(require_admin)):
+    """Apply a discount code to a NEW event (must not be the source event)."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    code = (body.code or "").strip().upper()
+    if not code:
+        raise HTTPException(400, "Brak kodu rabatowego.")
+    doc = await db.discount_codes.find_one({"owner_id": ws(user), "code": code}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Kod rabatowy nie znaleziony.")
+    if doc.get("status") != "active":
+        raise HTTPException(400, f"Kod jest już {doc.get('status')} — nie można użyć ponownie.")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if (doc.get("expires_at_date") or "") < today:
+        # Mark expired for future queries
+        await db.discount_codes.update_one({"id": doc["id"]}, {"$set": {"status": "expired"}})
+        raise HTTPException(400, "Kod wygasł.")
+    if doc.get("source_event_id") == event_id:
+        raise HTTPException(400, "Nie można użyć kodu na tej samej imprezie, do której został wygenerowany.")
+
+    # Compute discount value from current event package price
+    package_price = get_package_price_for_discount(ev)
+    settings = await get_thank_you_settings(db, ws(user))
+    pct = float(doc.get("amount_pct") or settings["discount_pct"])
+    amount = compute_discount_amount(package_price, pct)
+
+    # Mark used
+    used_at = _tk_now_iso()
+    await db.discount_codes.update_one(
+        {"id": doc["id"]},
+        {"$set": {"status": "used", "used_at": used_at, "used_event_id": event_id, "used_amount_zl": amount}},
+    )
+
+    # Attach to event: reduce price_total, add note
+    ev_updates: dict = {
+        "applied_discount": {
+            "code_id": doc["id"],
+            "code": doc["code"],
+            "amount_pct": pct,
+            "amount_zl": amount,
+            "applied_at": used_at,
+            "applied_by": user.get("email"),
+            "base_package_price": package_price,
+        }
+    }
+    # Reduce revenue/price_total by the discount amount
+    try:
+        current_price = float(ev.get("price_total") or ev.get("revenue") or 0)
+        if current_price > 0 and amount > 0:
+            ev_updates["price_total"] = round(current_price - amount, 2)
+    except Exception:
+        pass
+    await db.events.update_one({"id": event_id, "owner_id": ws(user)}, {"$set": ev_updates})
+    await log_change(user, "update", "event", event_id, f"Zastosowano rabat {doc['code']} (-{amount:.2f} zł, {pct}%)")
+
+    return {"ok": True, "applied_amount": amount, "code": doc["code"], "package_price": package_price}
+
+
+@api.post("/events/{event_id}/remove-discount")
+async def remove_discount_from_event(event_id: str, user=Depends(require_admin)):
+    """Revert a discount application (restore code to active, refund price_total)."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    ad = ev.get("applied_discount")
+    if not ad:
+        raise HTTPException(400, "Ta impreza nie ma zastosowanego rabatu.")
+    code_id = ad.get("code_id")
+    amount = float(ad.get("amount_zl") or 0)
+    # Restore code
+    if code_id:
+        await db.discount_codes.update_one(
+            {"id": code_id, "owner_id": ws(user)},
+            {"$set": {"status": "active", "used_at": None, "used_event_id": None, "used_amount_zl": None}},
+        )
+    # Restore price
+    try:
+        current_price = float(ev.get("price_total") or 0)
+        new_price = round(current_price + amount, 2) if amount > 0 else current_price
+    except Exception:
+        new_price = ev.get("price_total")
+    await db.events.update_one(
+        {"id": event_id, "owner_id": ws(user)},
+        {"$set": {"price_total": new_price}, "$unset": {"applied_discount": ""}},
+    )
+    await log_change(user, "update", "event", event_id, f"Cofnięto rabat {ad.get('code','')} (+{amount:.2f} zł)")
+    return {"ok": True}
+
+
+@api.get("/discounts/list")
+async def list_all_discounts(user=Depends(current_user), status_filter: Optional[str] = None):
+    """List all discount codes (owner-scoped) — for admin panel."""
+    q = {"owner_id": ws(user)}
+    if status_filter in ("active", "used", "expired"):
+        q["status"] = status_filter
+    rows = await db.discount_codes.find(q, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
+    return rows
+
+
+
+
+app.include_router(api)
 
 
 @app.on_event("shutdown")

@@ -77,6 +77,10 @@ export default function EventDetail() {
   const [tplPickerOpen, setTplPickerOpen] = useState(false);
   // ---- Status, Client, Payment, Weather (new) ----
   const [status, setStatus] = useState<string>("");
+  const [prevStatus, setPrevStatus] = useState<string>(""); // status loaded from DB — for change detection
+  const [thanksStatus, setThanksStatus] = useState<any | null>(null); // { sent, log, code, ... }
+  const [clientDiscounts, setClientDiscounts] = useState<any[]>([]); // active discounts for this client (new event flow)
+  const [appliedDiscount, setAppliedDiscount] = useState<any | null>(null); // if event has applied_discount saved
   const [validUntil, setValidUntil] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
   const [clientPhone, setClientPhone] = useState<string>("");
@@ -113,6 +117,8 @@ export default function EventDetail() {
           setAutoPrice(false); // editing existing event: don't override user's saved revenue
           // New fields
           setStatus(ev.status || "");
+          setPrevStatus(ev.status || "");
+          setAppliedDiscount(ev.applied_discount || null);
           setValidUntil(ev.valid_until || "");
           setClientName(ev.client_name || "");
           setClientPhone(ev.client_phone || "");
@@ -133,6 +139,11 @@ export default function EventDetail() {
           setDinnerCost(ev.dinner_cost ? String(ev.dinner_cost) : "");
           // ---- Finance metadata (from import) ----
           setFinanceMeta(ev.finance || null);
+          // ---- Thank-you status (only for existing events) ----
+          try {
+            const ts: any = await api.eventThanksStatus(id as string);
+            setThanksStatus(ts);
+          } catch {}
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -216,9 +227,83 @@ export default function EventDetail() {
     }
   }, [combinedTotal, autoPrice]);
 
+  // ---- Check discounts for known client email (only on NEW event) ----
+  useEffect(() => {
+    if (!isNew) return;
+    const email = clientEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) { setClientDiscounts([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const r: any = await api.discountsForClient(email);
+        if (!cancelled) setClientDiscounts(Array.isArray(r?.active) ? r.active : []);
+      } catch { if (!cancelled) setClientDiscounts([]); }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [clientEmail, isNew]);
+
   const save = async () => {
     if (!name.trim() || !date) return;
+    // Detect transition to "zakonczona" for EXISTING events → show thanks confirm
+    const isTransitionToCompleted = !isNew && status === "zakonczona" && prevStatus !== "zakonczona";
+    if (isTransitionToCompleted) {
+      const hasEmail = !!clientEmail.trim() && clientEmail.includes("@");
+      const alreadySent = !!(thanksStatus?.sent);
+      if (alreadySent) {
+        // No confirm — just proceed as normal update
+      } else {
+        const msg = hasEmail
+          ? `Klient: ${clientName || "(brak imienia)"}\nE-mail: ${clientEmail}\n\nCzy wysłać podziękowanie z rabatem 10% na kolejną imprezę?`
+          : `Klient nie ma podanego e-maila.\n\nOznacz imprezę jako zakończoną (bez wysyłki podziękowania)?`;
+        const options: any[] = [{ text: "Anuluj", style: "cancel" }];
+        if (hasEmail) {
+          options.push({
+            text: "Zakończ bez wysyłki",
+            onPress: () => doSaveWithComplete(false),
+          });
+          options.push({
+            text: "Zakończ i wyślij",
+            onPress: () => doSaveWithComplete(true),
+          });
+        } else {
+          options.push({
+            text: "Zakończ",
+            onPress: () => doSaveWithComplete(false),
+          });
+        }
+        Alert.alert("Zakończyć imprezę?", msg, options);
+        return;
+      }
+    }
+    await doNormalSave();
+  };
+
+  const doSaveWithComplete = async (sendThanks: boolean) => {
     setSaving(true);
+    try {
+      // First save all other fields (except we let /complete set status)
+      await doNormalSave({ skipReturn: true, statusOverride: prevStatus });
+      // Then call complete endpoint (also sends email)
+      const r: any = await api.eventComplete(id as string, sendThanks);
+      if (sendThanks) {
+        if (r?.sent) {
+          Alert.alert("Wysłano", `Podziękowanie wysłane na ${r.log?.recipient}.\nKod: ${r.code?.code}`);
+        } else if (r?.reason === "no_email") {
+          Alert.alert("Nie wysłano", "Brak adresu e-mail klienta. Impreza oznaczona jako zakończona.");
+        } else if (r?.reason === "already_sent") {
+          Alert.alert("Już wysłane", `Ta impreza ma już wygenerowane podziękowanie. Kod: ${r.code?.code}`);
+        } else if (r?.reason === "send_failed") {
+          Alert.alert("Błąd wysyłki", r?.error || "Nie udało się wysłać maila. Spróbuj ponownie (przycisk Wyślij ponownie).");
+        }
+      }
+      router.back();
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się zakończyć imprezy");
+    } finally { setSaving(false); }
+  };
+
+  const doNormalSave = async (opts: { skipReturn?: boolean; statusOverride?: string } = {}) => {
+    if (!opts.skipReturn) setSaving(true);
     const body = {
       name: name.trim(), date,
       time_start: timeStart, time_end: timeEnd, time: timeStart,
@@ -236,7 +321,7 @@ export default function EventDetail() {
       dinner_profit: dinnerProfit,
       dinner_margin_pct: Number(dinnerMargin.toFixed(2)),
       // ---- Status ----
-      status: status || "",
+      status: opts.statusOverride !== undefined ? opts.statusOverride : (status || ""),
       valid_until: validUntil || "",
       // ---- Client ----
       client_name: clientName.trim(),
@@ -265,8 +350,8 @@ export default function EventDetail() {
     try {
       if (isNew) await api.createEvent(body);
       else await api.updateEvent(id as string, body);
-      router.back();
-    } catch {} finally { setSaving(false); }
+      if (!opts.skipReturn) router.back();
+    } catch {} finally { if (!opts.skipReturn) setSaving(false); }
   };
 
   const remove = async () => {
@@ -721,6 +806,70 @@ export default function EventDetail() {
                 </Text>
               </Field>
             )}
+
+            {/* Thank-you status card — only for existing events that are already completed */}
+            {!isNew && status === "zakonczona" && thanksStatus && (
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: thanksStatus.sent ? v2.color.successBg : v2.color.warningBg, borderWidth: 1, borderColor: thanksStatus.sent ? v2.color.success + "55" : v2.color.warning + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <Feather name={thanksStatus.sent ? "check-circle" : "alert-circle"} size={14} color={thanksStatus.sent ? v2.color.success : v2.color.warning} />
+                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>
+                    {thanksStatus.sent ? "Wysłano podziękowanie z rabatem" : (thanksStatus.log?.status === "no_email" ? "Nie wysłano — brak e-maila klienta" : (thanksStatus.log?.status === "failed" ? "Błąd wysyłki" : "Podziękowanie niewysłane"))}
+                  </Text>
+                </View>
+                {thanksStatus.sent && thanksStatus.code ? (
+                  <>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Kod: <Text style={{ fontWeight: "800", color: v2.color.text }}>{thanksStatus.code.code}</Text> · ważny do {thanksStatus.code.expires_at_date}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>Odbiorca: {thanksStatus.log?.recipient} · {thanksStatus.log?.sent_at ? new Date(thanksStatus.log.sent_at).toLocaleString("pl-PL") : ""}</Text>
+                  </>
+                ) : null}
+                {thanksStatus.log?.status === "failed" ? (
+                  <Text style={{ color: v2.color.error, fontSize: 11, marginTop: 2 }}>{thanksStatus.log?.error || ""}</Text>
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <Pressable
+                    testID="thanks-preview"
+                    onPress={async () => {
+                      try {
+                        const p: any = await api.eventThanksPreview(id as string);
+                        Alert.alert(p.subject, p.body);
+                      } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                    }}
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border }}
+                  >
+                    <Feather name="eye" size={13} color={v2.color.text} />
+                    <Text style={{ color: v2.color.text, fontWeight: "800", fontSize: 12 }}>Podgląd</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="thanks-resend"
+                    onPress={async () => {
+                      Alert.alert(
+                        thanksStatus.sent ? "Wysłać ponownie?" : "Wysłać teraz?",
+                        thanksStatus.sent ? "Zostanie użyty ten sam kod rabatowy." : "Wyślemy podziękowanie na e-mail klienta.",
+                        [
+                          { text: "Anuluj", style: "cancel" },
+                          { text: "Wyślij", onPress: async () => {
+                            try {
+                              if (thanksStatus.sent) {
+                                await api.eventResendThanks(id as string);
+                              } else {
+                                await api.eventComplete(id as string, true);
+                              }
+                              const ts: any = await api.eventThanksStatus(id as string);
+                              setThanksStatus(ts);
+                              Alert.alert("Wysłano", "Podziękowanie zostało wysłane.");
+                            } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się wysłać"); }
+                          }},
+                        ]
+                      );
+                    }}
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.forest }}
+                  >
+                    <Feather name="send" size={13} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{thanksStatus.sent ? "Wyślij ponownie" : "Wyślij teraz"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
           </Section>
 
           {/* Client */}
@@ -757,6 +906,98 @@ export default function EventDetail() {
                 placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
                 keyboardType="email-address" autoCapitalize="none" style={s.input} />
             </Field>
+
+            {/* Active discount banner — for NEW event when client has an active code */}
+            {isNew && clientDiscounts.length > 0 && !appliedDiscount && (
+              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.mint, borderWidth: 1, borderColor: v2.color.forest + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="tag" size={16} color={v2.color.forest} />
+                  <Text style={{ flex: 1, color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>
+                    Klient posiada aktywny rabat {clientDiscounts[0].amount_pct || 10}%
+                  </Text>
+                </View>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>
+                  Kod {clientDiscounts[0].code} · ważny do {clientDiscounts[0].expires_at_date}
+                </Text>
+                <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 2, fontStyle: "italic" }}>
+                  💡 Aby zastosować, zapisz najpierw imprezę — potem otwórz ponownie i użyj przycisku „Zastosuj rabat".
+                </Text>
+              </View>
+            )}
+            {/* Apply discount button — only for EXISTING event (need event_id) when client has active discount */}
+            {!isNew && clientDiscounts.length > 0 && !appliedDiscount && (
+              <Pressable
+                testID="apply-discount-btn"
+                onPress={() => {
+                  const d = clientDiscounts[0];
+                  Alert.alert(
+                    "Zastosować rabat?",
+                    `Kod: ${d.code}\nRabat: ${d.amount_pct}% od ceny pakietu\nWażny do: ${d.expires_at_date}\n\nRabat zostanie zapisany w tej imprezie i naliczony od ceny podstawowego pakietu.`,
+                    [
+                      { text: "Anuluj", style: "cancel" },
+                      { text: "Zastosuj", onPress: async () => {
+                        try {
+                          const r: any = await api.applyDiscount(id as string, d.code);
+                          setAppliedDiscount({ code: r.code, amount_zl: r.applied_amount, amount_pct: d.amount_pct });
+                          if (r.applied_amount > 0 && priceTotal) {
+                            const newTotal = Math.max(0, parseAmt(priceTotal) - r.applied_amount);
+                            setPriceTotal(String(newTotal));
+                          }
+                          setClientDiscounts([]);
+                          Alert.alert("Zastosowano", `Rabat ${r.code}: -${r.applied_amount.toFixed(2)} zł`);
+                        } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                      }},
+                    ]
+                  );
+                }}
+                style={{ marginTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest }}
+              >
+                <Feather name="tag" size={14} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+                  Zastosuj rabat {clientDiscounts[0].code} (-{clientDiscounts[0].amount_pct}%)
+                </Text>
+              </Pressable>
+            )}
+            {/* Applied discount info */}
+            {appliedDiscount && (
+              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.successBg, borderWidth: 1, borderColor: v2.color.success + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="check-circle" size={14} color={v2.color.success} />
+                  <Text style={{ flex: 1, color: v2.color.text, fontWeight: "800", fontSize: 13 }}>
+                    Zastosowano rabat {appliedDiscount.code}
+                  </Text>
+                  {!isNew && (
+                    <Pressable
+                      testID="remove-discount-btn"
+                      onPress={() => {
+                        Alert.alert("Cofnąć rabat?", "Kod wróci na listę dostępnych, cena zostanie przywrócona.", [
+                          { text: "Anuluj", style: "cancel" },
+                          { text: "Cofnij", style: "destructive", onPress: async () => {
+                            try {
+                              await api.removeDiscount(id as string);
+                              if (appliedDiscount.amount_zl && priceTotal) {
+                                setPriceTotal(String(parseAmt(priceTotal) + appliedDiscount.amount_zl));
+                              }
+                              setAppliedDiscount(null);
+                              // Refresh discounts
+                              const r: any = await api.discountsForClient(clientEmail);
+                              setClientDiscounts(r?.active || []);
+                            } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                          }},
+                        ]);
+                      }}
+                      hitSlop={10}
+                    >
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 4 }}>
+                  Wartość: -{Number(appliedDiscount.amount_zl || 0).toFixed(2)} zł ({appliedDiscount.amount_pct}% od ceny pakietu)
+                </Text>
+              </View>
+            )}
+
             <Field label="Notatki o kliencie">
               <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
                 placeholder="Preferencje, historia współpracy..." placeholderTextColor={v2.color.textMuted}
