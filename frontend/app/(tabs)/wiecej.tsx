@@ -59,6 +59,11 @@ export default function WiecejScreen() {
             <Text style={s.rowLabel}>Szablony zadań (checklisty)</Text>
             <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
           </Pressable>
+          <Pressable onPress={() => router.push("/gmail" as any)} style={s.row} testID="wiecej-gmail">
+            <Feather name="mail" size={16} color={theme.color.onSurfaceSecondary} />
+            <Text style={s.rowLabel}>Gmail (integracja — tylko odczyt)</Text>
+            <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
+          </Pressable>
           <Pressable onPress={() => router.push("/ustawienia/podziekowanie" as any)} style={s.row} testID="wiecej-thank-you">
             <Feather name="mail" size={16} color={theme.color.onSurfaceSecondary} />
             <Text style={s.rowLabel}>Podziękowanie po imprezie + rabaty</Text>

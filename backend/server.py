@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import PlainTextResponse, Response
 from dotenv import load_dotenv
@@ -6434,35 +6434,189 @@ async def create_manual_discount(body: ManualDiscountIn, user=Depends(require_ad
 
 
 
-app.include_router(api)
+
+# ============================================================
+# ---------- Gmail (read-only, Etap 1) ----------------------
+# ============================================================
+import gmail_client as _gmail  # noqa: E402
 
 
-# ---- Temporary backup download (24h token) ----
-_BACKUP_DOWNLOAD_TOKEN = "5jtcYSznQCkwOnNhOCOFUBuB0ZdZVliR"
-_BACKUP_DOWNLOAD_PATH = "/app/backend/backups/biesiada_backup_20260827_165113.zip"
-_BACKUP_DOWNLOAD_EXPIRES_ISO = "2026-08-28T17:00:00Z"
-
-
-@app.get("/api/_backup_download/{token}")
-async def download_backup(token: str):
-    from fastapi.responses import FileResponse
-    from datetime import datetime, timezone
+async def _gmail_get_access_token(user_id: str) -> tuple[str, dict]:
+    """Load conn for user, refresh access token, return (access_token, conn_doc)."""
+    conn = await db.gmail_connections.find_one({"user_id": user_id}, {"_id": 0})
+    if not conn:
+        raise HTTPException(400, "Gmail nie jest podłączony.")
     try:
-        exp = datetime.fromisoformat(_BACKUP_DOWNLOAD_EXPIRES_ISO.replace("Z", "+00:00"))
-        if datetime.now(timezone.utc) > exp:
-            raise HTTPException(410, "Link wygasł — poproś agenta o nowy backup.")
+        refresh = _gmail.decrypt_token(conn["refresh_token_encrypted"])
     except Exception:
-        pass
-    if token != _BACKUP_DOWNLOAD_TOKEN:
-        raise HTTPException(404, "not found")
-    import os as _os
-    if not _os.path.exists(_BACKUP_DOWNLOAD_PATH):
-        raise HTTPException(404, "backup file missing")
-    return FileResponse(
-        _BACKUP_DOWNLOAD_PATH,
-        media_type="application/zip",
-        filename="biesiada_backup_20260827.zip",
+        raise HTTPException(500, "Nie udało się odszyfrować tokenu (skontaktuj się z supportem).")
+    access = await _gmail.refresh_access_token(refresh)
+    if not access:
+        raise HTTPException(401, "Sesja Gmail wygasła — odłącz i podłącz ponownie.")
+    return access, conn
+
+
+@api.get("/gmail/oauth/start")
+async def gmail_oauth_start(request: Request, user=Depends(require_admin)):
+    """Start Gmail OAuth flow. Only admins (owner/partner) can connect."""
+    state = _secrets.token_urlsafe(24)
+    await db.oauth_states.insert_one({
+        "state": state, "provider": "gmail", "used": False,
+        "user_id": user["id"], "created_at": _tk_now_iso(),
+    })
+    # Derive redirect URI from request (respect proxy)
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    redirect_uri = _gmail.resolve_redirect_uri(f"{scheme}://{host}")
+    auth_url = _gmail.build_authorization_url(state, redirect_uri)
+    return {"auth_url": auth_url, "state": state}
+
+
+@api.get("/gmail/oauth/callback")
+async def gmail_oauth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
+    """OAuth callback — verify email matches ALLOWED_EMAIL, save encrypted refresh_token."""
+    from fastapi.responses import HTMLResponse
+    def _page(title: str, msg: str, ok: bool) -> HTMLResponse:
+        color = "#16a34a" if ok else "#dc2626"
+        return HTMLResponse(f"""
+        <!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Gmail — {title}</title>
+        <style>body{{font-family:-apple-system,Segoe UI,Roboto,sans-serif;background:#f0f4ef;
+        display:flex;align-items:center;justify-content:center;height:100vh;margin:0}}
+        .card{{background:#fff;padding:40px 32px;border-radius:16px;box-shadow:0 4px 20px rgba(0,0,0,.08);
+        max-width:420px;text-align:center}}
+        h1{{color:{color};margin:0 0 12px;font-size:22px}}
+        p{{color:#374151;line-height:1.5}}
+        .close{{margin-top:20px;color:#6b7280;font-size:13px}}</style></head><body>
+        <div class="card"><h1>{title}</h1><p>{msg}</p>
+        <p class="close">Możesz zamknąć tę kartę i wrócić do aplikacji.</p></div></body></html>""")
+
+    if error:
+        return _page("Odmowa dostępu", f"Nie autoryzowano: {error}", ok=False)
+    if not code or not state:
+        return _page("Błąd", "Brak parametrów code/state.", ok=False)
+
+    st = await db.oauth_states.find_one({"state": state, "provider": "gmail", "used": False})
+    if not st:
+        return _page("Błąd", "Niepoprawny lub wygasły state.", ok=False)
+    # Mark state as used immediately
+    await db.oauth_states.update_one({"state": state}, {"$set": {"used": True}})
+
+    host = request.headers.get("x-forwarded-host") or request.url.netloc
+    scheme = request.headers.get("x-forwarded-proto") or request.url.scheme
+    redirect_uri = _gmail.resolve_redirect_uri(f"{scheme}://{host}")
+
+    try:
+        tokens = await _gmail.exchange_code_for_tokens(code, redirect_uri)
+    except Exception as exc:
+        return _page("Błąd wymiany kodu", str(exc)[:200], ok=False)
+
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    if not access_token or not refresh_token:
+        return _page("Brak tokenu",
+                     "Google nie zwrócił refresh_token. Odłącz istniejące podłączenie w Twoim koncie Google i spróbuj ponownie.",
+                     ok=False)
+
+    # Verify allowed email
+    try:
+        info = await _gmail.fetch_userinfo(access_token)
+    except Exception as exc:
+        return _page("Błąd", f"Nie mogę zweryfikować konta: {str(exc)[:150]}", ok=False)
+
+    email = (info.get("email") or "").strip().lower()
+    if email != _gmail.ALLOWED_EMAIL.lower():
+        return _page("Niedozwolone konto",
+                     f"Aplikacja przyjmuje wyłącznie konto <b>{_gmail.ALLOWED_EMAIL}</b>. Otrzymano: {email}. Token NIE został zapisany.",
+                     ok=False)
+
+    # Save encrypted refresh_token (upsert by user_id)
+    doc = {
+        "user_id": st["user_id"],
+        "email": email,
+        "scopes": (tokens.get("scope") or "").split(),
+        "refresh_token_encrypted": _gmail.encrypt_token(refresh_token),
+        "connected_at": _tk_now_iso(),
+        "last_used_at": None,
+    }
+    await db.gmail_connections.update_one({"user_id": st["user_id"]}, {"$set": doc}, upsert=True)
+    return _page("Podłączono ✓", f"Gmail <b>{email}</b> podłączony w trybie tylko-do-odczytu.", ok=True)
+
+
+@api.get("/gmail/status")
+async def gmail_status(user=Depends(current_user)):
+    conn = await db.gmail_connections.find_one({"user_id": user["id"]}, {"_id": 0, "refresh_token_encrypted": 0})
+    if not conn:
+        return {"connected": False}
+    return {
+        "connected": True,
+        "email": conn.get("email"),
+        "connected_at": conn.get("connected_at"),
+        "last_used_at": conn.get("last_used_at"),
+        "scopes": conn.get("scopes") or [],
+        "read_only": True,
+    }
+
+
+@api.post("/gmail/disconnect")
+async def gmail_disconnect(user=Depends(require_admin)):
+    r = await db.gmail_connections.delete_one({"user_id": user["id"]})
+    return {"ok": True, "removed": r.deleted_count}
+
+
+@api.get("/gmail/messages")
+async def gmail_messages(limit: int = 25, user=Depends(current_user)):
+    """Return the filtered inbox: keyword-matched messages + all replies in their threads."""
+    access, conn = await _gmail_get_access_token(user["id"])
+    try:
+        raw = await _gmail.list_messages(access, limit=limit)
+    except Exception as exc:
+        raise HTTPException(502, f"Gmail API error: {str(exc)[:200]}")
+
+    # Collect thread IDs; fetch each thread's messages so replies without keywords also show up
+    thread_ids = list({m.get("threadId") for m in raw if m.get("threadId")})
+    thread_ids = thread_ids[:20]  # cap
+
+    messages: list[dict] = []
+    seen: set[str] = set()
+    for tid in thread_ids:
+        try:
+            t = await _gmail.get_thread(access, tid)
+            for m in (t.get("messages") or []):
+                mid = m.get("id")
+                if not mid or mid in seen:
+                    continue
+                seen.add(mid)
+                messages.append(_gmail.compact_message(m))
+        except Exception as exc:
+            log.warning(f"thread fetch failed: {exc}")
+            continue
+
+    # Sort by date desc
+    messages.sort(key=lambda x: x.get("date_iso") or "", reverse=True)
+
+    # Update last_used_at
+    await db.gmail_connections.update_one(
+        {"user_id": user["id"]},
+        {"$set": {"last_used_at": _tk_now_iso()}}
     )
+    return {
+        "count": len(messages),
+        "keywords": _gmail.KEYWORDS,
+        "messages": messages,
+    }
+
+
+@api.get("/gmail/messages/{msg_id}")
+async def gmail_message_detail(msg_id: str, user=Depends(current_user)):
+    access, _ = await _gmail_get_access_token(user["id"])
+    try:
+        raw = await _gmail.get_message_full(access, msg_id)
+    except Exception as exc:
+        raise HTTPException(502, f"Gmail API error: {str(exc)[:200]}")
+    return _gmail.full_message(raw)
+
+
+app.include_router(api)
 
 
 

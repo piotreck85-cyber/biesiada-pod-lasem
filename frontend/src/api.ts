@@ -394,4 +394,10 @@ export const api = {
     amount_pct?: number; valid_months?: number;
     note?: string; send_email?: boolean;
   }) => request("/discounts/manual", { method: "POST", body: JSON.stringify(data) }),
+  // Gmail (read-only)
+  gmailStatus: () => request("/gmail/status"),
+  gmailOauthStart: () => request("/gmail/oauth/start"),
+  gmailDisconnect: () => request("/gmail/disconnect", { method: "POST" }),
+  gmailMessages: (limit = 25) => request(`/gmail/messages?limit=${limit}`),
+  gmailMessage: (id: string) => request(`/gmail/messages/${id}`),
 };
