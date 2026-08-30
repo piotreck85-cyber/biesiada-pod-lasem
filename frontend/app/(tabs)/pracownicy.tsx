@@ -74,6 +74,8 @@ export default function Pracownicy() {
     schedule: true, attendance: true, checklist: true, shopping: true, stock: true,
   });
   const [saving, setSaving] = useState(false);
+  const [invite, setInvite] = useState<any | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
   const [workspace, setWorkspace] = useState<any>(null);
   const [wsModalOpen, setWsModalOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
@@ -245,6 +247,62 @@ export default function Pracownicy() {
     });
     setModalOpen(true);
   }, []);
+
+  // ---- Staff email invitations ----
+  useEffect(() => {
+    if (modalOpen && editing?.id) {
+      setInvite(null);
+      api.staffInviteGet(editing.id).then((r: any) => setInvite(r?.invitation || null)).catch(() => {});
+    } else if (!modalOpen) {
+      setInvite(null);
+    }
+  }, [modalOpen, editing?.id]);
+
+  const inviteStatus =
+    editing && !editing.login_email && invite && (invite.status === "pending" || invite.status === "expired")
+      ? invite.status
+      : null;
+
+  const fmtInviteDate = (iso?: string) => {
+    try { return iso ? new Date(iso).toLocaleDateString("pl-PL", { day: "numeric", month: "long" }) : ""; }
+    catch { return ""; }
+  };
+
+  const sendInvite = async (resend: boolean) => {
+    if (!editing?.id) return;
+    const em = loginEmail.trim().toLowerCase();
+    if (!resend && (!em || !em.includes("@"))) { Alert.alert("Błąd", "Podaj adres e-mail pracownika"); return; }
+    setInviteBusy(true);
+    try {
+      const r: any = resend
+        ? await api.staffInviteResend(editing.id)
+        : await api.staffInviteSend(editing.id, { email: em, permissions: loginPerms });
+      setInvite(r?.invitation || null);
+      Alert.alert("Wysłano ✉️", `Zaproszenie wysłane na ${r?.invitation?.email || em}. Link jest ważny 7 dni.`);
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się wysłać zaproszenia");
+    } finally {
+      setInviteBusy(false);
+    }
+  };
+
+  const cancelInvite = async () => {
+    if (!editing?.id) return;
+    const doCancel = async () => {
+      try {
+        const r: any = await api.staffInviteCancel(editing.id);
+        setInvite(r?.invitation || null);
+      } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Anulować zaproszenie? Link z e-maila przestanie działać.")) doCancel();
+    } else {
+      Alert.alert("Anulować zaproszenie?", "Link z e-maila przestanie działać.", [
+        { text: "Nie", style: "cancel" },
+        { text: "Anuluj zaproszenie", style: "destructive", onPress: doCancel },
+      ]);
+    }
+  };
 
   const save = async () => {
     if (!name.trim()) return;
@@ -635,11 +693,46 @@ export default function Pracownicy() {
                   <Text style={[s.label, { marginTop: 14 }]}>KONTO PRACOWNIKA (login)</Text>
                   {editing.login_email ? (
                     <View style={{ padding: 10, marginBottom: 6, borderRadius: 10, backgroundColor: theme.color.brand + "12", borderWidth: 1, borderColor: theme.color.brand + "44" }}>
-                      <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>✓ {editing.login_email}</Text>
+                      <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>✓ Aktywne konto · {editing.login_email}</Text>
                       <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>Pracownik może się już zalogować.</Text>
                     </View>
+                  ) : inviteStatus ? (
+                    <View style={{
+                      padding: 10, marginBottom: 6, borderRadius: 10,
+                      backgroundColor: inviteStatus === "pending" ? "#1D4ED822" : "#B4530922",
+                      borderWidth: 1, borderColor: inviteStatus === "pending" ? "#3B82F666" : "#F59E0B66",
+                    }}>
+                      <Text style={{ color: theme.color.onSurface, fontSize: 12, fontWeight: "700" }}>
+                        {inviteStatus === "pending" ? "✉️ Zaproszenie wysłane" : "⏰ Zaproszenie wygasło"} · {invite.email}
+                      </Text>
+                      <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginTop: 2 }}>
+                        {inviteStatus === "pending"
+                          ? `Ważne do ${fmtInviteDate(invite.expires_at)}. Pracownik ustawi hasło po kliknięciu linku z e-maila.`
+                          : "Wyślij zaproszenie ponownie, aby wygenerować nowy link."}
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 6, marginTop: 8 }}>
+                        <Pressable
+                          testID="invite-resend-btn"
+                          disabled={inviteBusy}
+                          onPress={() => sendInvite(true)}
+                          style={{ flex: 1, paddingVertical: 9, borderRadius: 8, backgroundColor: theme.color.brand, alignItems: "center", opacity: inviteBusy ? 0.5 : 1 }}
+                        >
+                          {inviteBusy
+                            ? <ActivityIndicator size="small" color={theme.color.onBrand} />
+                            : <Text style={{ color: theme.color.onBrand, fontSize: 12, fontWeight: "800" }}>Wyślij ponownie</Text>}
+                        </Pressable>
+                        <Pressable
+                          testID="invite-cancel-btn"
+                          disabled={inviteBusy}
+                          onPress={cancelInvite}
+                          style={{ paddingVertical: 9, paddingHorizontal: 14, borderRadius: 8, borderWidth: 1, borderColor: theme.color.error, alignItems: "center", justifyContent: "center" }}
+                        >
+                          <Text style={{ color: theme.color.error, fontSize: 12, fontWeight: "800" }}>Anuluj</Text>
+                        </Pressable>
+                      </View>
+                    </View>
                   ) : (
-                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 6 }}>Ten pracownik nie ma jeszcze konta.</Text>
+                    <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 11, marginBottom: 6 }}>Status: Nie zaproszony — ten pracownik nie ma jeszcze konta.</Text>
                   )}
                   <TextInput
                     value={loginEmail}
@@ -697,6 +790,21 @@ export default function Pracownicy() {
                     ))}
                   </View>
 
+                  {!editing.login_email && !inviteStatus ? (
+                    <>
+                      <Pressable
+                        testID="invite-send-btn"
+                        disabled={inviteBusy}
+                        onPress={() => sendInvite(false)}
+                        style={[s.saveBtn, { marginTop: 4 }, inviteBusy && { opacity: 0.5 }]}
+                      >
+                        {inviteBusy ? <ActivityIndicator color={theme.color.onBrand} /> : <Text style={s.saveBtnText}>✉️ Wyślij zaproszenie e-mailem</Text>}
+                      </Pressable>
+                      <Text style={{ color: theme.color.onSurfaceSecondary, fontSize: 10, textAlign: "center", marginVertical: 6 }}>
+                        Pracownik sam ustawi swoje hasło (link ważny 7 dni) · lub utwórz login ręcznie:
+                      </Text>
+                    </>
+                  ) : null}
                   <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
                     <Pressable
                       onPress={async () => {

@@ -221,6 +221,29 @@ export const api = {
   staffCreateLogin: (staff_id: string, data: { email: string; password?: string; permissions?: Record<string, boolean>; active?: boolean }) =>
     request(`/staff/${staff_id}/login`, { method: "POST", body: JSON.stringify(data) }),
   staffDeleteLogin: (staff_id: string) => request(`/staff/${staff_id}/login`, { method: "DELETE" }),
+  // Staff email invitations
+  staffInviteGet: (staff_id: string) => request(`/staff/${staff_id}/invite`),
+  staffInviteSend: (staff_id: string, data: { email: string; permissions?: Record<string, boolean> }) =>
+    request(`/staff/${staff_id}/invite`, { method: "POST", body: JSON.stringify(data) }),
+  staffInviteResend: (staff_id: string) => request(`/staff/${staff_id}/invite/resend`, { method: "POST" }),
+  staffInviteCancel: (staff_id: string) => request(`/staff/${staff_id}/invite`, { method: "DELETE" }),
+  // Staff event card (Moja praca)
+  myEventCard: (event_id: string) => request(`/staff/my/events/${event_id}`),
+  addStaffComment: (event_id: string, text: string) =>
+    request(`/staff/my/events/${event_id}/comments`, { method: "POST", body: JSON.stringify({ text }) }),
+  eventComments: (event_id: string) => request(`/events/${event_id}/comments`),
+  addServiceInfo: (event_id: string, data: { text: string; important?: boolean }) =>
+    request(`/events/${event_id}/service-info`, { method: "POST", body: JSON.stringify(data) }),
+  deleteServiceInfo: (event_id: string, info_id: string) =>
+    request(`/events/${event_id}/service-info/${info_id}`, { method: "DELETE" }),
+  setClientUpdate: (event_id: string, text: string) =>
+    request(`/events/${event_id}/client-update`, { method: "POST", body: JSON.stringify({ text }) }),
+  // Client reply suggestions (AI from Gmail 48h replies)
+  clientReplySuggestions: (event_id: string) => request(`/events/${event_id}/client-reply-suggestions`),
+  approveClientReply: (sug_id: string, text?: string) =>
+    request(`/client-reply-suggestions/${sug_id}/approve`, { method: "POST", body: JSON.stringify({ text: text || null }) }),
+  rejectClientReply: (sug_id: string) =>
+    request(`/client-reply-suggestions/${sug_id}/reject`, { method: "POST" }),
   mySchedule: (from?: string, to?: string) => {
     const p = new URLSearchParams();
     if (from) p.set("date_from", from);

@@ -25,6 +25,12 @@ const dow = (iso: string) => {
   } catch { return ""; }
 };
 const isSameDay = (iso: string, target: string) => iso === target;
+const cardLinkStyle = {
+  flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const,
+  gap: 6, marginTop: 10, paddingVertical: 10, borderRadius: 10,
+  backgroundColor: v2.color.mint,
+};
+const cardLinkTextStyle = { color: v2.color.forest, fontSize: 13, fontWeight: "800" as const };
 const addDaysISO = (iso: string, days: number) => {
   const d = new Date(iso + "T12:00:00");
   d.setDate(d.getDate() + days);
@@ -260,6 +266,10 @@ export default function GrafikScreen() {
           <View style={[s.card, { borderColor: v2.color.forest + "44" }]}>
             {renderEventDetail(todayEvent)}
             {renderChecklistSnapshot(todayChecklist, todayEvent.id)}
+            <Pressable testID="today-event-card-link" onPress={() => router.push(`/moja-impreza/${todayEvent.id}` as any)} style={cardLinkStyle}>
+              <Feather name="clipboard" size={13} color={v2.color.forest} />
+              <Text style={cardLinkTextStyle}>Otwórz kartę imprezy ›</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={s.emptyDay}>
@@ -281,6 +291,10 @@ export default function GrafikScreen() {
           <View style={[s.card, { borderColor: v2.color.info + "44" }]}>
             {renderEventDetail(tomorrowEvent)}
             {renderChecklistSnapshot(tomorrowChecklist, tomorrowEvent.id)}
+            <Pressable testID="tomorrow-event-card-link" onPress={() => router.push(`/moja-impreza/${tomorrowEvent.id}` as any)} style={cardLinkStyle}>
+              <Feather name="clipboard" size={13} color={v2.color.forest} />
+              <Text style={cardLinkTextStyle}>Otwórz kartę imprezy ›</Text>
+            </Pressable>
           </View>
         ) : (
           <View style={s.emptyDay}>
@@ -299,7 +313,7 @@ export default function GrafikScreen() {
             <Text style={s.emptyDayText}>Brak zaplanowanych zmian</Text>
           </View>
         ) : upcoming.map(ev => (
-          <View key={ev.id} style={s.evRow}>
+          <Pressable key={ev.id} style={s.evRow} onPress={() => router.push(`/moja-impreza/${ev.id}` as any)} testID={`upcoming-event-${ev.id}`}>
             <View style={s.dateBox}>
               <Text style={s.dateBoxDay}>{ev.date.slice(-2)}</Text>
               <Text style={s.dateBoxMon}>{dow(ev.date)}</Text>
@@ -317,7 +331,8 @@ export default function GrafikScreen() {
                 <Text style={{ color: v2.color.forest, fontSize: 9, fontWeight: "800" }}>DZIŚ</Text>
               </View>
             ) : null}
-          </View>
+            <Feather name="chevron-right" size={16} color={v2.color.textSubtle} />
+          </Pressable>
         ))}
       </ScrollView>
     </View>

@@ -577,10 +577,22 @@ export default function Kalendarz() {
               <ScrollView style={{ maxHeight: 400 }}>
                 {alerts.map((a: any) => (
                   <View key={a.id} style={s.alertRow}>
-                    <Feather name="alert-circle" size={16} color={v2.color.warning} />
-                    <View style={{ flex: 1 }}>
+                    <Feather
+                      name={a.kind === "staff_comment" ? "message-circle" : a.kind === "client_reply" ? "mail" : "alert-circle"}
+                      size={16}
+                      color={a.kind === "staff_comment" || a.kind === "client_reply" ? v2.color.info : v2.color.warning}
+                    />
+                    <Pressable
+                      style={{ flex: 1 }}
+                      onPress={() => {
+                        if (a.event_id) { setAlertsModalOpen(false); router.push(`/event/${a.event_id}` as any); }
+                      }}
+                    >
                       <Text style={s.alertText}>{a.message || a.text || "Powiadomienie"}</Text>
-                    </View>
+                      {a.comment_text ? (
+                        <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }} numberOfLines={2}>„{a.comment_text}”</Text>
+                      ) : null}
+                    </Pressable>
                     <Pressable onPress={async () => { try { await api.dismissAlert(a.id); setAlerts(alerts.filter(x => x.id !== a.id)); } catch {} }}>
                       <Feather name="x" size={16} color={v2.color.textMuted} />
                     </Pressable>

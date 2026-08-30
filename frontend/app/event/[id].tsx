@@ -97,6 +97,75 @@ export default function EventDetail() {
   const [depositDate, setDepositDate] = useState<string>("");
   const [weather, setWeather] = useState<any | null>(null);
   const [weatherLoading, setWeatherLoading] = useState(false);
+  // ---- Organizacja dla obsługi (staff-visible) ----
+  const [org, setOrg] = useState<Record<string, any>>({});
+  const setOrgField = (k: string, v: any) => setOrg(o => ({ ...o, [k]: v }));
+  const [clientUpdateText, setClientUpdateText] = useState("");
+  const [clientUpdateAt, setClientUpdateAt] = useState<string | null>(null);
+  const [clientUpdateSaving, setClientUpdateSaving] = useState(false);
+  const [serviceInfos, setServiceInfos] = useState<any[]>([]);
+  const [newInfoText, setNewInfoText] = useState("");
+  const [newInfoImportant, setNewInfoImportant] = useState(false);
+  const [teamComments, setTeamComments] = useState<any[]>([]);
+  const [replySuggestions, setReplySuggestions] = useState<any[]>([]);
+  const [sugEdit, setSugEdit] = useState<Record<string, string>>({});
+  const [sugBusy, setSugBusy] = useState(false);
+
+  const fmtStamp = (iso?: string | null) => {
+    try { return iso ? new Date(iso).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""; }
+    catch { return ""; }
+  };
+
+  const saveClientUpdate = async () => {
+    setClientUpdateSaving(true);
+    try {
+      const r: any = await api.setClientUpdate(id as string, clientUpdateText.trim());
+      setClientUpdateAt(r?.client_update_at || null);
+      Alert.alert("Zapisano ✓", "Informacje od klienta są widoczne dla obsługi.");
+    } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+    finally { setClientUpdateSaving(false); }
+  };
+
+  const addServiceInfo = async () => {
+    const text = newInfoText.trim();
+    if (!text) { Alert.alert("Błąd", "Wpisz treść informacji"); return; }
+    try {
+      const info: any = await api.addServiceInfo(id as string, { text, important: newInfoImportant });
+      setServiceInfos(prev => [...prev, info]);
+      setNewInfoText(""); setNewInfoImportant(false);
+    } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+  };
+
+  const removeServiceInfo = async (infoId: string) => {
+    try {
+      await api.deleteServiceInfo(id as string, infoId);
+      setServiceInfos(prev => prev.filter(i => i.id !== infoId));
+    } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+  };
+
+  const approveSuggestion = async (sug: any) => {
+    setSugBusy(true);
+    try {
+      const edited = (sugEdit[sug.id] || "").trim();
+      const r: any = await api.approveClientReply(sug.id, edited || undefined);
+      setReplySuggestions(prev => prev.filter(x => x.id !== sug.id));
+      setClientUpdateText(r?.client_update_text || "");
+      setClientUpdateAt(r?.applied?.client_update_at || new Date().toISOString());
+      if (r?.applied?.org) setOrg(r.applied.org);
+      if (r?.applied?.people) setPeople(String(r.applied.people));
+      Alert.alert("Zapisano ✓", "Informacje od klienta zostały zapisane i są widoczne dla obsługi.");
+    } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+    finally { setSugBusy(false); }
+  };
+
+  const rejectSuggestion = async (sug: any) => {
+    setSugBusy(true);
+    try {
+      await api.rejectClientReply(sug.id);
+      setReplySuggestions(prev => prev.filter(x => x.id !== sug.id));
+    } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+    finally { setSugBusy(false); }
+  };
 
   useEffect(() => {
     (async () => {
@@ -143,6 +212,13 @@ export default function EventDetail() {
           setDinnerCost(ev.dinner_cost ? String(ev.dinner_cost) : "");
           // ---- Finance metadata (from import) ----
           setFinanceMeta(ev.finance || null);
+          // ---- Organizacja / info dla obsługi ----
+          setOrg(ev.org && typeof ev.org === "object" ? ev.org : {});
+          setClientUpdateText(ev.client_update_text || "");
+          setClientUpdateAt(ev.client_update_at || null);
+          setServiceInfos(Array.isArray(ev.service_infos) ? ev.service_infos : []);
+          try { const cm: any = await api.eventComments(id as string); setTeamComments(Array.isArray(cm) ? cm : []); } catch {}
+          try { const sg: any = await api.clientReplySuggestions(id as string); setReplySuggestions(Array.isArray(sg) ? sg : []); } catch {}
           // ---- Thank-you status (only for existing events) ----
           try {
             const ts: any = await api.eventThanksStatus(id as string);
@@ -317,6 +393,7 @@ export default function EventDetail() {
       time_start: timeStart, time_end: timeEnd, time: timeStart,
       venue: "Biesiada pod lasem",
       notes, category,
+      org,
       people: peopleNum,
       package_set: packageSet,
       extras_qty: extras,
@@ -835,6 +912,258 @@ export default function EventDetail() {
               <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
             </Field>
           </Section>
+
+          {/* NOWA ODPPOWIEDŹ KLIENTA — AI suggestions from Gmail replies */}
+          {!isNew && replySuggestions.map(sug => (
+            <View key={sug.id} style={{
+              padding: 14, borderRadius: 14, marginBottom: 14,
+              backgroundColor: "#DBEAFE", borderWidth: 1.5, borderColor: "#3B82F6",
+            }} testID={`client-reply-suggestion-${sug.id}`}>
+              <Text style={{ color: "#1E40AF", fontSize: 12, fontWeight: "900", letterSpacing: 1 }}>📩 NOWA ODPOWIEDŹ KLIENTA</Text>
+              <Text style={{ color: "#1E3A8A", fontSize: 11, marginTop: 2 }}>
+                {sug.from_name || sug.from_email} · {fmtStamp(sug.created_at)}
+              </Text>
+              <View style={{ padding: 10, borderRadius: 10, backgroundColor: "#fff", marginTop: 8 }}>
+                <Text style={{ color: v2.color.textMuted, fontSize: 10, fontWeight: "800", marginBottom: 4 }}>KLIENT NAPISAŁ:</Text>
+                <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19 }}>„{sug.client_text}”</Text>
+              </View>
+              {(sug.summary_lines || []).length > 0 && (
+                <View style={{ padding: 10, borderRadius: 10, backgroundColor: "#EFF6FF", marginTop: 8 }}>
+                  <Text style={{ color: "#1E40AF", fontSize: 10, fontWeight: "800", marginBottom: 4 }}>AI ROZPOZNAŁO:</Text>
+                  {(sug.summary_lines || []).map((l: string, i: number) => (
+                    <Text key={i} style={{ color: "#1E3A8A", fontSize: 13, fontWeight: "700", lineHeight: 20 }}>• {l}</Text>
+                  ))}
+                </View>
+              )}
+              {sugEdit[sug.id] !== undefined && (
+                <TextInput
+                  value={sugEdit[sug.id]}
+                  onChangeText={t => setSugEdit(p => ({ ...p, [sug.id]: t }))}
+                  multiline
+                  style={[s.input, { height: 100, textAlignVertical: "top", marginTop: 8, backgroundColor: "#fff" }]}
+                  placeholder="Edytuj informacje przed zapisem…"
+                  placeholderTextColor={v2.color.textMuted}
+                />
+              )}
+              <View style={{ flexDirection: "row", gap: 6, marginTop: 10 }}>
+                <Pressable
+                  testID={`sug-approve-${sug.id}`}
+                  disabled={sugBusy}
+                  onPress={() => approveSuggestion(sug)}
+                  style={{ flex: 1.4, paddingVertical: 11, borderRadius: 10, backgroundColor: "#16A34A", alignItems: "center", opacity: sugBusy ? 0.5 : 1 }}
+                >
+                  <Text style={{ color: "#fff", fontSize: 12, fontWeight: "900" }}>ZATWIERDŹ I ZAPISZ</Text>
+                </Pressable>
+                <Pressable
+                  testID={`sug-edit-${sug.id}`}
+                  disabled={sugBusy}
+                  onPress={() => setSugEdit(p => ({ ...p, [sug.id]: p[sug.id] !== undefined ? p[sug.id] : (sug.summary_lines || []).join("\n") }))}
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: "#3B82F6", alignItems: "center" }}
+                >
+                  <Text style={{ color: "#1E40AF", fontSize: 12, fontWeight: "900" }}>EDYTUJ</Text>
+                </Pressable>
+                <Pressable
+                  testID={`sug-reject-${sug.id}`}
+                  disabled={sugBusy}
+                  onPress={() => rejectSuggestion(sug)}
+                  style={{ flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: "#EF4444", alignItems: "center" }}
+                >
+                  <Text style={{ color: "#B91C1C", fontSize: 12, fontWeight: "900" }}>ODRZUĆ</Text>
+                </Pressable>
+              </View>
+            </View>
+          ))}
+
+          {/* Organizacja — widoczne dla obsługi */}
+          <Section title="Organizacja — widoczne dla obsługi">
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Dzieci (liczba)">
+                  <TextInput
+                    value={org.kids_count != null ? String(org.kids_count) : ""}
+                    onChangeText={t => setOrgField("kids_count", t ? parseInt(t.replace(/\D/g, ""), 10) || 0 : null)}
+                    placeholder="np. 12" placeholderTextColor={v2.color.textMuted} style={s.input} keyboardType="numeric"
+                  />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Dorośli (liczba)">
+                  <TextInput
+                    value={org.adults_count != null ? String(org.adults_count) : ""}
+                    onChangeText={t => setOrgField("adults_count", t ? parseInt(t.replace(/\D/g, ""), 10) || 0 : null)}
+                    placeholder="np. 20" placeholderTextColor={v2.color.textMuted} style={s.input} keyboardType="numeric"
+                  />
+                </Field>
+              </View>
+            </View>
+            {([
+              ["tables_setup", "Ustawienie stołów", "np. 4 stoły po 8 osób, podkowa"],
+              ["tables_plan", "Plan / układ stołów", "opis układu, jeśli ustalony"],
+              ["menu_details", "Menu (szczegóły dla obsługi)", "co i o której wydajemy"],
+              ["grill", "Grill / ognisko", "np. kiełbaski o 18:00, ognisko 19:30"],
+              ["drinks", "Napoje", "np. cola, soki, woda z cytryną"],
+              ["cakes", "Ciasta i przekąski", "np. tort klienta + 2 ciasta"],
+              ["client_provisions", "Dodatkowy prowiant klienta", "co klient przywozi"],
+              ["decorations", "Dekoracje", "np. balony, girlandy — kto i kiedy"],
+              ["attractions", "Atrakcje", "np. alpaki 16:00, animacje 17:00"],
+              ["extra_orders", "Dodatkowe zamówienia", ""],
+              ["org_notes", "Informacje organizacyjne", ""],
+              ["special_requests", "Specjalne wymagania klienta", ""],
+              ["allergies", "Alergie / wymagania żywieniowe", "np. 1 os. bez glutenu"],
+              ["setup_info", "Przygotowanie miejsca", "np. wiata + leżaki, parasole"],
+            ] as const).map(([k, label, ph]) => (
+              <Field key={k} label={label}>
+                <TextInput
+                  testID={`org-${k}`}
+                  value={org[k] || ""}
+                  onChangeText={t => setOrgField(k, t)}
+                  placeholder={ph || "…"}
+                  placeholderTextColor={v2.color.textMuted}
+                  style={[s.input, { minHeight: 44 }]}
+                  multiline
+                />
+              </Field>
+            ))}
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+              <Pressable
+                testID="org-own-decorations-toggle"
+                onPress={() => setOrgField("client_own_decorations", !org.client_own_decorations)}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
+                  borderRadius: 10, borderWidth: 1.5,
+                  borderColor: org.client_own_decorations ? v2.color.forest : v2.color.border,
+                  backgroundColor: org.client_own_decorations ? v2.color.mint : v2.color.card,
+                }}
+              >
+                <Feather name={org.client_own_decorations ? "check-square" : "square"} size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient robi własne dekoracje</Text>
+              </Pressable>
+              <Pressable
+                testID="org-early-arrival-toggle"
+                onPress={() => setOrgField("early_arrival", !org.early_arrival)}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
+                  borderRadius: 10, borderWidth: 1.5,
+                  borderColor: org.early_arrival ? v2.color.forest : v2.color.border,
+                  backgroundColor: org.early_arrival ? v2.color.mint : v2.color.card,
+                }}
+              >
+                <Feather name={org.early_arrival ? "check-square" : "square"} size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient przyjedzie wcześniej</Text>
+              </Pressable>
+            </View>
+            {!!org.early_arrival && (
+              <Field label="Godzina wcześniejszego przyjazdu">
+                <TextInput
+                  testID="org-early-arrival-time"
+                  value={org.early_arrival_time || ""}
+                  onChangeText={t => setOrgField("early_arrival_time", t)}
+                  placeholder="15:30" placeholderTextColor={v2.color.textMuted} style={s.input}
+                />
+              </Field>
+            )}
+            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6 }}>
+              Te pola zobaczy obsługa przypisana do imprezy (Moja praca). Zapisują się przyciskiem „Zapisz” na dole.
+            </Text>
+          </Section>
+
+          {/* Najnowsze informacje od klienta */}
+          {!isNew && (
+            <Section title="Najnowsze informacje od klienta">
+              <TextInput
+                testID="client-update-input"
+                value={clientUpdateText}
+                onChangeText={setClientUpdateText}
+                placeholder="np. Będzie nas 34 osoby. Przywieziemy tort i dwa ciasta…"
+                placeholderTextColor={v2.color.textMuted}
+                style={[s.input, { height: 100, textAlignVertical: "top" }]}
+                multiline
+              />
+              {!!clientUpdateAt && (
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>Zaktualizowano: {fmtStamp(clientUpdateAt)}</Text>
+              )}
+              <Pressable
+                testID="client-update-save"
+                onPress={saveClientUpdate}
+                disabled={clientUpdateSaving}
+                style={{ marginTop: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center", opacity: clientUpdateSaving ? 0.5 : 1 }}
+              >
+                {clientUpdateSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Zapisz — pokaż obsłudze</Text>}
+              </Pressable>
+            </Section>
+          )}
+
+          {/* Informacja dla obsługi */}
+          {!isNew && (
+            <Section title="Informacja dla obsługi">
+              {serviceInfos.length === 0 && (
+                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 6 }}>Brak informacji. Dodaj np. „Klient przyjedzie o 15:45 z tortem.”</Text>
+              )}
+              {serviceInfos.map(info => (
+                <View key={info.id} style={{
+                  flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 10, marginBottom: 6,
+                  backgroundColor: info.important ? "#FEF3C7" : v2.color.bg,
+                  borderWidth: 1, borderColor: info.important ? "#F59E0B" : v2.color.border,
+                }}>
+                  <View style={{ flex: 1 }}>
+                    {!!info.important && <Text style={{ color: "#92400E", fontSize: 10, fontWeight: "900", marginBottom: 2 }}>⚠ WAŻNE DLA OBSŁUGI</Text>}
+                    <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19 }}>{info.text}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }}>{info.author_name} · {fmtStamp(info.created_at)}</Text>
+                  </View>
+                  <Pressable testID={`service-info-delete-${info.id}`} onPress={() => removeServiceInfo(info.id)} hitSlop={8}>
+                    <Feather name="trash-2" size={15} color={v2.color.error || "#EF4444"} />
+                  </Pressable>
+                </View>
+              ))}
+              <TextInput
+                testID="service-info-input"
+                value={newInfoText}
+                onChangeText={setNewInfoText}
+                placeholder="np. Kiełbaski wydajemy o 18:00…"
+                placeholderTextColor={v2.color.textMuted}
+                style={[s.input, { minHeight: 60, textAlignVertical: "top" }]}
+                multiline
+              />
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>
+                <Pressable
+                  testID="service-info-important-toggle"
+                  onPress={() => setNewInfoImportant(v => !v)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 10,
+                    borderRadius: 10, borderWidth: 1.5,
+                    borderColor: newInfoImportant ? "#F59E0B" : v2.color.border,
+                    backgroundColor: newInfoImportant ? "#FEF3C7" : v2.color.card,
+                  }}
+                >
+                  <Feather name={newInfoImportant ? "check-square" : "square"} size={15} color="#B45309" />
+                  <Text style={{ color: "#92400E", fontSize: 12, fontWeight: "800" }}>⚠ WAŻNE</Text>
+                </Pressable>
+                <Pressable
+                  testID="service-info-add"
+                  onPress={addServiceInfo}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Dodaj informację</Text>
+                </Pressable>
+              </View>
+            </Section>
+          )}
+
+          {/* Informacje od zespołu */}
+          {!isNew && (
+            <Section title="Informacje od zespołu">
+              {teamComments.length === 0 ? (
+                <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Brak informacji od pracowników.</Text>
+              ) : teamComments.map(c => (
+                <View key={c.id} style={{ padding: 10, borderRadius: 10, backgroundColor: v2.color.bg, borderWidth: 1, borderColor: v2.color.border, marginBottom: 6 }} testID={`team-comment-${c.id}`}>
+                  <Text style={{ color: v2.color.forest, fontSize: 12, fontWeight: "800" }}>
+                    {c.author_name} <Text style={{ color: v2.color.textMuted, fontWeight: "400" }}>• {fmtStamp(c.created_at)}</Text>
+                  </Text>
+                  <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19, marginTop: 2 }}>„{c.text}”</Text>
+                </View>
+              ))}
+            </Section>
+          )}
 
           {/* Status */}
           <Section title="Status imprezy">

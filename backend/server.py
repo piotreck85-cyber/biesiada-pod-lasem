@@ -1039,6 +1039,219 @@ async def delete_staff_login(staff_id: str, user=Depends(current_user)):
     return {"ok": True, "deleted": r.deleted_count}
 
 
+# ---------- Staff email invitations (Zaproszenia pracowników) ----------
+import staff_invites as _invites  # noqa: E402
+
+INVITE_VALID_DAYS = _invites.INVITE_VALID_DAYS
+
+
+class StaffInviteIn(BaseModel):
+    email: EmailStr
+    permissions: Optional[Dict[str, bool]] = None
+
+
+class InviteActivateIn(BaseModel):
+    password: str
+
+
+def _invite_public_base(request: Request) -> str:
+    """Base URL for activation links: env override → request Origin → Referer → production."""
+    env_url = (os.getenv("APP_PUBLIC_URL") or "").strip()
+    if env_url.startswith("http"):
+        return env_url.rstrip("/")
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http"):
+        return origin.rstrip("/")
+    ref = (request.headers.get("referer") or "").strip()
+    if ref.startswith("http"):
+        from urllib.parse import urlparse as _urlparse
+        p = _urlparse(ref)
+        return f"{p.scheme}://{p.netloc}"
+    return "https://event-profit-tracker.emergent.host"
+
+
+def _invite_view(inv: Optional[dict]) -> Optional[dict]:
+    """Public-safe projection of an invitation (never leaks token hash)."""
+    if not inv:
+        return None
+    status = inv.get("status")
+    if status == "pending" and (inv.get("expires_at") or "") < now_utc().isoformat():
+        status = "expired"
+    return {
+        "id": inv.get("id"), "staff_id": inv.get("staff_id"), "email": inv.get("email"),
+        "status": status, "invited_at": inv.get("invited_at"), "expires_at": inv.get("expires_at"),
+        "resent_at": inv.get("resent_at"), "accepted_at": inv.get("accepted_at"),
+    }
+
+
+async def _send_invite_email(to_email: str, staff_name: str, token: str, request: Request) -> None:
+    import asyncio as _aio
+    from offer_email import send_offer_email as _smtp_send
+    base = _invite_public_base(request)
+    url = f"{base}/api/invitations/{token}/activate"
+    subject, text, html = _invites.build_invite_email(staff_name, url, INVITE_VALID_DAYS)
+    try:
+        await _aio.to_thread(_smtp_send, to_email=to_email, subject=subject, body_text=text, body_html=html)
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc))
+
+
+@api.get("/staff/{staff_id}/invite")
+async def get_staff_invite(staff_id: str, user=Depends(current_user)):
+    """Latest invitation for a staff member (admin only)."""
+    require_admin(user)
+    inv = await db.staff_invitations.find_one(
+        {"staff_id": staff_id, "owner_id": ws(user)}, {"_id": 0},
+        sort=[("invited_at", -1)],
+    )
+    return {"invitation": _invite_view(inv)}
+
+
+@api.post("/staff/{staff_id}/invite")
+async def send_staff_invite(staff_id: str, body: StaffInviteIn, request: Request, user=Depends(current_user)):
+    """Create a one-time invitation and email the activation link (admin only)."""
+    require_admin(user)
+    owner = ws(user)
+    st = await db.staff.find_one({"id": staff_id, "owner_id": owner}, {"_id": 0})
+    if not st:
+        raise HTTPException(404, "Nie znaleziono pracownika")
+    if st.get("login_email"):
+        raise HTTPException(409, "Pracownik ma już aktywne konto")
+    email = body.email.lower().strip()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(409, "Ten adres email jest już powiązany z innym kontem")
+    pending = await db.staff_invitations.find_one({
+        "staff_id": staff_id, "owner_id": owner, "status": "pending",
+        "expires_at": {"$gt": now_utc().isoformat()},
+    })
+    if pending:
+        raise HTTPException(409, "Aktywne zaproszenie już istnieje — użyj „Wyślij ponownie”")
+
+    perms = {**DEFAULT_STAFF_PERMISSIONS, **(body.permissions or {})}
+    token = _invites.new_token()
+    now = now_utc()
+    inv = {
+        "id": str(uuid.uuid4()), "staff_id": staff_id, "owner_id": owner,
+        "email": email, "name": st.get("name") or "", "permissions": perms,
+        "token_hash": _invites.hash_token(token), "status": "pending",
+        "invited_by": user["id"], "invited_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=INVITE_VALID_DAYS)).isoformat(),
+    }
+    await _send_invite_email(email, st.get("name") or "", token, request)
+    await db.staff_invitations.insert_one(inv)
+    await log_change(user, "update", "staff", staff_id, f"Wysłano zaproszenie e-mail do {email}")
+    return {"ok": True, "invitation": _invite_view(inv)}
+
+
+@api.post("/staff/{staff_id}/invite/resend")
+async def resend_staff_invite(staff_id: str, request: Request, user=Depends(current_user)):
+    """Regenerate the token of the latest pending/expired invitation and resend the email."""
+    require_admin(user)
+    owner = ws(user)
+    st = await db.staff.find_one({"id": staff_id, "owner_id": owner}, {"_id": 0})
+    if not st:
+        raise HTTPException(404, "Nie znaleziono pracownika")
+    if st.get("login_email"):
+        raise HTTPException(409, "Pracownik ma już aktywne konto")
+    inv = await db.staff_invitations.find_one(
+        {"staff_id": staff_id, "owner_id": owner, "status": "pending"},
+        sort=[("invited_at", -1)],
+    )
+    if not inv:
+        raise HTTPException(404, "Brak zaproszenia do ponownej wysyłki — wyślij nowe zaproszenie")
+
+    token = _invites.new_token()
+    now = now_utc()
+    updates = {
+        "token_hash": _invites.hash_token(token), "status": "pending",
+        "resent_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=INVITE_VALID_DAYS)).isoformat(),
+    }
+    await _send_invite_email(inv["email"], st.get("name") or "", token, request)
+    await db.staff_invitations.update_one({"id": inv["id"]}, {"$set": updates})
+    await log_change(user, "update", "staff", staff_id, f"Ponownie wysłano zaproszenie do {inv['email']}")
+    return {"ok": True, "invitation": _invite_view({**inv, **updates})}
+
+
+@api.delete("/staff/{staff_id}/invite")
+async def cancel_staff_invite(staff_id: str, user=Depends(current_user)):
+    """Cancel the latest pending invitation (its link stops working immediately)."""
+    require_admin(user)
+    owner = ws(user)
+    inv = await db.staff_invitations.find_one(
+        {"staff_id": staff_id, "owner_id": owner, "status": "pending"},
+        sort=[("invited_at", -1)],
+    )
+    if not inv:
+        raise HTTPException(404, "Brak aktywnego zaproszenia do anulowania")
+    updates = {"status": "cancelled", "cancelled_at": now_utc().isoformat()}
+    await db.staff_invitations.update_one({"id": inv["id"]}, {"$set": updates})
+    await log_change(user, "update", "staff", staff_id, f"Anulowano zaproszenie dla {inv['email']}")
+    return {"ok": True, "invitation": _invite_view({**inv, **updates})}
+
+
+@api.get("/invitations/{token}/activate", response_class=HTMLResponse)
+async def invite_activation_page(token: str):
+    """Public activation page (linked from the invitation email). GET never consumes the token."""
+    inv = await db.staff_invitations.find_one({"token_hash": _invites.hash_token(token)}, {"_id": 0})
+    state = _invites.invitation_page_state(inv, now_utc().isoformat())
+    return HTMLResponse(_invites.render_activation_page(state, (inv or {}).get("email", "")))
+
+
+@api.post("/invitations/{token}/activate")
+async def invite_activate(token: str, body: InviteActivateIn):
+    """Public: employee sets their own password. One-time — marks the invitation as accepted."""
+    inv = await db.staff_invitations.find_one({"token_hash": _invites.hash_token(token)}, {"_id": 0})
+    if not inv:
+        raise HTTPException(404, "Zaproszenie jest nieważne")
+    if inv.get("status") == "accepted":
+        raise HTTPException(409, "To zaproszenie zostało już wykorzystane")
+    if inv.get("status") == "cancelled":
+        raise HTTPException(410, "Zaproszenie zostało anulowane")
+    if (inv.get("expires_at") or "") < now_utc().isoformat():
+        raise HTTPException(410, "Zaproszenie wygasło — poproś administratora o nowe")
+    if len(body.password or "") < 6:
+        raise HTTPException(400, "Hasło musi mieć min. 6 znaków")
+
+    st = await db.staff.find_one({"id": inv["staff_id"], "owner_id": inv["owner_id"]}, {"_id": 0})
+    if not st:
+        raise HTTPException(410, "Profil pracownika już nie istnieje")
+
+    email = inv["email"]
+    perms = {**DEFAULT_STAFF_PERMISSIONS, **(inv.get("permissions") or {})}
+    existing = await db.users.find_one({"email": email})
+    if existing and existing.get("staff_id") != inv["staff_id"]:
+        raise HTTPException(409, "Ten adres email jest już powiązany z innym kontem")
+    if existing:
+        u_id = existing["id"]
+        await db.users.update_one({"id": u_id}, {"$set": {
+            "password_hash": hash_pw(body.password), "role": "staff",
+            "staff_id": inv["staff_id"], "workspace_id": inv["owner_id"],
+            "permissions": perms, "active": True,
+            "name": st.get("name") or existing.get("name") or email,
+            "updated_at": now_utc().isoformat(),
+        }})
+    else:
+        u_id = str(uuid.uuid4())
+        await db.users.insert_one({
+            "id": u_id, "email": email, "name": st.get("name") or email,
+            "role": "staff", "staff_id": inv["staff_id"], "workspace_id": inv["owner_id"],
+            "password_hash": hash_pw(body.password), "permissions": perms,
+            "active": True, "activated_via": "invitation",
+            "created_at": now_utc().isoformat(),
+        })
+    await db.staff.update_one(
+        {"id": inv["staff_id"], "owner_id": inv["owner_id"]},
+        {"$set": {"user_id": u_id, "login_email": email}},
+    )
+    await db.staff_invitations.update_one(
+        {"id": inv["id"]},
+        {"$set": {"status": "accepted", "accepted_at": now_utc().isoformat(), "user_id": u_id}},
+    )
+    return {"ok": True, "email": email}
+
+
 # ---------- Time clock (Lista obecności) ----------
 class TimeStartIn(BaseModel):
     model_config = {"extra": "allow"}
@@ -1371,6 +1584,27 @@ async def my_schedule(user=Depends(current_user), date_from: str = "", date_to: 
 
 
 # ---------- Events ----------
+# Whitelist of event fields visible to role=staff (employee). Everything else —
+# prices, costs, revenue, profit, deposits, private notes, client contact — is
+# NEVER returned to staff. Enforced on the backend, not only in UI.
+STAFF_SAFE_EVENT_FIELDS = {
+    "id", "name", "date", "time", "time_start", "time_end", "status", "category",
+    "people", "package_set", "venue", "location", "image_url", "notes_public",
+    "org", "client_update_text", "client_update_at", "service_infos",
+    "dinner_items", "checklist_initialized",
+}
+
+
+def staff_safe_event(ev: dict, sid: Optional[str] = None) -> dict:
+    """Return only staff-safe fields of an event + the caller's own shift."""
+    out = {k: v for k, v in ev.items() if k in STAFF_SAFE_EVENT_FIELDS}
+    if sid:
+        out["my_shift"] = next(
+            (sh for sh in (ev.get("shifts") or []) if sh.get("staff_id") == sid), None
+        )
+    return out
+
+
 @api.get("/events")
 async def list_events(user=Depends(current_user), year: Optional[int] = None, month: Optional[int] = None):
     q = {"owner_id": ws(user)}
@@ -1384,17 +1618,15 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
             return []
         q["shifts.staff_id"] = sid
     items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
+    if is_staff(user):
+        # Hard whitelist — staff never receives financial/private fields
+        sid = user.get("staff_id")
+        return [staff_safe_event(ev, sid) for ev in items]
     staff_map = await load_owner_staff_map(user["id"])
     cost_ratios = await _cost_ratios_by_category(ws(user))
     enriched = []
     for ev in items:
         row = await compute_event_summary(ev, staff_map, cost_ratios)
-        if is_staff(user):
-            # Strip all financial fields for staff
-            for k in ("price_total","discount_pct","deposit_amount","costs","total_cost",
-                      "profit","profit_projected","predicted_settlement","revenue_projected",
-                      "extras_qty","package_price","dinner_items_revenue","cost_breakdown"):
-                row.pop(k, None)
         enriched.append(row)
     return enriched
 
@@ -1425,7 +1657,240 @@ async def get_event(event_id: str, user=Depends(current_user)):
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
+    if is_staff(user):
+        sid = user.get("staff_id")
+        if not sid or not any(sh.get("staff_id") == sid for sh in (ev.get("shifts") or [])):
+            raise HTTPException(403, "Brak dostępu do tej imprezy")
+        return staff_safe_event(ev, sid)
     return await compute_event_summary(ev)
+
+
+# ---------- Staff event card (Moja praca → karta imprezy) ----------
+class ServiceInfoIn(BaseModel):
+    text: str
+    important: Optional[bool] = False
+
+
+class ClientUpdateIn(BaseModel):
+    text: str
+
+
+class StaffCommentIn(BaseModel):
+    text: str
+
+
+async def _is_partner(user: dict) -> bool:
+    """True if the caller is a staff user whose staff record is a partner (wspólnik)."""
+    if not is_staff(user):
+        return False
+    sid = user.get("staff_id")
+    if not sid:
+        return False
+    st = await db.staff.find_one({"id": sid, "owner_id": ws(user)}, {"_id": 0, "staff_type": 1})
+    return bool(st and st.get("staff_type") == "partner")
+
+
+async def _require_admin_or_partner(user: dict):
+    if is_admin(user) or await _is_partner(user):
+        return
+    raise HTTPException(403, "Ta operacja jest dostępna tylko dla właściciela lub wspólnika")
+
+
+def _sorted_service_infos(ev: dict) -> list:
+    infos = list(ev.get("service_infos") or [])
+    return sorted(infos, key=lambda i: (0 if i.get("important") else 1, i.get("created_at") or ""))
+
+
+@api.get("/staff/my/events/{event_id}")
+async def my_event_card(event_id: str, user=Depends(current_user)):
+    """Staff-safe organizational card of an event. Staff must be assigned via shifts."""
+    ev = await _event_visible_to_user(user, event_id)
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    sid = user.get("staff_id")
+    out = staff_safe_event(ev, sid)
+    out["service_infos"] = _sorted_service_infos(ev)
+    out["tasks_total"] = await db.checklist_items.count_documents({"owner_id": ws(user), "event_id": event_id})
+    out["tasks_done"] = await db.checklist_items.count_documents({"owner_id": ws(user), "event_id": event_id, "done": True})
+    if sid:
+        out["my_comments"] = await db.event_comments.find(
+            {"owner_id": ws(user), "event_id": event_id, "author_staff_id": sid}, {"_id": 0}
+        ).sort("created_at", -1).to_list(50)
+    return out
+
+
+@api.post("/staff/my/events/{event_id}/comments")
+async def add_staff_comment(event_id: str, body: StaffCommentIn, user=Depends(current_user)):
+    """Staff assigned to the event sends an info/comment to the owner. Creates an in-app alert."""
+    ev = await _event_visible_to_user(user, event_id)
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Wpisz treść informacji")
+    if len(text) > 2000:
+        raise HTTPException(400, "Informacja jest za długa (max 2000 znaków)")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "owner_id": ws(user),
+        "event_id": event_id,
+        "author_user_id": user["id"],
+        "author_staff_id": user.get("staff_id"),
+        "author_name": user.get("name") or user.get("email", ""),
+        "text": text,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.event_comments.insert_one(dict(doc))
+    # In-app notification for owner/admin (bell icon)
+    try:
+        await db.alerts.insert_one({
+            "id": str(uuid.uuid4()),
+            "owner_id": ws(user),
+            "event_id": event_id,
+            "event_name": ev.get("name") or "",
+            "event_date": ev.get("date") or "",
+            "kind": "staff_comment",
+            "message": f"Nowa informacja od pracownika – {ev.get('name','')}",
+            "comment_text": text[:200],
+            "actor_name": doc["author_name"],
+            "created_at": now_utc().isoformat(),
+            "dismissed": False,
+            "emailed": True,
+        })
+    except Exception:
+        pass
+    await log_change(user, "create", "event_comment", event_id, f"Informacja od pracownika: {text[:80]}")
+    return doc
+
+
+@api.get("/events/{event_id}/comments")
+async def list_event_comments(event_id: str, user=Depends(current_user)):
+    """Team comments for an event — visible to owner/admin/partner only."""
+    await _require_admin_or_partner(user)
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "id": 1})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    return await db.event_comments.find(
+        {"owner_id": ws(user), "event_id": event_id}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+
+
+@api.post("/events/{event_id}/service-info")
+async def add_service_info(event_id: str, body: ServiceInfoIn, user=Depends(current_user)):
+    """Owner/admin/partner adds an 'Informacja dla obsługi' (optionally marked WAŻNE)."""
+    await _require_admin_or_partner(user)
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "id": 1, "name": 1})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Wpisz treść informacji")
+    info = {
+        "id": str(uuid.uuid4()),
+        "text": text,
+        "important": bool(body.important),
+        "author_name": user.get("name") or user.get("email", ""),
+        "created_at": now_utc().isoformat(),
+    }
+    await db.events.update_one({"id": event_id, "owner_id": ws(user)}, {"$push": {"service_infos": info}})
+    await log_change(user, "update", "event", event_id, f"Dodano informację dla obsługi: {text[:80]}")
+    return info
+
+
+@api.delete("/events/{event_id}/service-info/{info_id}")
+async def delete_service_info(event_id: str, info_id: str, user=Depends(current_user)):
+    await _require_admin_or_partner(user)
+    res = await db.events.update_one(
+        {"id": event_id, "owner_id": ws(user)},
+        {"$pull": {"service_infos": {"id": info_id}}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    await log_change(user, "update", "event", event_id, "Usunięto informację dla obsługi")
+    return {"ok": True}
+
+
+@api.post("/events/{event_id}/client-update")
+async def set_client_update(event_id: str, body: ClientUpdateIn, user=Depends(current_user)):
+    """Owner/admin/partner records the latest organizational info received from the client.
+    Shown to assigned staff in Moja praca → 'Najnowsze informacje od klienta'."""
+    await _require_admin_or_partner(user)
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "id": 1, "name": 1})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    text = (body.text or "").strip()
+    now_iso = now_utc().isoformat()
+    updates = {
+        "client_update_text": text,
+        "client_update_at": now_iso if text else None,
+        "client_update_by": user.get("name") or user.get("email", ""),
+    }
+    await db.events.update_one({"id": event_id, "owner_id": ws(user)}, {"$set": updates})
+    await log_change(user, "update", "event", event_id,
+                     f"Zaktualizowano informacje od klienta: {text[:80]}" if text else "Wyczyszczono informacje od klienta")
+    return {"ok": True, "client_update_text": text, "client_update_at": updates["client_update_at"]}
+
+
+# ---------- Client reply suggestions (AI z odpowiedzi na mail 48h) ----------
+import client_replies as _creplies  # noqa: E402
+
+
+class SuggestionApproveIn(BaseModel):
+    text: Optional[str] = None  # edited summary; defaults to AI summary lines
+
+
+@api.get("/events/{event_id}/client-reply-suggestions")
+async def list_client_reply_suggestions(event_id: str, user=Depends(current_user)):
+    """Pending client-reply suggestions for an event (owner/admin/partner only)."""
+    await _require_admin_or_partner(user)
+    return await db.client_reply_suggestions.find(
+        {"owner_id": ws(user), "event_id": event_id, "status": "pending"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(20)
+
+
+@api.post("/client-reply-suggestions/{sug_id}/approve")
+async def approve_client_reply_suggestion(sug_id: str, body: SuggestionApproveIn, user=Depends(current_user)):
+    """ZATWIERDŹ I ZAPISZ — apply the suggestion to the event; visible to staff afterwards."""
+    await _require_admin_or_partner(user)
+    sug = await db.client_reply_suggestions.find_one(
+        {"id": sug_id, "owner_id": ws(user), "status": "pending"}, {"_id": 0})
+    if not sug:
+        raise HTTPException(404, "Nie znaleziono oczekującej sugestii")
+    ev = await db.events.find_one({"id": sug["event_id"], "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    approved_text = (body.text or "").strip() or "\n".join(sug.get("summary_lines") or []) or (sug.get("client_text") or "")[:500]
+    decided_by = user.get("name") or user.get("email", "")
+    updates = _creplies.build_event_updates(ev, sug.get("extracted"), approved_text, decided_by)
+    await db.events.update_one({"id": ev["id"], "owner_id": ws(user)}, {"$set": updates})
+    await db.client_reply_suggestions.update_one(
+        {"id": sug_id},
+        {"$set": {"status": "approved", "decided_at": now_utc().isoformat(),
+                  "decided_by": decided_by, "applied_text": approved_text}},
+    )
+    await log_change(user, "update", "event", ev["id"],
+                     f"Zatwierdzono odpowiedź klienta (AI): {approved_text[:80]}")
+    return {"ok": True, "client_update_text": approved_text, "applied": updates}
+
+
+@api.post("/client-reply-suggestions/{sug_id}/reject")
+async def reject_client_reply_suggestion(sug_id: str, user=Depends(current_user)):
+    await _require_admin_or_partner(user)
+    res = await db.client_reply_suggestions.update_one(
+        {"id": sug_id, "owner_id": ws(user), "status": "pending"},
+        {"$set": {"status": "rejected", "decided_at": now_utc().isoformat(),
+                  "decided_by": user.get("name") or user.get("email", "")}},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(404, "Nie znaleziono oczekującej sugestii")
+    await log_change(user, "update", "client_reply", sug_id, "Odrzucono odpowiedź klienta (AI)")
+    return {"ok": True}
+
+
+@api.post("/client-replies/scan")
+async def client_replies_scan_now(user=Depends(require_admin)):
+    """Manual trigger of the Gmail reply scan (requires connected Gmail)."""
+    return await _creplies.scan_client_replies(db)
 
 
 @api.get("/events/{event_id}/pre-event-email/status")
@@ -3581,6 +4046,16 @@ async def _startup():
             args=[db],
             id="pre_event_email_scan",
             next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
+        _scheduler.add_job(
+            _creplies.scan_client_replies,
+            IntervalTrigger(minutes=5),
+            args=[db],
+            id="client_reply_scan",
+            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=60),
             replace_existing=True,
             max_instances=1,
             coalesce=True,

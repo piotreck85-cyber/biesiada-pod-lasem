@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only UI test for the NEW staff email invitation feature in /pracownicy edit modal. All 10 scripted steps passed 10/10 against the deployed Expo web preview. Full flow verified: initial 'Nie zaproszony' status → fill email 'biesiadapodlasem+ui-test@gmail.com' → invite-send-btn → blue 'Zaproszenie wysłane · <email>' + 'Ważne do ...' + resend/cancel buttons appear and send button hides → invite-resend-btn keeps sent state → invite-cancel-btn triggers a native window.confirm ('Anulować zaproszenie? Link z e-maila przestanie działać.') → after accept, status reverts to 'Nie zaproszony' and invite-send-btn reappears. Persistence verified by closing & reopening the modal (row 34a55fcc… still shows 'Nie zaproszony'). Backend activation page GET /api/invitations/some-invalid-token/activate returns HTTP 200 with branded Polish HTML: '🌲 Biesiada pod Lasem / Aplikacja 2.0 · Aktywacja konta pracownika / 🔒 Zaproszenie jest nieważne / Ten link aktywacyjny nie istnieje lub został już unieważniony. / Poproś administratora o nowe zaproszenie.' Existing manual login UI (email + password inputs + 'Utwórz login' button + UPRAWNIENIA checkboxes) remains present in the same modal → no regression. Cleanup executed: 'Test Invite UI' staff row deleted via staff-delete-{id}. Two real invitation emails were sent to the owner-controlled plus-address as instructed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "pracownicy edit modal", "issues": ["The loginEmail and loginPassword TextInput fields do not have testID props (only distinguishable via placeholder text 'email pracownika' / 'hasło (min 6 znaków)'). Adding testID='invite-email-input' and testID='login-password-input' would make future regression testing more robust, but no functional issue."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/ui_staff_invite_test.py",
+    "/app/test_reports/ui_iter20_modal_initial.jpeg",
+    "/app/test_reports/ui_iter20_invite_sent.jpeg",
+    "/app/test_reports/ui_iter20_after_cancel.jpeg",
+    "/app/test_reports/ui_iter20_activation_invalid.jpeg"
+  ],
+  "action_items": [
+    "(Optional / low-priority) Add testID='invite-email-input' to the loginEmail TextInput and testID='invite-password-input' to loginPassword TextInput in /app/frontend/app/(tabs)/pracownicy.tsx (~line 737 / 746) for more robust testID-based E2E coverage."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "not-tested (skipped per request)", "frontend": "100% (10/10 steps)"},
+  "seed_data_creation": "Temporary staff 'Test Invite UI' (role Kelner) was created and then deleted at the end — no residual test data. Two real invitation emails were sent to biesiadapodlasem+ui-test@gmail.com as explicitly instructed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Full staff-invitation UI flow is verified end-to-end (send / resend / cancel / persistence / invalid-activation HTML). loginEmail & loginPassword TextInputs currently lack testIDs — targeted via placeholder='email pracownika' / 'hasło (min 6 znaków)'. Cancel flow relies on window.confirm on web; use page.on('dialog', dialog.accept()). Modal is a RN Modal — closing via clicking the semi-transparent backdrop area outside the sheet works (e.g. mouse click at (200, 30)).",
+  "rca_of_issue": "N/A — feature works as spec'd."
+}

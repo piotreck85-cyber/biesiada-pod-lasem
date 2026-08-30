@@ -1,0 +1,42 @@
+{
+  "summary": "Frontend-only E2E for Biesiada 2.0 staff card + admin event card AI/org/service-info + kalendarz bell. All 10 requested flows pass functionally on public URL (390x844 mobile viewport). Staff: login as zuzia.demo@test.pl, DEMO event visible on 'Moja praca' (in Nadchodzące section, not 'Jutro', because current server date is 2026-08-30 and demo event is 2026-09-02 — 3 days out), upcoming-event-{id} link navigates to /moja-impreza/{id}. Staff card renders full whitelist (PAKIET STANDARD, POTWIERDZONA chip, Twoja zmiana 15:00-20:00, ⚠ WAŻNE box, 🆕 NAJNOWSZE INFORMACJE OD KLIENTA with 'Zaktualizowano:' stamp, UCZESTNICY 34 osób / Dzieci: 22 / Dorośli: 12, MENU, STOŁY, DEKORACJE, GRILL, ATRAKCJE, PROWIANT, WCZEŚNIEJSZY PRZYJAZD 'Tak – 15:30', checklist testID, comment box). Negative check PASSED: none of ['2500','zł','Cena','Przychód','Koszt','Zysk','Zaliczka','PRYWATNA','Prywatna notatka'] appear in staff card DOM text. Staff comment 'Skończyły się soki.' sent and shown under 'Wysłane informacje'. Admin (test@eventa.pl): '📩 NOWA ODPOWIEDŹ KLIENTA' panel visible with client quote and 'AI ROZPOZNAŁO' lines (Liczba osób: 36, Prowiant: tort + sernik, Wcześniejszy przyjazd: TAK, 15:15). sug-edit toggled editable textarea prefilled with joined summary lines. sug-approve removed panel and populated client-update-input with approved text and rendered 'Zaktualizowano:' stamp. Service-info add with WAŻNE toggle creates row with '⚠ WAŻNE DLA OBSŁUGI' badge. Team-comments section shows 'Zuzia Demo' + „Skończyły się soki.\" and prior comment. Org-drinks appended ' + lemoniada', 'Zapisz zmiany' persists — verified after full event reload. Kalendarz bell opens Powiadomienia modal listing 'Nowa informacja od pracownika – DEMO Urodzinki Stasia (8 lat)' with comment preview and 'Nowa odpowiedź klienta przed imprezą – sprawdź informacje.' with client quote; tapping the row closes modal and routes to /event/{id}. Regression: admin card still shows FINANSE, Cena, PŁATNOŚĆ, Zaliczka sections.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "moja-impreza staff card", "issues": ["'34 osób' should grammatically be '34 osoby' (task spec allows 'osób' — not a bug, just Polish grammar hint)"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/ui_iter21/00_initial.jpeg",
+    "/app/test_reports/ui_iter21/01_staff_logged.jpeg",
+    "/app/test_reports/ui_iter21/02_staff_card_top.jpeg",
+    "/app/test_reports/ui_iter21/03_staff_card_bottom.jpeg",
+    "/app/test_reports/ui_iter21/04_after_send_comment.jpeg",
+    "/app/test_reports/ui_iter21/11_admin_event_top.jpeg",
+    "/app/test_reports/ui_iter21/12_edit_toggled.jpeg",
+    "/app/test_reports/ui_iter21/13_after_approve.jpeg",
+    "/app/test_reports/ui_iter21/20_service_info_added.jpeg",
+    "/app/test_reports/ui_iter21/22_after_save_retry.jpeg",
+    "/app/test_reports/ui_iter21/30_bell_open.jpeg"
+  ],
+  "action_items": [
+    "OPTIONAL: Delete-row Pressable for service-info rows has no testID. Add e.g. testID={`service-info-delete-${info.id}`} on the trash Pressable in /app/frontend/app/event/[id].tsx around line 1113 so QA can verify deletion deterministically (I could not confirm delete via automation because trash icon lacked a stable selector; functionality itself was not broken, delete API remoteServiceInfo exists).",
+    "OPTIONAL: 'Test UI info' service_info created during testing was NOT deleted (my trash-icon click could not reliably hit the button) — please remove it manually or via API when reviewing the DEMO event, or leave as-is since demo data.",
+    "INFO: Task step 1 assumes DEMO event is 'tomorrow'; today's server date is 2026-08-30 while DEMO event is 2026-09-02, so it renders in 'Nadchodzące' (upcoming) section, not 'Jutro'. testID tomorrow-event-card-link is not rendered — verified via testID upcoming-event-{id} instead. Consider updating demo event date to `tomorrow` at seed-time, or renaming the QA assertion to 'upcoming-event-{id}'."
+  ],
+  "critical_code_review_comments": [
+    "moja-impreza/[id].tsx: STAFF_SAFE fields correctly whitelist server-side — confirmed by rendered DOM text scan; no financial fields leak to staff view.",
+    "event/[id].tsx: AI suggestion approve->client-update-input flow correctly wires; approve also propagates parsed data to org fields (e.g., 'Z odpowiedzi klienta: tort + sernik' appended to org.cakes) — verify with product owner if that additive behavior is intended.",
+    "kalendarz.tsx: alerts row uses Pressable wrapping event navigation but delete icon lacks testID; consider testID='alert-row-{id}' and 'alert-dismiss-{id}'."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not-tested", "frontend": "100%"},
+  "seed_data_creation": "One extra service_info 'Test UI info' with important=true was added to DEMO event and NOT deleted (trash icon lacked a testID for deterministic click). All other test data ephemeral (staff comment appended, org.drinks appended ' + lemoniada', 1 AI suggestion approved as instructed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Public URL: https://event-profit-tracker.preview.emergentagent.com. DEMO event id a3a97b37-3245-490f-a8b9-7cdcbbcff764 remains. Demo AI suggestion ae0bd2f0-... has been APPROVED. Staff card view fully whitelisted (verified). To retest bell/AI on a fresh state, main agent should seed a new PENDING suggestion. 'Zapisz zmiany' button lacks a testID; use page.get_by_text('Zapisz zmiany', exact=True) or add testID='event-save-btn'.",
+  "rca_of_issue": "N/A — no bugs; only two selector limitations (trash icon in service-info row and main save button lack testIDs) which slowed test automation but did not indicate defects."
+}

@@ -397,3 +397,55 @@ Polish mobile app for event organizers to manage:
 - Zmiana jest frontend-only; nie modyfikuje dokumentów w MongoDB.
 - Raport testów: `/app/test_reports/iteration_18.json`; finalny screenshot: `/tmp/kalendarz-miesieczny-final-kategorie.png`.
 - Widok `Miesiąc` jest domyślny na świeżym wejściu, po restarcie oraz po każdym powrocie do modułu Kalendarz; Pulpit pozostaje dostępny ręcznie w bieżącej sesji.
+
+## Iteration (Jun 2026) — Staff invitations + Staff event card + AI client replies
+### 1. Staff email invitations (Zaproszenia pracowników)
+- Zespół → Pracownik modal: statuses Nie zaproszony / Zaproszenie wysłane / Zaproszenie wygasło / Aktywne konto
+- Buttons: [Wyślij zaproszenie e-mailem] (uses email input + permissions), [Wyślij ponownie], [Anuluj]
+- Backend: `staff_invites.py` + endpoints `GET/POST/DELETE /api/staff/{id}/invite`, `POST .../invite/resend`
+- One-time token (sha256-hashed, `secrets.token_urlsafe(32)`), valid 7 days, collection `staff_invitations`
+- Public activation page (backend-served HTML): `GET/POST /api/invitations/{token}/activate` — employee sets own password (bcrypt)
+- Email via existing Gmail SMTP (offer_email.send_offer_email). Manual login creation kept unchanged.
+- Tests: /app/backend/tests/test_staff_invites_e2e.py (21/21)
+
+### 2. Staff event card — Moja praca → karta imprezy (`/moja-impreza/[id]`)
+- Staff-safe endpoint `GET /api/staff/my/events/{id}` with HARD WHITELIST (`STAFF_SAFE_EVENT_FIELDS` in server.py)
+  — staff NEVER receives price/revenue/costs/profit/deposits/private notes/client contact. Also hardened
+  `GET /api/events` and `GET /api/events/{id}` for role=staff (403 when not assigned).
+- New event field `org` (dict, staff-visible org data): tables_setup, tables_plan, menu_details, grill, drinks,
+  cakes, client_provisions, decorations, client_own_decorations, early_arrival, early_arrival_time, attractions,
+  extra_orders, org_notes, special_requests, allergies, setup_info, kids_count, adults_count
+- Admin event card (event/[id].tsx): new sections "Organizacja — widoczne dla obsługi" (saved with main Zapisz),
+  "Najnowsze informacje od klienta" (client_update_text/at/by via POST /api/events/{id}/client-update),
+  "Informacja dla obsługi" (embedded `service_infos` array, important flag ⚠ WAŻNE, add/delete),
+  "Informacje od zespołu" (staff comments read-only)
+- Staff comments: collection `event_comments`, `POST /api/staff/my/events/{id}/comments` (staff assigned only),
+  `GET /api/events/{id}/comments` (admin/partner only). Creates alert kind=staff_comment
+  ("Nowa informacja od pracownika – …") shown in Kalendarz bell; alert row navigates to event.
+- Partner support: `_require_admin_or_partner` (staff user with staff_type=partner can add service info,
+  client updates, see comments/suggestions).
+- grafik.tsx (Moja praca): today/tomorrow cards + upcoming rows navigate to /moja-impreza/{id}
+- Tests: /app/backend/tests/test_staff_card_e2e.py (44/44 incl. permission matrix)
+
+### 3. AI ingestion of client replies to the 48h pre-event email
+- Module `client_replies.py`: APScheduler job `client_reply_scan` every 5 min scans connected Gmail accounts
+  (collection `gmail_connections` — REQUIRES the Gmail OAuth fix, still blocked on user's GCP config!)
+- Matching by RFC-2822 headers In-Reply-To/References containing our Message-ID `<pre-event-{event_id}...>`
+  (never by email address alone); Gmail threadId stored too
+- AI extraction (existing Emergent LLM setup, openai/gpt-5.6-terra): strict JSON, never guesses —
+  ranges like "30–35 osób" go to people_note text, not people_final
+- Suggestions collection `client_reply_suggestions` (status pending/approved/rejected); alert kind=client_reply
+  "Nowa odpowiedź klienta przed imprezą – sprawdź informacje."
+- Admin event card panel "📩 NOWA ODPOWIEDŹ KLIENTA": klient napisał + AI rozpoznało + buttons
+  [ZATWIERDŹ I ZAPISZ] [EDYTUJ] [ODRZUĆ]. Approve merges into event: client_update_text (+at/by), people,
+  org.* (append-safe merge), audit_log entries for receive/approve/reject.
+- Endpoints: GET /api/events/{id}/client-reply-suggestions, POST /api/client-reply-suggestions/{id}/approve|reject,
+  POST /api/client-replies/scan (manual trigger)
+
+### Demo data (preview DB — can be deleted)
+- Event "DEMO Urodzinki Stasia (8 lat)" (2026-09-02, id a3a97b37-3245-490f-a8b9-7cdcbbcff764)
+- Staff "Zuzia Demo" login zuzia.demo@test.pl / demo123, one pending demo suggestion
+
+### Pending / next
+- Grafik pracowników (monthly schedule view for admin in Więcej + month view in Moja praca + PDF print) — APPROVED by user, not yet built
+- Gmail OAuth GCP fix (user-side) — blocks live reply scanning + Gmail Etap 1/2
