@@ -18,6 +18,7 @@ const TILES: Tile[] = [
   { key: "misc",        label: "Pozostałe przychody", icon: "gift",   route: "/pozostale-przychody", color: "#0D9488",        bg: "#CCFBF1" },
   { key: "kasa",        label: "Kasa",         icon: "pie-chart",     route: "/rozliczenie",  color: v2.color.warning, bg: v2.color.warningBg },
   { key: "wspolnicy",   label: "Rozliczenia wspólników", icon: "users", route: "/wspolnicy",   color: "#7C3AED",        bg: "#EDE9FE" },
+  { key: "import",      label: "Import kosztów", icon: "download",    route: "/import-kosztow", color: "#B45309",       bg: "#FEF3C7" },
   { key: "statystyki",  label: "Statystyki",   icon: "bar-chart-2",   route: "/statystyki",   color: v2.color.info,    bg: v2.color.infoBg },
 ];
 
@@ -27,6 +28,7 @@ const SUBTITLE: Record<string, string> = {
   misc:        "sprzęt · dmuchaniec · ognisko · refundy",
   kasa:        "stan kasy · rozliczenia · historia",
   wspolnicy:   "wypłaty · saldo per wspólnik",
+  import:      "koszty z arkusza · do weryfikacji · inwestycje",
   statystyki:  "wykresy · miesiąc · rok · eksport",
 };
 

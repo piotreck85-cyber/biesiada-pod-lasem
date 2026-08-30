@@ -462,3 +462,19 @@ Polish mobile app for event organizers to manage:
   month grid marks ONLY own shifts (data: GET /staff/my/schedule?date_from&date_to), day tap → own events,
   month list of own shifts; rows navigate to /moja-impreza/{id}. No other staff visible.
 - Gmail connection status: still 0 connections — user has NOT yet completed "Połącz Gmail" consent flow.
+
+## Iteration (Jun 2026) — Import kosztów BPL_2026 (reclassification)
+- Full mongodump backup: /app/backups/backup_20260830_225230 (8.3M) BEFORE any change
+- Old flat WhatsApp batch (expenses import_batch_id=WHATSAPP_2026_02-08_V2, 333 records, 133 422,63 zł)
+  ARCHIVED to `_backup_expenses_whatsapp_v2` (restorable) to avoid double counting
+- Import module `/app/backend/import_bpl2026.py` (batch BPL_2026_V5, owner 18ea076f piotreck85@gmail.com):
+  auto-booked 139 (103 event costs 28 073 zł into 34 events via costs[] with imported markers;
+  36 general expenses 16 463,16 zł), 183 pending review (65 221,34 zł), 13 duplicates vs manual entries
+  skipped, 9 info rows skipped, idempotent dedup sha1(date|amount|desc|source) in `imported_costs`
+- New collections: `imported_costs` (full audit of each row + resolution), `investments`, `import_batches`
+- Endpoints: GET /api/cost-import/summary, GET /api/cost-import/pending (with per-date event candidates),
+  POST /api/cost-import/{id}/resolve {action: event|general|investment|settlement|reject, event_id?, amount?, category?},
+  GET /api/investments — all admin-only, audit-logged
+- UI: Finanse → tile "Import kosztów" → /import-kosztow screen (report chips, pending cards with editable
+  amount/category, event candidate picker, action buttons). Verified working.
+- NOTE: import ran on PREVIEW DB. Owner account for real data: piotreck85@gmail.com (password unknown to agent).

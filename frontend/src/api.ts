@@ -244,6 +244,12 @@ export const api = {
     request(`/client-reply-suggestions/${sug_id}/approve`, { method: "POST", body: JSON.stringify({ text: text || null }) }),
   rejectClientReply: (sug_id: string) =>
     request(`/client-reply-suggestions/${sug_id}/reject`, { method: "POST" }),
+  // Cost import (BPL 2026)
+  costImportSummary: () => request("/cost-import/summary"),
+  costImportPending: () => request("/cost-import/pending"),
+  costImportResolve: (rec_id: string, data: { action: string; event_id?: string; amount?: number; category?: string }) =>
+    request(`/cost-import/${rec_id}/resolve`, { method: "POST", body: JSON.stringify(data) }),
+  listInvestments: () => request("/investments"),
   mySchedule: (from?: string, to?: string) => {
     const p = new URLSearchParams();
     if (from) p.set("date_from", from);

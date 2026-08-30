@@ -1,0 +1,1 @@
+{"indexes":[{"v":{"$numberInt":"2"},"key":{"_id":{"$numberInt":"1"}},"name":"_id_"}],"uuid":"58b006fc51a94f80a131219f08c81b04","collectionName":"_dedup_manifest","type":"collection"}

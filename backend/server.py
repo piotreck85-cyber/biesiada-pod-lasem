@@ -1893,6 +1893,111 @@ async def client_replies_scan_now(user=Depends(require_admin)):
     return await _creplies.scan_client_replies(db)
 
 
+# ---------- Cost import (BPL_2026) — review & resolve ----------
+class CostResolveIn(BaseModel):
+    action: str  # event | general | investment | settlement | reject
+    event_id: Optional[str] = None
+    amount: Optional[float] = None
+    category: Optional[str] = None
+
+
+@api.get("/cost-import/summary")
+async def cost_import_summary(user=Depends(require_admin)):
+    owner = ws(user)
+    pipeline = [
+        {"$match": {"owner_id": owner}},
+        {"$group": {"_id": "$resolution", "count": {"$sum": 1}, "sum": {"$sum": "$amount"}}},
+    ]
+    agg = {r["_id"]: {"count": r["count"], "sum": round(r["sum"] or 0, 2)}
+           async for r in db.imported_costs.aggregate(pipeline)}
+    batch = await db.import_batches.find_one({"owner_id": owner}, {"_id": 0}, sort=[("created_at", -1)])
+    return {"by_resolution": agg, "last_report": batch}
+
+
+@api.get("/cost-import/pending")
+async def cost_import_pending(user=Depends(require_admin)):
+    owner = ws(user)
+    recs = await db.imported_costs.find(
+        {"owner_id": owner, "resolution": "pending"}, {"_id": 0}
+    ).sort("date", 1).to_list(500)
+    dates = sorted({r["date"] for r in recs if r.get("date")})
+    events_by_date: Dict[str, list] = {}
+    if dates:
+        async for ev in db.events.find(
+            {"owner_id": owner, "date": {"$in": dates}, "status": {"$ne": "anulowana"}},
+            {"_id": 0, "id": 1, "date": 1, "name": 1, "time_start": 1, "status": 1},
+        ):
+            events_by_date.setdefault(ev["date"], []).append(ev)
+    for r in recs:
+        r["candidates"] = events_by_date.get(r.get("date"), [])
+    return recs
+
+
+@api.post("/cost-import/{rec_id}/resolve")
+async def cost_import_resolve(rec_id: str, body: CostResolveIn, user=Depends(require_admin)):
+    owner = ws(user)
+    rec = await db.imported_costs.find_one({"id": rec_id, "owner_id": owner, "resolution": "pending"}, {"_id": 0})
+    if not rec:
+        raise HTTPException(404, "Nie znaleziono rekordu do weryfikacji")
+    amount = round(float(body.amount), 2) if body.amount is not None else rec["amount"]
+    if amount <= 0:
+        raise HTTPException(400, "Kwota musi być większa od 0")
+    category = (body.category or "").strip() or rec.get("category") or ""
+    row = {**rec, "amount": amount, "category": category}
+    import import_bpl2026 as _imp
+
+    action = body.action
+    applied_ref = None
+    if action == "event":
+        if not body.event_id:
+            raise HTTPException(400, "Wybierz imprezę")
+        ev = await db.events.find_one({"id": body.event_id, "owner_id": owner}, {"_id": 0, "id": 1, "name": 1})
+        if not ev:
+            raise HTTPException(404, "Impreza nie znaleziona")
+        await db.events.update_one(
+            {"id": ev["id"], "owner_id": owner},
+            {"$push": {"costs": _imp.build_event_cost_item(row, rec_id)}},
+        )
+        applied_ref = {"collection": "events", "id": ev["id"], "event_name": ev.get("name")}
+    elif action == "general":
+        doc = _imp.build_expense_doc(owner, row, rec_id)
+        await db.expenses.insert_one(dict(doc))
+        applied_ref = {"collection": "expenses", "id": doc["id"]}
+    elif action == "investment":
+        doc = _imp.build_investment_doc(owner, row, rec_id)
+        await db.investments.insert_one(dict(doc))
+        applied_ref = {"collection": "investments", "id": doc["id"]}
+    elif action == "settlement":
+        doc = _imp.build_settlement_doc(owner, row, rec_id)
+        await db.partner_settlements.insert_one(dict(doc))
+        applied_ref = {"collection": "partner_settlements", "id": doc["id"]}
+    elif action == "reject":
+        pass
+    else:
+        raise HTTPException(400, "Nieznana akcja")
+
+    resolution = "rejected" if action == "reject" else f"approved_{action}"
+    await db.imported_costs.update_one(
+        {"id": rec_id},
+        {"$set": {"resolution": resolution, "applied_ref": applied_ref, "amount": amount,
+                  "category": category, "resolved_at": now_utc().isoformat(),
+                  "resolved_by": user.get("name") or user.get("email", "")}},
+    )
+    labels = {"event": "przypisano do imprezy", "general": "koszt ogólny", "investment": "inwestycja",
+              "settlement": "rozliczenie właścicielskie", "reject": "odrzucono"}
+    await log_change(user, "update", "cost_import", rec_id,
+                     f"Weryfikacja kosztu „{rec['description'][:60]}” ({amount} zł): {labels.get(action, action)}")
+    return {"ok": True, "resolution": resolution, "applied_ref": applied_ref}
+
+
+@api.get("/investments")
+async def list_investments(user=Depends(require_admin)):
+    owner = ws(user)
+    items = await db.investments.find({"owner_id": owner}, {"_id": 0}).sort("date", -1).to_list(500)
+    total = round(sum(float(i.get("amount") or 0) for i in items), 2)
+    return {"items": items, "total": total}
+
+
 @api.get("/events/{event_id}/pre-event-email/status")
 async def pre_event_email_status(event_id: str, user=Depends(require_admin)):
     event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
