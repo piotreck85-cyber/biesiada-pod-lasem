@@ -9,6 +9,7 @@ import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { formatPLN, MONTHS_PL, DAYS_PL } from "@/src/theme";
+import { calendarEventLabel, EVENT_STATUS_COLORS, eventStatusTone } from "@/src/calendarEvent";
 
 const MONTHS_LOWER = ["stycznia","lutego","marca","kwietnia","maja","czerwca","lipca","sierpnia","września","października","listopada","grudnia"];
 const DOW = ["pn","wt","śr","cz","pt","sb","nd"];
@@ -73,11 +74,12 @@ export default function Kalendarz() {
   const [kpi, setKpi] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [view, setView] = useState<ViewMode>("pulpit");
+  const [view, setView] = useState<ViewMode>("miesiac");
   const [aiTips, setAiTips] = useState<Tip[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [alerts, setAlerts] = useState<any[]>([]);
   const [alertsModalOpen, setAlertsModalOpen] = useState(false);
+  const [dayPickerOpen, setDayPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -109,6 +111,7 @@ export default function Kalendarz() {
   }, []);
 
   useFocusEffect(useCallback(() => {
+    setView("miesiac");
     setLoading(true); load().finally(() => setLoading(false));
   }, [load]));
   useEffect(() => { load(); }, [load]);
@@ -121,6 +124,13 @@ export default function Kalendarz() {
   }, [events]);
 
   const dayEvents = useMemo(() => events.filter(e => e.date === selected), [events, selected]);
+
+  const openEvent = (eventId: string) => router.push(`/event/${eventId}` as any);
+  const handleDayPress = (iso: string, dayItems: any[]) => {
+    setSelected(iso);
+    if (dayItems.length === 1) openEvent(dayItems[0].id);
+    else if (dayItems.length > 1) setDayPickerOpen(true);
+  };
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear(year + 1); } else setMonth(month + 1); };
@@ -419,11 +429,14 @@ export default function Kalendarz() {
 
         {view === "miesiac" && (
           <View>
-            {/* Legend */}
-            <View style={s.legend}>
-              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.success }]} /><Text style={s.legendText}>Zapłacone</Text></View>
-              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.warning }]} /><Text style={s.legendText}>Zaliczka</Text></View>
-              <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: v2.color.error }]} /><Text style={s.legendText}>Brak zaliczki</Text></View>
+            {/* Status legend */}
+            <View style={s.legend} testID="calendar-status-legend">
+              {Object.entries(EVENT_STATUS_COLORS).map(([key, item]) => (
+                <View key={key} style={s.legendItem} testID={`calendar-legend-${key}`}>
+                  <View style={[s.legendDot, { backgroundColor: item.background }]} />
+                  <Text style={s.legendText}>{item.label}</Text>
+                </View>
+              ))}
             </View>
 
             {/* Weekday header */}
@@ -439,24 +452,54 @@ export default function Kalendarz() {
                 const isToday = iso === today.toISOString().slice(0, 10);
                 const isSelected = iso === selected;
                 const evs = eventsByDate[iso] || [];
-                // dot color: worst wins (error > warning > success)
-                let bestColor = v2.color.forest;
-                for (const e of evs) {
-                  const price = Number(e.price_total || e.revenue) || 0;
-                  const dep = Number(e.deposit_amount) || 0;
-                  if (price > 0 && dep <= 0) { bestColor = v2.color.error; break; }
-                  if (price > 0 && dep < price) bestColor = v2.color.warning;
-                  else if (bestColor === v2.color.forest) bestColor = v2.color.success;
-                }
-                const hasEvs = evs.length > 0;
+                const visibleEvents = evs.slice(0, 2);
+                const hiddenCount = Math.max(0, evs.length - visibleEvents.length);
                 return (
-                  <Pressable key={`day-${idx}`} onPress={() => setSelected(iso)} testID={`cal-day-${day}`}
+                  <Pressable key={`day-${idx}`} onPress={() => handleDayPress(iso, evs)} testID={`cal-day-${day}`}
                     style={[s.cell, isSelected && s.cellSelected, isToday && !isSelected && s.cellToday]}>
-                    <Text style={[s.day, isSelected && { color: "#fff" }, isToday && !isSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
-                    <View style={s.dotsRow}>
-                      {hasEvs ? evs.slice(0, 3).map((_, i) => (
-                        <View key={`dot-${i}`} style={[s.eventDot, { backgroundColor: isSelected ? "#fff" : bestColor }]} />
-                      )) : null}
+                    <Pressable
+                      testID={`cal-day-number-${day}`}
+                      onPress={pressEvent => {
+                        pressEvent.stopPropagation();
+                        handleDayPress(iso, evs);
+                      }}
+                      style={s.dayButton}
+                    >
+                      <Text style={[s.day, isSelected && { color: "#fff" }, isToday && !isSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
+                    </Pressable>
+                    <View style={s.cellEvents}>
+                      {visibleEvents.map(ev => {
+                        const tone = eventStatusTone(ev.status);
+                        return (
+                          <Pressable
+                            key={ev.id}
+                            testID={`cal-event-${ev.id}`}
+                            accessibilityLabel={`${calendarEventLabel(ev)}, status ${tone.label}`}
+                            onPress={pressEvent => {
+                              pressEvent.stopPropagation();
+                              openEvent(ev.id);
+                            }}
+                            style={[s.calendarEventLabel, { backgroundColor: tone.background }]}
+                          >
+                            <Text numberOfLines={1} ellipsizeMode="tail" style={[s.calendarEventLabelText, { color: tone.text }]}>
+                              {calendarEventLabel(ev)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                      {hiddenCount > 0 && (
+                        <Pressable
+                          testID={`cal-more-${iso}`}
+                          onPress={pressEvent => {
+                            pressEvent.stopPropagation();
+                            setSelected(iso);
+                            setDayPickerOpen(true);
+                          }}
+                          style={s.moreEvents}
+                        >
+                          <Text style={[s.moreEventsText, isSelected && { color: "#fff" }]}>+{hiddenCount} więcej</Text>
+                        </Pressable>
+                      )}
                     </View>
                   </Pressable>
                 );
@@ -494,7 +537,7 @@ export default function Kalendarz() {
                         </View>
                         <View style={{ flex: 1 }}>
                           <Text style={s.dayEventName}>{ev.name || "Impreza"}</Text>
-                          <Text style={s.dayEventMeta}>{ev.guests || 0} os. · {ev.category || "—"}</Text>
+                          <Text style={s.dayEventMeta}>{ev.guests || 0} os. · {calendarEventLabel(ev)}</Text>
                         </View>
                         <View style={{ alignItems: "flex-end" }}>
                           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
@@ -552,6 +595,42 @@ export default function Kalendarz() {
             )}
           </View>
         </View>
+      </Modal>
+
+      <Modal visible={dayPickerOpen} transparent animationType="fade" onRequestClose={() => setDayPickerOpen(false)}>
+        <Pressable testID="calendar-day-picker-backdrop" style={s.dayPickerBackdrop} onPress={() => setDayPickerOpen(false)}>
+          <Pressable testID="calendar-day-picker" style={[s.dayPickerSheet, { paddingBottom: insets.bottom + 16 }]} onPress={event => event.stopPropagation()}>
+            <View style={s.modalHead}>
+              <View>
+                <Text style={s.dayPickerEyebrow}>WYBIERZ IMPREZĘ</Text>
+                <Text style={s.modalTitle} testID="calendar-day-picker-title">
+                  {new Date(selected + "T00:00:00").toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
+                </Text>
+              </View>
+              <Pressable testID="calendar-day-picker-close" onPress={() => setDayPickerOpen(false)} style={s.dayPickerClose}>
+                <Feather name="x" size={20} color={v2.color.text} />
+              </Pressable>
+            </View>
+            {(eventsByDate[selected] || []).map(ev => {
+              const tone = eventStatusTone(ev.status);
+              return (
+                <Pressable
+                  key={ev.id}
+                  testID={`calendar-day-picker-event-${ev.id}`}
+                  onPress={() => { setDayPickerOpen(false); openEvent(ev.id); }}
+                  style={s.dayPickerEvent}
+                >
+                  <View style={[s.dayPickerStatus, { backgroundColor: tone.background }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.dayPickerEventName}>{calendarEventLabel(ev)}</Text>
+                    <Text style={s.dayPickerEventMeta}>{ev.time_start || ev.time || "—"} · {tone.label}</Text>
+                  </View>
+                  <Feather name="chevron-right" size={18} color={v2.color.textMuted} />
+                </Pressable>
+              );
+            })}
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
@@ -629,19 +708,23 @@ const s = StyleSheet.create({
   footerLabel: { color: v2.color.textSubtle, fontSize: 9, fontWeight: "700", letterSpacing: 0.3, textTransform: "uppercase" },
   footerValue: { color: v2.color.text, fontSize: 12, fontWeight: "700", marginTop: 2 },
 
-  legend: { flexDirection: "row", gap: 12, padding: 12, justifyContent: "center" },
+  legend: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingHorizontal: 12, paddingVertical: 10, justifyContent: "center" },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 4 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
   legendText: { color: v2.color.textMuted, fontSize: 11, fontWeight: "600" },
   dowRow: { flexDirection: "row", paddingHorizontal: 8 },
   dowText: { flex: 1, textAlign: "center", color: v2.color.textSubtle, fontSize: 11, fontWeight: "700", textTransform: "uppercase" },
-  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 8, paddingTop: 4 },
-  cell: { width: `${100/7}%`, aspectRatio: 1, alignItems: "center", justifyContent: "center", padding: 2 },
+  grid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 6, paddingTop: 4 },
+  cell: { width: `${100/7}%`, height: 74, alignItems: "stretch", justifyContent: "flex-start", paddingHorizontal: 2, paddingTop: 4 },
   cellToday: { backgroundColor: v2.color.mint, borderRadius: v2.radius.md },
   cellSelected: { backgroundColor: v2.color.forest, borderRadius: v2.radius.md },
-  day: { color: v2.color.text, fontSize: 14, fontWeight: "600" },
-  dotsRow: { flexDirection: "row", gap: 2, marginTop: 3 },
-  eventDot: { width: 4, height: 4, borderRadius: 2 },
+  dayButton: { minHeight: 18, alignItems: "center", justifyContent: "center" },
+  day: { color: v2.color.text, fontSize: 12, lineHeight: 15, fontWeight: "700", textAlign: "center" },
+  cellEvents: { marginTop: 3, gap: 2 },
+  calendarEventLabel: { minHeight: 16, borderRadius: 4, paddingHorizontal: 2, justifyContent: "center" },
+  calendarEventLabelText: { fontSize: 8, lineHeight: 11, fontWeight: "800", textAlign: "center" },
+  moreEvents: { minHeight: 14, alignItems: "center", justifyContent: "center" },
+  moreEventsText: { color: v2.color.textMuted, fontSize: 8, lineHeight: 10, fontWeight: "800" },
   agendaTitle: { color: v2.color.text, fontSize: 16, fontWeight: "800", textTransform: "capitalize" },
 
   dayEventRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, borderRadius: v2.radius.md, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border },
@@ -663,6 +746,14 @@ const s = StyleSheet.create({
   modalSheet: { backgroundColor: v2.color.card, borderTopLeftRadius: v2.radius.xl, borderTopRightRadius: v2.radius.xl, padding: 16 },
   modalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   modalTitle: { color: v2.color.text, fontSize: 18, fontWeight: "800" },
+  dayPickerBackdrop: { flex: 1, justifyContent: "center", padding: 20, backgroundColor: "rgba(0,0,0,0.46)" },
+  dayPickerSheet: { width: "100%", maxHeight: "72%", padding: 16, borderRadius: v2.radius.xl, backgroundColor: v2.color.card, ...v2.shadow.md },
+  dayPickerEyebrow: { color: v2.color.forest, fontSize: 9, fontWeight: "800", letterSpacing: 1.4, marginBottom: 3 },
+  dayPickerClose: { width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: v2.color.cardMuted },
+  dayPickerEvent: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9, paddingHorizontal: 10, marginTop: 8, borderRadius: v2.radius.md, borderWidth: 1, borderColor: v2.color.border },
+  dayPickerStatus: { width: 5, alignSelf: "stretch", borderRadius: 3 },
+  dayPickerEventName: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  dayPickerEventMeta: { color: v2.color.textMuted, fontSize: 11, fontWeight: "600", marginTop: 2 },
   alertRow: { flexDirection: "row", alignItems: "center", gap: 10, padding: 12, marginBottom: 6, borderRadius: v2.radius.md, backgroundColor: v2.color.warningBg },
   alertText: { color: v2.color.text, fontSize: 13 },
   dismissAll: { padding: 12, alignItems: "center", borderRadius: v2.radius.md, backgroundColor: v2.color.cardMuted, marginTop: 8 },

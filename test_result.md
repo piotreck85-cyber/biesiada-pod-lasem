@@ -219,6 +219,17 @@ backend:
             updated to include: www.Dolinaprzygod.pl / szkoly@biesiadapodlasem.pl / 518 029 217.
             attachments_txt/html blocks list both files. Verified via /api/offers/send-email.
 frontend:
+  - task: "Monthly calendar category labels"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(tabs)/kalendarz.tsx, /app/frontend/src/calendarEvent.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "main"
+          comment: "Category/subcategory labels replace dots; status-only colors, max 2 +N, direct event navigation, deterministic day-number picker. Iteration 18 issues self-tested and fixed. No MongoDB writes."
   - task: "Google Calendar OAuth Connect card (Statystyki)"
     implemented: true
     working: "NA"
@@ -277,6 +288,9 @@ metadata:
 
 test_plan:
   current_focus:
+    - "Pre-event welcome email with exactly regulation PDF + attractions map PNG"
+    - "Calendar always defaults to Month on entry and re-entry"
+    - "Monthly calendar category labels and day picker"
     - "Pre-event email 48h scheduler, fixed category mapping and one PDF attachment"
     - "Pre-event email card with preview/send/resend actions"
     - "Weather multi-provider fallback"
@@ -292,6 +306,28 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: |
+        Iteration 19 final verification: 24/24 pytest checks and 21/21 dry-run checks passed.
+        Database event count remains 524; pre_event_email_logs remains 0, confirming no test SMTP.
+        UI verified: fresh/re-entered Calendar defaults to Month; event card shows both attachments.
+        Removed the testing-only helper that embedded a JWT secret; no credentials remain in test helpers.
+    - agent: "main"
+      message: |
+        Iteration 19 ready for testing. Pre-event email subject/body updated to the exact new
+        welcome-organizational copy. MIME message must contain exactly 2 attachments in order:
+        correct category-mapped regulation PDF, then kolorowa_mapa_atrakcji_pod_lasem.png.
+        Dry-run only: never invoke real SMTP. Pure regression report is 21/21.
+        Event card now lists Regulamin dzieci/dorośli + Mapa Biesiady.
+        Calendar view state defaults to miesiac and useFocusEffect resets it to miesiac on every
+        module re-entry. Main self-test passed fresh entry and Oferta -> Kalendarz return.
+    - agent: "main"
+      message: |
+        Iteration 18 post-fix complete. Added dedicated cal-day-number-{day} target; August 8 now
+        consistently opens the two-event picker. Category labels still open exact events. Removed
+        RN raw text warning by booleanizing the empty client name/email condition in event/[id].tsx.
+        Self-test confirms no Unexpected text node warning. Calendar change is frontend-only and
+        uses category/subcategory exclusively; no MongoDB create/update/delete was performed.
     - agent: "main"
       message: |
         Post-fix verification complete for iteration 17 findings.

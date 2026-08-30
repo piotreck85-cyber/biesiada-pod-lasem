@@ -962,6 +962,15 @@ export default function EventDetail() {
                   value={({ scheduled: "Oczekuje", sent: "Wysłano", failed: "Błąd", cancelled: "Anulowano", not_scheduled: "Oczekuje" } as Record<string, string>)[preEventEmail.status] || preEventEmail.status}
                   testID="pre-event-email-status"
                 />
+                <View testID="pre-event-email-attachments" style={s.preEmailAttachments}>
+                  <Text style={s.preEmailAttachmentsTitle}>Załączniki</Text>
+                  {(preEventEmail.attachments || []).map((attachment: any) => (
+                    <View key={attachment.kind} testID={`pre-event-email-attachment-${attachment.kind}`} style={s.preEmailAttachmentRow}>
+                      <Feather name="check-circle" size={16} color={v2.color.success} />
+                      <Text style={s.preEmailAttachmentText}>{attachment.label}</Text>
+                    </View>
+                  ))}
+                </View>
                 {!!preEventEmail.notice && (
                   <View testID="pre-event-email-notice" style={s.preEmailNotice}>
                     <Feather name="alert-circle" size={16} color={v2.color.error} />
@@ -1055,7 +1064,7 @@ export default function EventDetail() {
             </Field>
 
             {/* Manual discount code generator — always available if client info is filled */}
-            {(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
+            {!!(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
               <Pressable
                 testID="manual-discount-btn"
                 onPress={() => setManualCodeOpen(true)}
@@ -1397,9 +1406,7 @@ export default function EventDetail() {
                       {" – "}
                       {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
                     </Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>
-                      {weather.description}  ·  {weather.time_window}
-                    </Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>{`${weather.description || ""} · ${weather.time_window || ""}`}</Text>
                   </View>
                 </View>
                 <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
@@ -1416,7 +1423,7 @@ export default function EventDetail() {
                     <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
                   </View>
                 </View>
-                {weather.warning && (
+              {!!weather.warning && (
                   <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: v2.color.warning }}>
                     <Text style={{ color: v2.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
                   </View>
@@ -1473,7 +1480,7 @@ export default function EventDetail() {
                 })}
               </View>
             )}
-            {isAdult && packageSet && findAdultSet(packageSet) && (
+            {isAdult && !!packageSet && findAdultSet(packageSet) && (
               <View style={s.zestawDetails}>
                 <Text style={s.zestawDetailsTitle}>W {findAdultSet(packageSet)!.name}:</Text>
                 {findAdultSet(packageSet)!.items.map((it, i) => (
@@ -2296,6 +2303,10 @@ const s = StyleSheet.create({
   preEmailLabel: { flex: 1, color: v2.color.textMuted, fontSize: 12, fontWeight: "600" },
   preEmailValue: { flex: 1.3, color: v2.color.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
   preEmailNotice: { marginTop: 12, padding: 12, borderRadius: 12, flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: v2.color.errorBg, borderWidth: 1, borderColor: v2.color.error + "55" },
+  preEmailAttachments: { marginTop: 12, padding: 12, borderRadius: 12, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border },
+  preEmailAttachmentsTitle: { color: v2.color.text, fontSize: 12, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 8 },
+  preEmailAttachmentRow: { minHeight: 30, flexDirection: "row", alignItems: "center", gap: 8 },
+  preEmailAttachmentText: { flex: 1, color: v2.color.text, fontSize: 13, fontWeight: "700" },
   preEmailNoticeText: { flex: 1, color: v2.color.error, fontSize: 12, fontWeight: "700", lineHeight: 17 },
   preEmailError: { marginTop: 10, color: v2.color.error, fontSize: 12, lineHeight: 17 },
   preEmailActions: { flexDirection: "row", gap: 8, marginTop: 10 },

@@ -1,6 +1,6 @@
 {
   "mode": "DRY-RUN — bez połączenia SMTP i bez zmian w MongoDB",
-  "passed": 16,
+  "passed": 21,
   "failed": 0,
   "checks": [
     {
@@ -69,14 +69,39 @@
       "details": ""
     },
     {
-      "name": "Dokładnie jeden PDF dla dzieci/urodzinki/standard",
+      "name": "Właściwy regulamin dla dzieci/urodzinki/standard",
       "passed": true,
       "details": "Regulamin_Biesiada_pod_Lasem_DZIECI.pdf"
     },
     {
-      "name": "Dokładnie jeden PDF dla dorosli/firmowe",
+      "name": "Dokładnie regulamin i mapa dla dzieci/urodzinki/standard",
+      "passed": true,
+      "details": "['Regulamin_Biesiada_pod_Lasem_DZIECI.pdf', 'kolorowa_mapa_atrakcji_pod_lasem.png']"
+    },
+    {
+      "name": "Właściwy regulamin dla dorosli/firmowe",
       "passed": true,
       "details": "Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf"
+    },
+    {
+      "name": "Dokładnie regulamin i mapa dla dorosli/firmowe",
+      "passed": true,
+      "details": "['Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf', 'kolorowa_mapa_atrakcji_pod_lasem.png']"
+    },
+    {
+      "name": "Nowy temat maila",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Treść wymienia oba załączniki",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Plik mapy istnieje",
+      "passed": true,
+      "details": ""
     },
     {
       "name": "Automatyczna wysyłka tylko raz",

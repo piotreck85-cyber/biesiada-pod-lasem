@@ -22,6 +22,7 @@ WARSAW = ZoneInfo("Europe/Warsaw")
 ASSETS_DIR = Path(__file__).parent / "assets"
 CHILDREN_PDF = ASSETS_DIR / "Regulamin_Biesiada_pod_Lasem_DZIECI.pdf"
 ADULTS_PDF = ASSETS_DIR / "Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf"
+ATTRACTIONS_MAP = ASSETS_DIR / "kolorowa_mapa_atrakcji_pod_lasem.png"
 
 ADULT_CATEGORIES = {
     "dorosli/okolicznosciowe",
@@ -48,29 +49,41 @@ STATUS_FIELDS = {
 }
 
 NO_EMAIL_MESSAGE = "Brak adresu e-mail klienta – wiadomość przed imprezą nie została wysłana."
+EMAIL_SUBJECT = "Do zobaczenia za 2 dni – Biesiada pod Lasem 🌲"
 EMAIL_BODY = """Dzień dobry,
 
 już za dwa dni spotykamy się w Biesiadzie pod Lasem 🌲
+Bardzo się cieszymy i przygotowujemy miejsce na Państwa wydarzenie.
 
-W załączeniu przesyłamy regulamin oraz najważniejsze zasady organizacyjne dotyczące Państwa wydarzenia.
+W załączniku przesyłamy:
 
-Prosimy o odpowiedź na tę wiadomość i przekazanie kilku informacji:
+• krótki regulamin Biesiady pod Lasem odpowiedni dla Państwa rodzaju wydarzenia,
+• mapkę Biesiady, która ułatwi Państwu oraz gościom poruszanie się po naszym terenie i odnalezienie najważniejszych miejsc.
+
+Prosimy również o odpowiedź na tę wiadomość i przekazanie nam kilku ostatnich informacji organizacyjnych:
+
 • ostatecznej lub planowanej liczby uczestników,
+
 • jakie dodatkowe produkty planują Państwo przywieźć, np. ciasta, przekąski, napoje lub inny prowiant,
+
 • czy planują Państwo przygotować własne dekoracje,
+
 • czy planują Państwo przyjechać przed rozpoczęciem imprezy w celu przygotowania dekoracji, rozłożenia produktów lub innych rzeczy,
+
 • jeżeli tak – o której godzinie planują Państwo przyjazd.
 
-Pozwoli nam to odpowiednio przygotować stoły, miejsce na poczęstunek i napoje oraz zaplanować ustawienie przestrzeni przed Państwa przyjazdem.
+Dzięki tym informacjom będziemy mogli odpowiednio przygotować stoły, miejsce na poczęstunek i napoje oraz zaplanować ustawienie przestrzeni przed Państwa przyjazdem.
 
 Przypominamy, że dodatkowy prowiant, napoje, catering oraz własne dekoracje prosimy wcześniej z nami uzgodnić.
 
 Rozliczenie wydarzenia odbywa się po zakończeniu imprezy, zgodnie z wcześniejszymi ustaleniami.
 
-Jeżeli od ostatnich ustaleń zmieniło się coś jeszcze w organizacji wydarzenia, prosimy również o krótką informację w odpowiedzi na tę wiadomość.
+Jeżeli od ostatnich ustaleń zmieniło się coś jeszcze w organizacji wydarzenia, prosimy o krótką informację w odpowiedzi na tę wiadomość.
 
-Do zobaczenia! 🌿
-Biesiada pod Lasem Dolina Przygód
+Do zobaczenia w Biesiadzie pod Lasem! 🌿
+
+Biesiada pod Lasem
+Dolina Przygód
 """
 
 
@@ -116,7 +129,7 @@ def format_event_date_pl(event: dict) -> str:
 
 
 def subject_for_event(event: dict) -> str:
-    return f"Biesiada pod Lasem – informacje przed Państwa imprezą {format_event_date_pl(event)}"
+    return EMAIL_SUBJECT
 
 
 def schedule_key_for_event(event: dict) -> str:
@@ -265,6 +278,8 @@ def _build_message(event: dict, *, message_id: str) -> EmailMessage:
     pdf_path = regulation_path(regulation_type)
     if not pdf_path.is_file():
         raise FileNotFoundError(f"Brak pliku regulaminu: {pdf_path.name}")
+    if not ATTRACTIONS_MAP.is_file():
+        raise FileNotFoundError(f"Brak pliku mapy: {ATTRACTIONS_MAP.name}")
 
     recipient = (event.get("client_email") or "").strip().lower()
     if not recipient:
@@ -286,6 +301,12 @@ def _build_message(event: dict, *, message_id: str) -> EmailMessage:
         maintype="application",
         subtype="pdf",
         filename=pdf_path.name,
+    )
+    msg.add_attachment(
+        ATTRACTIONS_MAP.read_bytes(),
+        maintype="image",
+        subtype="png",
+        filename=ATTRACTIONS_MAP.name,
     )
     return msg
 
@@ -343,8 +364,10 @@ async def send_event_email(db, event: dict, *, manual: bool = False, resend: boo
     try:
         message = _build_message(event, message_id=message_id)
         attachments = list(message.iter_attachments())
-        if len(attachments) != 1:
-            raise RuntimeError("Wiadomość musi zawierać dokładnie jeden regulamin PDF.")
+        filenames = [item.get_filename() for item in attachments]
+        expected_regulation = regulation_path(regulation_type).name
+        if len(attachments) != 2 or filenames != [expected_regulation, ATTRACTIONS_MAP.name]:
+            raise RuntimeError("Wiadomość musi zawierać jeden regulamin PDF i mapę PNG.")
         if not dry_run:
             await asyncio.to_thread(_smtp_send, message)
         sent_at = now_utc().isoformat()
@@ -371,7 +394,8 @@ async def send_event_email(db, event: dict, *, manual: bool = False, resend: boo
             "message_id": message_id,
             "recipient": recipient,
             "regulation_type": patch["regulation_type"],
-            "attachment": list(message.iter_attachments())[0].get_filename(),
+            "attachment": attachments[0].get_filename(),
+            "attachments": filenames,
             "subject": message["Subject"],
             "body": EMAIL_BODY,
             "patch": patch,
@@ -473,6 +497,14 @@ def status_payload(event: dict) -> dict:
         "event_category": event.get("category") or "",
         "regulation_type": regulation_type,
         "regulation_label": "Dzieci" if regulation_type == "children" else "Dorośli" if regulation_type == "adults" else "Brak mapowania",
+        "attachments": [
+            {
+                "kind": "regulation",
+                "label": "Regulamin dzieci" if regulation_type == "children" else "Regulamin dorośli" if regulation_type == "adults" else "Regulamin",
+                "filename": regulation_path(regulation_type).name if regulation_type else None,
+            },
+            {"kind": "map", "label": "Mapa Biesiady", "filename": ATTRACTIONS_MAP.name},
+        ],
         "status": event.get("pre_event_email_status") or "not_scheduled",
         "scheduled_at": event.get("pre_event_email_scheduled_at"),
         "sent_at": event.get("pre_event_email_sent_at"),

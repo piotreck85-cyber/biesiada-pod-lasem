@@ -73,7 +73,16 @@ async def run():
         ("dorosli/firmowe", "Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf"),
     ]:
         result = await module.send_event_email(None, event(category=category), dry_run=True)
-        check(f"Dokładnie jeden PDF dla {category}", result["attachment"] == expected_file, result["attachment"])
+        check(f"Właściwy regulamin dla {category}", result["attachment"] == expected_file, result["attachment"])
+        check(
+            f"Dokładnie regulamin i mapa dla {category}",
+            result["attachments"] == [expected_file, "kolorowa_mapa_atrakcji_pod_lasem.png"],
+            str(result["attachments"]),
+        )
+
+    check("Nowy temat maila", module.subject_for_event(event()) == "Do zobaczenia za 2 dni – Biesiada pod Lasem 🌲")
+    check("Treść wymienia oba załączniki", "regulamin Biesiady" in module.EMAIL_BODY and "mapkę Biesiady" in module.EMAIL_BODY)
+    check("Plik mapy istnieje", module.ATTRACTIONS_MAP.is_file())
 
     sent_event = event(pre_event_email_status="sent", pre_event_email_sent_at=NOW.isoformat())
     duplicate = await module.send_event_email(None, sent_event, dry_run=True)

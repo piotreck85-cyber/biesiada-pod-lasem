@@ -1,0 +1,74 @@
+{
+  "summary": "Frontend-only mobile verification of monthly calendar labels (category/subcategory mapping, status colors, navigation behavior) completed on owner workspace via read-only JWT; no DB write operations performed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Month grid day cell interactions (August 8 with two events)",
+        "issue": "Repeatedly tapping day cell/day-number area opened an event detail instead of opening the two-event picker modal. Picker did not appear in 3 attempts.",
+        "testID": "cal-day-8",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Month view day click routing",
+        "issue": "Event-label pressables inside a day cell appear to intercept taps; day-level behavior (1 event direct open, 2+ picker) is unreliable when labels are present.",
+        "affected_testIDs": [
+          "cal-day-8",
+          "cal-event-44e51dc3-577e-4716-b3f3-344cf28fa930",
+          "cal-event-4e0e429c-a673-45fc-a642-efdc22c19ea1"
+        ]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "Event detail screen (/event/[id])",
+        "issue": "Console error persists when opening event detail from calendar: 'Unexpected text node: . A text node cannot be a child of a <View>.'"
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/frontend/app/(tabs)/kalendarz.tsx",
+    "/app/frontend/src/calendarEvent.ts",
+    "/app/test_reports/ui_iter18/00_initial_state.jpeg",
+    "/app/test_reports/ui_iter18/01_august_month_mobile.jpeg",
+    "/app/test_reports/ui_iter18/02_august_after_checks.jpeg",
+    "/app/test_reports/ui_iter18/03_retry_key_checks.jpeg",
+    "/app/test_reports/ui_iter18/04_day_number_click_checks.jpeg"
+  ],
+  "action_items": [
+    "Fix day-cell click handling for multi-event days so tapping day 8 (not label) consistently opens calendar-day-picker with two rows.",
+    "Ensure day-level Pressable receives intended taps when child event labels exist (review stopPropagation/target area layering in month cell).",
+    "Fix raw text node rendering under <View> in event/[id] path to remove RN runtime error.",
+    "Optional parity fix: in calendarEventLabel(), for 'warsztaty/*' return concrete subcategory only (without forced 'Warsztaty ' prefix) to match strict requirement wording."
+  ],
+  "critical_code_review_comments": [
+    "kalendarz.tsx implements 2 labels + hidden count (+N więcej) correctly in source, but dataset in Aug 2026 has max 2 events/day so +N was not observable in UI.",
+    "calendarEvent.ts maps labels from category hierarchy (no AI/description dependency), and fallback for empty category is 'Bez kategorii' as required.",
+    "Day click logic is centralized in handleDayPress, but nested label pressables can dominate hit areas in dense cells, producing inconsistent day-click outcomes."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_18.json"
+  ],
+  "success_rate": {
+    "backend": "n/a (frontend-only per request)",
+    "frontend": "83% (10/12 target checks passed; 2 behavior gaps)"
+  },
+  "seed_data_creation": "No seed data created. No MongoDB create/update/delete actions executed during this run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "post_fix_verification": {
+    "day_picker": "PASS — dedicated cal-day-number-{day} opens picker; August 8 shows exactly 2 rows",
+    "event_label_navigation": "PASS — clicking Konie label opens the exact event detail",
+    "react_native_console": "PASS — removed empty-string child from client discount condition; no Unexpected text node after calendar-to-event navigation",
+    "database": "PASS — calendar implementation is frontend-only and performs no MongoDB writes",
+    "source_of_label": "PASS — category/subcategory only; no event name, notes, description or AI"
+  },
+  "context_for_next_testing_agent": "Loop-prevention stop applied for day-8 picker after 3 failed attempts (generic click, targeted retry, coordinate day-number click). Verified pass items: label text mapping in August (Tematyczne/Standard/Konie/Firmowa/Okolicznościowa), Bez kategorii fallback visible, potwierdzona blue in legend and label, truncation+no overflow, label click opens exact event, single-event day opens directly, empty-day preserves add flow.",
+  "rca_of_issue": "Likely RCA for day-8 issue: month cell contains nested pressables for event labels with stopPropagation and dense vertical stacking; practical tap targets in web preview route user taps to event labels, bypassing day-level handleDayPress path that should open day picker for 2+ events. Repro: open August 2026 month view -> tap day 8 cell/day-number region -> event detail opens, calendar-day-picker not shown. Mitigation: reserve dedicated tappable day-number/header zone with its own Pressable/testID and/or adjust pointerEvents/z-index so day-level tap is deterministic."
+}

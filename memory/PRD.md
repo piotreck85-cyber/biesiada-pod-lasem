@@ -23,7 +23,7 @@ Polish mobile app for event organizers to manage:
 
 ## Screens
 - (auth)/login, (auth)/register
-- (tabs)/kalendarz — monthly grid with gold dots + day event list
+- (tabs)/kalendarz — monthly grid with category labels + day event list
 - (tabs)/imprezy — hero-image cards with revenue/cost/profit
 - (tabs)/pracownicy — staff list with add/edit modal, includes logout
 - (tabs)/statystyki — hero profit card, revenue/cost split, breakdown, per-event list, CSV export
@@ -370,11 +370,30 @@ Polish mobile app for event organizers to manage:
 - Stałe mapowanie wyłącznie z pola `category` (bez AI i bez analizy opisu):
   - `dorosli/okolicznosciowe`, `dorosli/firmowe` → `adults`
   - `dzieci/urodzinki/*`, `warsztaty*`, `dzieci/wycieczki`, `dzieci/wycieczki_rodzice` → `children`
-- Załączniki: dokładnie jeden z dwóch plików `Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf` / `Regulamin_Biesiada_pod_Lasem_DZIECI.pdf`.
+- Każdy mail zawiera dokładnie 2 załączniki: jeden właściwy regulamin PDF oraz stałą mapę `kolorowa_mapa_atrakcji_pod_lasem.png`.
+- Temat: `Do zobaczenia za 2 dni – Biesiada pod Lasem 🌲`; treść jest jednym powitalno-organizacyjnym mailem opisującym regulamin, mapę i ostatnie informacje do potwierdzenia.
 - Pola wydarzenia: `pre_event_email_status`, `pre_event_email_scheduled_at`, `pre_event_email_sent_at`, `pre_event_email_address`, `pre_event_email_message_id`, `regulation_type` oraz wewnętrzne pola blokady/idempotencji.
 - Zmiana daty/godziny/adresu/kategorii przelicza harmonogram; anulowanie, zmiana statusu i usunięcie wydarzenia blokują wysyłkę.
 - Brak e-maila tworzy alert owner/admin i komunikat: „Brak adresu e-mail klienta – wiadomość przed imprezą nie została wysłana.”
 - Karta wydarzenia pokazuje harmonogram/status oraz akcje: podgląd maila, podgląd regulaminu, wyślij teraz, świadome „wyślij ponownie”.
-- Raporty testów bez SMTP: `/app/test_reports/pre_event_email_report.json` (16/16), `/app/test_reports/pre_event_email_api_report.json` (7/7) i `/app/test_reports/iteration_17.json` (15/15).
+- Karta wydarzenia pokazuje listę załączników: właściwy Regulamin dzieci/dorośli oraz Mapa Biesiady.
+- Raporty testów bez SMTP: `/app/test_reports/pre_event_email_report.json` (21/21), `/app/test_reports/pre_event_email_api_report.json` (7/7), `/app/test_reports/iteration_17.json` (15/15) i `/app/test_reports/iteration_19.json` (100%).
 - Zweryfikowano trwałość: `scheduled_at` i status pozostały bez zmian po restarcie backendu; 0 logów wysyłki SMTP podczas testów.
 - Przy okazji zabezpieczono login hasłowy dla kont Google bez `password_hash` (kontrolowane 401 zamiast 500).
+
+### Kalendarz miesięczny — etykiety kategorii
+
+- Usunięto kolorowe kropki jako główną prezentację wydarzeń; każda impreza ma małą etykietę tekstową.
+- Źródłem tekstu jest wyłącznie `events.category` i jej istniejąca podkategoria:
+  - `dorosli/okolicznosciowe` → Okolicznościowa
+  - `dorosli/firmowe` → Firmowa
+  - `dzieci/urodzinki/*` → Tematyczne / Konie / Gady / Standard / Start
+  - `warsztaty/*` → konkretna podkategoria warsztatów
+  - `dzieci/wycieczki*` → istniejący wariant wycieczki
+  - brak wartości → Bez kategorii
+- Kolor etykiety wynika wyłącznie ze statusu; `potwierdzona` ma kolor niebieski.
+- W komórce są maksymalnie 2 etykiety, następnie `+N więcej`; długi tekst jest skracany wielokropkiem.
+- Kliknięcie etykiety otwiera konkretną kartę wydarzenia. Osobny przycisk numeru dnia otwiera pojedynczy event albo picker przy 2+ wydarzeniach.
+- Zmiana jest frontend-only; nie modyfikuje dokumentów w MongoDB.
+- Raport testów: `/app/test_reports/iteration_18.json`; finalny screenshot: `/tmp/kalendarz-miesieczny-final-kategorie.png`.
+- Widok `Miesiąc` jest domyślny na świeżym wejściu, po restarcie oraz po każdym powrocie do modułu Kalendarz; Pulpit pozostaje dostępny ręcznie w bieżącej sesji.
