@@ -11,6 +11,7 @@ from typing import List, Optional, Dict
 from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
+import pre_event_email as pre_email
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -443,8 +444,13 @@ async def register(body: RegisterIn):
 async def login(body: LoginIn):
     email = body.email.lower().strip()
     u = await db.users.find_one({"email": email})
-    if not u or not verify_pw(body.password, u["password_hash"]):
-        raise HTTPException(401, "Nieprawidłowy email lub hasło")
+    password_hash = u.get("password_hash") if u else None
+    if not isinstance(password_hash, str) or not password_hash or not verify_pw(body.password, password_hash):
+        raise HTTPException(
+            401,
+            "Nieprawidłowy email lub hasło",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     if u.get("active") is False:
         raise HTTPException(403, "Konto jest zablokowane. Skontaktuj się z administratorem.")
     token = make_token(u["id"])
@@ -1400,6 +1406,7 @@ async def create_event(body: EventIn, user=Depends(require_admin)):
     doc["created_at"] = now_utc().isoformat()
     await db.events.insert_one(doc)
     doc.pop("_id", None)
+    doc = await pre_email.reconcile_event(db, doc)
     await log_change(user, "create", "event", doc["id"], f"Utworzono imprezę: {doc.get('name','')} ({doc.get('date','')})")
     # In-app notification for the whole workspace (both bosses see it)
     try:
@@ -1420,10 +1427,78 @@ async def get_event(event_id: str, user=Depends(current_user)):
         raise HTTPException(404, "Impreza nie znaleziona")
     return await compute_event_summary(ev)
 
+
+@api.get("/events/{event_id}/pre-event-email/status")
+async def pre_event_email_status(event_id: str, user=Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    event = await pre_email.reconcile_event(db, event)
+    return pre_email.status_payload(event)
+
+
+@api.get("/events/{event_id}/pre-event-email/preview")
+async def pre_event_email_preview(event_id: str, user=Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    return pre_email.status_payload(event)
+
+
+@api.get("/events/{event_id}/pre-event-email/regulation")
+async def pre_event_email_regulation(event_id: str, user=Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    regulation_type = pre_email.regulation_type_for_category(event.get("category"))
+    if not regulation_type:
+        raise HTTPException(400, "Wybrany rodzaj imprezy nie ma przypisanego regulaminu")
+    path = pre_email.regulation_path(regulation_type)
+    if not path.is_file():
+        raise HTTPException(500, "Brak pliku regulaminu na serwerze")
+    return FileResponse(str(path), filename=path.name, media_type="application/pdf")
+
+
+@api.post("/events/{event_id}/pre-event-email/send-now")
+async def pre_event_email_send_now(event_id: str, user=Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    event = await pre_email.reconcile_event(db, event)
+    claimed = await pre_email.claim_event_for_manual_send(db, event_id, ws(user))
+    if not claimed:
+        if event.get("pre_event_email_status") == "sent":
+            raise HTTPException(409, "Wiadomość została już wysłana. Użyj przycisku Wyślij ponownie.")
+        raise HTTPException(409, "Wysyłka tej wiadomości już trwa. Spróbuj ponownie za chwilę.")
+    try:
+        result = await pre_email.send_event_email(db, claimed, manual=True, resend=False)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f"Nie udało się wysłać wiadomości: {str(exc)[:300]}")
+    if result.get("reason") == "already_sent":
+        raise HTTPException(409, "Wiadomość została już wysłana. Użyj przycisku Wyślij ponownie.")
+    return result
+
+
+@api.post("/events/{event_id}/pre-event-email/resend")
+async def pre_event_email_resend(event_id: str, user=Depends(require_admin)):
+    event = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    if event.get("pre_event_email_status") != "sent":
+        raise HTTPException(409, "Ponowna wysyłka jest dostępna dopiero po pierwszej wysyłce")
+    try:
+        return await pre_email.send_event_email(db, event, manual=True, resend=True)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        raise HTTPException(502, f"Nie udało się wysłać wiadomości: {str(exc)[:300]}")
+
 @api.put("/events/{event_id}")
 async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)):
     # Detect status transitions to clear/reset alerts appropriately
-    prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "status": 1})
+    prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     prev_status = (prev or {}).get("status") or ""
     new_status = (body.status or "")
     updates = body.dict()
@@ -1444,6 +1519,7 @@ async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)
     if res.matched_count == 0:
         raise HTTPException(404, "Impreza nie znaleziona")
     ev = await db.events.find_one({"id": event_id}, {"_id": 0})
+    ev = await pre_email.reconcile_event(db, ev)
     await log_change(user, "update", "event", event_id, f"Edytowano imprezę: {ev.get('name','')} ({ev.get('date','')})")
     try:
         await _sync_event_for_workspace(ws(user), event_id, "update")
@@ -3467,6 +3543,8 @@ _scheduler = None
 async def _startup():
     await db.users.create_index("email", unique=True)
     await db.events.create_index([("owner_id", 1), ("date", -1)])
+    await db.events.create_index([("pre_event_email_status", 1), ("pre_event_email_scheduled_at", 1)])
+    await db.pre_event_email_logs.create_index([("event_id", 1), ("created_at", -1)])
     await db.staff.create_index([("owner_id", 1)])
     # Emergent Google Auth session storage
     await db.user_sessions.create_index("session_token", unique=True)
@@ -3497,8 +3575,18 @@ async def _startup():
             max_instances=1,
             coalesce=True,
         )
+        _scheduler.add_job(
+            pre_email.scan_and_send_due,
+            IntervalTrigger(minutes=1),
+            args=[db],
+            id="pre_event_email_scan",
+            next_run_time=datetime.now(timezone.utc) + timedelta(seconds=10),
+            replace_existing=True,
+            max_instances=1,
+            coalesce=True,
+        )
         _scheduler.start()
-        logger.info("APScheduler started: alerts_scan every 2h")
+        logger.info("APScheduler started: alerts_scan every 2h, pre_event_email_scan every 1m")
     except Exception as e:
         logger.warning(f"APScheduler failed to start: {e}")
 

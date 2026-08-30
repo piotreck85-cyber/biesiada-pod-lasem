@@ -39,6 +39,15 @@ async function request(path: string, opts: RequestInit = {}) {
   return data;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const token = await get();
+  const res = await fetch(`${BASE}/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return await res.blob();
+}
+
 export const api = {
   register: (email: string, password: string, name?: string) =>
     request("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }),
@@ -381,6 +390,16 @@ export const api = {
     request(`/events/${eventId}/complete`, { method: "POST", body: JSON.stringify({ send_thanks }) }),
   eventResendThanks: (eventId: string) =>
     request(`/events/${eventId}/resend-thanks`, { method: "POST" }),
+  preEventEmailStatus: (eventId: string) =>
+    request(`/events/${eventId}/pre-event-email/status`),
+  preEventEmailPreview: (eventId: string) =>
+    request(`/events/${eventId}/pre-event-email/preview`),
+  preEventEmailRegulation: (eventId: string) =>
+    requestBlob(`/events/${eventId}/pre-event-email/regulation`),
+  preEventEmailSendNow: (eventId: string) =>
+    request(`/events/${eventId}/pre-event-email/send-now`, { method: "POST" }),
+  preEventEmailResend: (eventId: string) =>
+    request(`/events/${eventId}/pre-event-email/resend`, { method: "POST" }),
   discountsForClient: (email: string) =>
     request(`/discounts/for-client?email=${encodeURIComponent(email)}`),
   applyDiscount: (eventId: string, code: string) =>

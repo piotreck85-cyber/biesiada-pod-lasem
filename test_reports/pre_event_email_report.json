@@ -1,0 +1,87 @@
+{
+  "mode": "DRY-RUN — bez połączenia SMTP i bez zmian w MongoDB",
+  "passed": 16,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "Mapowanie dzieci/urodzinki/standard",
+      "passed": true,
+      "details": "children == children"
+    },
+    {
+      "name": "Mapowanie warsztaty/przyrodnicze",
+      "passed": true,
+      "details": "children == children"
+    },
+    {
+      "name": "Mapowanie dzieci/wycieczki",
+      "passed": true,
+      "details": "children == children"
+    },
+    {
+      "name": "Mapowanie dorosli/okolicznosciowe",
+      "passed": true,
+      "details": "adults == adults"
+    },
+    {
+      "name": "Mapowanie dorosli/firmowe",
+      "passed": true,
+      "details": "adults == adults"
+    },
+    {
+      "name": "Status inny niż Potwierdzona",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Termin wynosi dokładnie 48 godzin przed startem",
+      "passed": true,
+      "details": "2026-09-08T16:00:00+00:00"
+    },
+    {
+      "name": "Zwykła edycja nie zmienia terminu",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Zmiana daty aktualizuje termin",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Anulowanie anuluje wysyłkę",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Brak e-maila nie wysyła",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Brak e-maila daje komunikat",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Późne potwierdzenie planuje od razu",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "Dokładnie jeden PDF dla dzieci/urodzinki/standard",
+      "passed": true,
+      "details": "Regulamin_Biesiada_pod_Lasem_DZIECI.pdf"
+    },
+    {
+      "name": "Dokładnie jeden PDF dla dorosli/firmowe",
+      "passed": true,
+      "details": "Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf"
+    },
+    {
+      "name": "Automatyczna wysyłka tylko raz",
+      "passed": true,
+      "details": ""
+    }
+  ]
+}

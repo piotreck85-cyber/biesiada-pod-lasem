@@ -21,7 +21,7 @@ import EventPayments from "@/src/components/EventPayments";
 import ManualDiscountModal from "@/src/components/ManualDiscountModal";
 
 type Cost = { label: string; amount: number };
-type Shift = { staff_id: string; hours: number };
+type Shift = { staff_id: string; hours: number; time_start?: string; time_end?: string };
 
 function todayIso() {
   const d = new Date();
@@ -80,6 +80,8 @@ export default function EventDetail() {
   const [status, setStatus] = useState<string>("");
   const [prevStatus, setPrevStatus] = useState<string>(""); // status loaded from DB — for change detection
   const [thanksStatus, setThanksStatus] = useState<any | null>(null); // { sent, log, code, ... }
+  const [preEventEmail, setPreEventEmail] = useState<any | null>(null);
+  const [preEventEmailBusy, setPreEventEmailBusy] = useState(false);
   const [clientDiscounts, setClientDiscounts] = useState<any[]>([]); // active discounts for this client (new event flow)
   const [appliedDiscount, setAppliedDiscount] = useState<any | null>(null); // if event has applied_discount saved
   const [manualCodeOpen, setManualCodeOpen] = useState(false);
@@ -146,6 +148,10 @@ export default function EventDetail() {
             const ts: any = await api.eventThanksStatus(id as string);
             setThanksStatus(ts);
           } catch {}
+          try {
+            const ps: any = await api.preEventEmailStatus(id as string);
+            setPreEventEmail(ps);
+          } catch {}
         } catch {} finally { setLoading(false); }
       }
     })();
@@ -183,7 +189,7 @@ export default function EventDetail() {
     () => computePricing(category, date, peopleNum, packageSet),
     [category, date, peopleNum, packageSet]
   );
-  const parseAmt = (v: string) => parseFloat(String(v || "").replace(",", ".")) || 0;
+  const parseAmt = (v: string | number | null | undefined) => parseFloat(String(v || "").replace(",", ".")) || 0;
 
   // Dinner-only aggregation (for margin calc)
   const dinnerRevenue = useMemo(() => {
@@ -356,6 +362,72 @@ export default function EventDetail() {
     } catch {} finally { if (!opts.skipReturn) setSaving(false); }
   };
 
+  const refreshPreEventEmail = async () => {
+    if (isNew) return;
+    const result: any = await api.preEventEmailStatus(id as string);
+    setPreEventEmail(result);
+  };
+
+  const openBlobPdf = async (blob: Blob, filename: string) => {
+    if (Platform.OS === "web") {
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return;
+    }
+    const b64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+    const FS = await import("expo-file-system/legacy");
+    const Sharing = await import("expo-sharing");
+    const path = FS.cacheDirectory + filename;
+    await FS.writeAsStringAsync(path, b64, { encoding: FS.EncodingType.Base64 });
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(path, { mimeType: "application/pdf", UTI: "com.adobe.pdf" });
+    }
+  };
+
+  const previewPreEventRegulation = async () => {
+    setPreEventEmailBusy(true);
+    try {
+      const blob = await api.preEventEmailRegulation(id as string);
+      const suffix = preEventEmail?.regulation_type === "children" ? "DZIECI" : "DOROSLI";
+      await openBlobPdf(blob, `Regulamin_Biesiada_pod_Lasem_${suffix}.pdf`);
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się otworzyć regulaminu.");
+    } finally { setPreEventEmailBusy(false); }
+  };
+
+  const sendPreEventEmail = (resend = false) => {
+    Alert.alert(
+      resend ? "Wysłać ponownie?" : "Wysłać teraz?",
+      resend
+        ? `To świadomie wyśle wiadomość ponownie na ${preEventEmail?.address || "adres klienta"}.`
+        : `Wiadomość z jednym regulaminem zostanie wysłana na ${preEventEmail?.address || "adres klienta"}.`,
+      [
+        { text: "Anuluj", style: "cancel" },
+        {
+          text: resend ? "Wyślij ponownie" : "Wyślij teraz",
+          onPress: async () => {
+            setPreEventEmailBusy(true);
+            try {
+              if (resend) await api.preEventEmailResend(id as string);
+              else await api.preEventEmailSendNow(id as string);
+              await refreshPreEventEmail();
+              Alert.alert("Wysłano", "Wiadomość przed imprezą została wysłana.");
+            } catch (e: any) {
+              await refreshPreEventEmail().catch(() => undefined);
+              Alert.alert("Błąd wysyłki", e?.message || "Nie udało się wysłać wiadomości.");
+            } finally { setPreEventEmailBusy(false); }
+          },
+        },
+      ],
+    );
+  };
+
   const remove = async () => {
     if (isNew) return;
     Alert.alert(
@@ -520,7 +592,7 @@ export default function EventDetail() {
     event_date: date || undefined,
     people_count: peopleNum || undefined,
     package_set_id: (packageSet || null) as any,
-    extras: Object.entries(extraQty).filter(([, q]) => (q || 0) > 0).map(([id, q]) => ({ id, qty: q as number })),
+    extras: Object.entries(extras).filter(([, q]) => (q || 0) > 0).map(([id, q]) => ({ id, qty: q as number })),
     custom_note: offerNote || undefined,
     custom_greeting: offerGreeting || undefined,
     event_id: id === "new" ? undefined : (id as string),
@@ -543,7 +615,7 @@ export default function EventDetail() {
           r.onerror = () => rej(r.error);
           r.readAsDataURL(blob);
         });
-        const FS = await import("expo-file-system");
+        const FS = await import("expo-file-system/legacy");
         const Sharing = await import("expo-sharing");
         const path = FS.cacheDirectory + `Oferta-podglad-${Date.now()}.pdf`;
         await FS.writeAsStringAsync(path, b64, { encoding: FS.EncodingType.Base64 });
@@ -873,6 +945,79 @@ export default function EventDetail() {
               </View>
             )}
           </Section>
+
+          {!isNew && preEventEmail && (
+            <Section title="Wiadomość przed imprezą">
+              <View testID="pre-event-email-card" style={s.preEmailCard}>
+                <PreEmailRow label="Rodzaj imprezy" value={categoryLabel(preEventEmail.event_category)} testID="pre-event-email-category" />
+                <PreEmailRow label="Regulamin" value={preEventEmail.regulation_label} testID="pre-event-email-regulation" />
+                <PreEmailRow
+                  label="Planowana wysyłka"
+                  value={preEventEmail.scheduled_at ? new Date(preEventEmail.scheduled_at).toLocaleString("pl-PL") : "—"}
+                  testID="pre-event-email-scheduled-at"
+                />
+                <PreEmailRow label="Adres e-mail" value={preEventEmail.address || "Brak"} testID="pre-event-email-address" />
+                <PreEmailRow
+                  label="Status"
+                  value={({ scheduled: "Oczekuje", sent: "Wysłano", failed: "Błąd", cancelled: "Anulowano", not_scheduled: "Oczekuje" } as Record<string, string>)[preEventEmail.status] || preEventEmail.status}
+                  testID="pre-event-email-status"
+                />
+                {!!preEventEmail.notice && (
+                  <View testID="pre-event-email-notice" style={s.preEmailNotice}>
+                    <Feather name="alert-circle" size={16} color={v2.color.error} />
+                    <Text style={s.preEmailNoticeText}>{preEventEmail.notice}</Text>
+                  </View>
+                )}
+                {!!preEventEmail.error && !preEventEmail.notice && (
+                  <Text testID="pre-event-email-error" style={s.preEmailError}>{preEventEmail.error}</Text>
+                )}
+                <View style={s.preEmailActions}>
+                  <Pressable
+                    testID="pre-event-email-preview-button"
+                    onPress={async () => {
+                      try {
+                        const preview: any = await api.preEventEmailPreview(id as string);
+                        Alert.alert(preview.subject, preview.body);
+                      } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się pobrać podglądu."); }
+                    }}
+                    style={s.preEmailSecondaryButton}
+                  >
+                    <Feather name="mail" size={14} color={v2.color.forest} />
+                    <Text style={s.preEmailSecondaryText}>Podgląd maila</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="pre-event-regulation-preview-button"
+                    onPress={previewPreEventRegulation}
+                    disabled={preEventEmailBusy || !preEventEmail.regulation_type}
+                    style={[s.preEmailSecondaryButton, (!preEventEmail.regulation_type || preEventEmailBusy) && { opacity: 0.5 }]}
+                  >
+                    <Feather name="file-text" size={14} color={v2.color.forest} />
+                    <Text style={s.preEmailSecondaryText}>Podgląd regulaminu</Text>
+                  </Pressable>
+                </View>
+                <View style={s.preEmailActions}>
+                  <Pressable
+                    testID="pre-event-email-send-now-button"
+                    onPress={() => sendPreEventEmail(false)}
+                    disabled={preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona"}
+                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
+                  >
+                    {preEventEmailBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={14} color="#fff" />}
+                    <Text style={s.preEmailPrimaryText}>Wyślij teraz</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="pre-event-email-resend-button"
+                    onPress={() => sendPreEventEmail(true)}
+                    disabled={preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona"}
+                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
+                  >
+                    <Feather name="repeat" size={14} color="#fff" />
+                    <Text style={s.preEmailPrimaryText}>Wyślij ponownie</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Section>
+          )}
 
           {/* Client */}
           <Section title="Klient">
@@ -2103,6 +2248,14 @@ function Field({ label, children }: any) {
     </View>
   );
 }
+function PreEmailRow({ label, value, testID }: { label: string; value: string; testID: string }) {
+  return (
+    <View style={s.preEmailRow} testID={testID}>
+      <Text style={s.preEmailLabel}>{label}</Text>
+      <Text style={s.preEmailValue}>{value}</Text>
+    </View>
+  );
+}
 function SummaryRow({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
   const isProfit = bold;
   const color = isProfit ? (value >= 0 ? v2.color.forest : v2.color.error) : (value < 0 ? v2.color.error : v2.color.text);
@@ -2138,6 +2291,18 @@ const s = StyleSheet.create({
   addRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderWidth: 1, borderColor: v2.color.forest, borderRadius: v2.radius.md, borderStyle: "dashed", marginTop: 4 },
   addRowText: { color: v2.color.forest, fontWeight: "700" },
   hint: { color: v2.color.textMuted, fontSize: 13, textAlign: "center", padding: 12 },
+  preEmailCard: {},
+  preEmailRow: { minHeight: 44, paddingVertical: 10, marginBottom: 2, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 16, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: v2.color.divider },
+  preEmailLabel: { flex: 1, color: v2.color.textMuted, fontSize: 12, fontWeight: "600" },
+  preEmailValue: { flex: 1.3, color: v2.color.text, fontSize: 13, fontWeight: "800", textAlign: "right" },
+  preEmailNotice: { marginTop: 12, padding: 12, borderRadius: 12, flexDirection: "row", alignItems: "flex-start", gap: 8, backgroundColor: v2.color.errorBg, borderWidth: 1, borderColor: v2.color.error + "55" },
+  preEmailNoticeText: { flex: 1, color: v2.color.error, fontSize: 12, fontWeight: "700", lineHeight: 17 },
+  preEmailError: { marginTop: 10, color: v2.color.error, fontSize: 12, lineHeight: 17 },
+  preEmailActions: { flexDirection: "row", gap: 8, marginTop: 10 },
+  preEmailSecondaryButton: { flex: 1, minHeight: 48, borderRadius: 12, borderWidth: 1, borderColor: v2.color.forest + "55", backgroundColor: v2.color.card, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: 8 },
+  preEmailSecondaryText: { color: v2.color.forest, fontSize: 11, fontWeight: "800", textAlign: "center" },
+  preEmailPrimaryButton: { flex: 1, minHeight: 48, borderRadius: 12, backgroundColor: v2.color.forest, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6, paddingHorizontal: 8 },
+  preEmailPrimaryText: { color: "#fff", fontSize: 12, fontWeight: "800", textAlign: "center" },
   shiftRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
   avatar: { width: 38, height: 38, borderRadius: 999, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
   avatarText: { color: v2.color.forest, fontWeight: "700", fontSize: 12 },

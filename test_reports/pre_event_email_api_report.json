@@ -1,0 +1,43 @@
+{
+  "mode": "API integration test — daty 2030, bez wywołania wysyłki SMTP",
+  "passed": 7,
+  "failed": 0,
+  "checks": [
+    {
+      "name": "API planuje potwierdzone wydarzenie",
+      "passed": true,
+      "details": "{\"event_id\": \"1012065d-251a-4e51-8e2d-0639bc2aace0\", \"event_category\": \"dzieci/urodzinki/standard\", \"regulation_type\": \"children\", \"regulation_label\": \"Dzieci\", \"status\": \"scheduled\", \"scheduled_at\": \"2030-06-13T16:00:00+00:00\", \"sent_at\": null, \"address\": \"dry-run@example.com\", \"message_id\": null, \"error\": null, \"error_code\": null, \"notice\": null, \"subject\": \"Biesiada pod Lasem – informacje przed Państwa imprezą 15.06.2030\", \"body\": \"Dzień dobry,\\n\\njuż za dwa dni spotykamy się w Biesiadzie pod Lasem 🌲\\n\\nW załączeniu przesyłamy regulamin oraz najważniejsze zasady organizacyjne dotyczące Państwa wydarzenia.\\n\\nProsimy o odpowiedź na tę wiadomość i przekazanie kilku informacji:\\n• ostatecznej lub planowanej liczby uczestników,\\n• jakie dodatkowe produkty planują Państwo przywieźć, np. ciasta, przekąski, napoje lub inny prowiant,\\n• czy planują Państwo przygotować własne dekoracje,\\n• czy planują Państwo przyjechać przed rozpoczęciem imprezy w celu przygotowania dekoracji, rozłożenia produktów lub innych rzeczy,\\n• jeżeli tak – o której godzinie planują Państwo przyjazd.\\n\\nPozwoli nam to odpowiednio przygotować stoły, miejsce na poczęstunek i napoje oraz zaplanować ustawienie przestrzeni przed Państwa przyjazdem.\\n\\nPrzypominamy, że dodatkowy prowiant, napoje, catering oraz własne dekoracje prosimy wcześniej z nami uzgodnić.\\n\\nRozliczenie wydarzenia odbywa się po zakończeniu imprezy, zgodnie z wcześniejszymi ustaleniami.\\n\\nJeżeli od ostatnich ustaleń zmieniło się coś jeszcze w organizacji wydarzenia, prosimy również o krótką informację w odpowiedzi na tę wiadomość.\\n\\nDo zobaczenia! 🌿\\nBiesiada pod Lasem Dolina Przygód\\n\"}"
+    },
+    {
+      "name": "API wybiera regulamin dzieci",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "name": "API zwraca właściwy PDF dzieci",
+      "passed": true,
+      "details": "88989 bytes"
+    },
+    {
+      "name": "API przelicza termin po zmianie daty",
+      "passed": true,
+      "details": "2030-06-13T16:00:00+00:00 -> 2030-06-18T16:00:00+00:00"
+    },
+    {
+      "name": "API anuluje plan po anulowaniu imprezy",
+      "passed": true,
+      "details": "cancelled"
+    },
+    {
+      "name": "API blokuje wysyłkę bez adresu",
+      "passed": true,
+      "details": "{\"event_id\": \"4725851e-131f-4b65-9109-6c3479ee04b5\", \"event_category\": \"dorosli/firmowe\", \"regulation_type\": \"adults\", \"regulation_label\": \"Dorośli\", \"status\": \"failed\", \"scheduled_at\": null, \"sent_at\": null, \"address\": null, \"message_id\": null, \"error\": \"Brak adresu e-mail klienta – wiadomość przed imprezą nie została wysłana.\", \"error_code\": \"no_email\", \"notice\": \"Brak adresu e-mail klienta – wiadomość przed imprezą nie została wysłana.\", \"subject\": \"Biesiada pod Lasem – informacje przed Państwa imprezą 15.07.2030\", \"body\": \"Dzień dobry,\\n\\njuż za dwa dni spotykamy się w Biesiadzie pod Lasem 🌲\\n\\nW załączeniu przesyłamy regulamin oraz najważniejsze zasady organizacyjne dotyczące Państwa wydarzenia.\\n\\nProsimy o odpowiedź na tę wiadomość i przekazanie kilku informacji:\\n• ostatecznej lub planowanej liczby uczestników,\\n• jakie dodatkowe produkty planują Państwo przywieźć, np. ciasta, przekąski, napoje lub inny prowiant,\\n• czy planują Państwo przygotować własne dekoracje,\\n• czy planują Państwo przyjechać przed rozpoczęciem imprezy w celu przygotowania dekoracji, rozłożenia produktów lub innych rzeczy,\\n• jeżeli tak – o której godzinie planują Państwo przyjazd.\\n\\nPozwoli nam to odpowiednio przygotować stoły, miejsce na poczęstunek i napoje oraz zaplanować ustawienie przestrzeni przed Państwa przyjazdem.\\n\\nPrzypominamy, że dodatkowy prowiant, napoje, catering oraz własne dekoracje prosimy wcześniej z nami uzgodnić.\\n\\nRozliczenie wydarzenia odbywa się po zakończeniu imprezy, zgodnie z wcześniejszymi ustaleniami.\\n\\nJeżeli od ostatnich ustaleń zmieniło się coś jeszcze w organizacji wydarzenia, prosimy również o krótką informację w odpowiedzi na tę wiadomość.\\n\\nDo zobaczenia! 🌿\\nBiesiada pod Lasem Dolina Przygód\\n\"}"
+    },
+    {
+      "name": "API pokazuje wymagany komunikat",
+      "passed": true,
+      "details": ""
+    }
+  ],
+  "temporary_events_removed": 2
+}

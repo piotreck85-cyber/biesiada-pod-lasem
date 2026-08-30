@@ -1,0 +1,62 @@
+{
+  "summary": "Executed backend+frontend regression for pre-event email workflow (dry-safe: no send-now/resend clicks). Backend pytest passed 15/15 for mapping, scheduling, cancellation, no-email notice/alert, idempotency, status/preview/regulation endpoints, and persisted pre-event fields. Mobile UI card and preview/regulation integrations verified on event detail.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/auth/login",
+        "issue": "Intermittent 500 in backend logs: KeyError 'password_hash' when user document lacks password_hash (e.g., account created via session auth path).",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "Event detail screen (/event/[id])",
+        "issue": "Console repeatedly reports: 'Unexpected text node: . A text node cannot be a child of a <View>.' while rendering/interacting with pre-event email card."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration17_pre_event_email.py",
+    "/app/test_reports/pytest/iter17_pre_event_email.xml",
+    "/app/test_reports/ui_iter17/02_pre_event_card.png",
+    "/app/test_reports/ui_iter17_retry/03_actions_ok.png",
+    "/app/test_reports/pre_event_email_report.json",
+    "/app/test_reports/pre_event_email_api_report.json"
+  ],
+  "action_items": [
+    "Harden /api/auth/login against users without password_hash (return 401/clear error instead of 500).",
+    "Locate and fix raw text node rendered inside <View> on event detail screen to remove RN runtime error.",
+    "After fixes, re-run pre-event email UI smoke on mobile viewport and auth regression for password login vs session-auth accounts."
+  ],
+  "critical_code_review_comments": [
+    "Auth path assumes every user has password_hash; session-auth/upserted user shape can violate this and crash login.",
+    "Runtime RN error indicates JSX structure issue (text outside <Text>) in event detail screen rendering path."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration17_pre_event_email.py",
+    "/app/test_reports/iteration_17.json"
+  ],
+  "success_rate": {
+    "backend": "100% (15/15 pytest)",
+    "frontend": "90% (targeted pre-event card checks passed; RN console error present)"
+  },
+  "seed_data_creation": "Created only TEST_PRE_EMAIL_* far-future temporary events and auto-deleted via fixture. Deleted temporary UI event bc7a5f3d-2faa-46b6-9f58-f55ef15b1235 after testing.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "post_fix_verification": {
+    "auth_without_password_hash": "PASS — 401 z WWW-Authenticate: Bearer; istniejący login hasłowy nadal 200",
+    "frontend_console": "PASS — brak Unexpected text node po pełnym przeładowaniu ekranu",
+    "regression": "PASS — 15/15 test_iteration17_pre_event_email.py",
+    "restart_persistence": "PASS — scheduled_at i status scheduled identyczne po restarcie backendu",
+    "smtp_safety": "PASS — 0 rekordów pre_event_email_logs; nie wywołano realnej wysyłki",
+    "temporary_data": "PASS — 0 wydarzeń TEST_PRE_EMAIL_/TEST UI/TEST DOM"
+  },
+  "context_for_next_testing_agent": "SMTP-sensitive actions were intentionally not executed (no send-now/resend clicks). Preview mail validated via /pre-event-email/preview API interception; regulation preview validated via PDF response interception.",
+  "rca_of_issue": "Auth RCA: login handler directly indexes u['password_hash']; if user doc exists without this key, FastAPI raises KeyError => 500. Mitigation: guard missing hash and return 401/meaningful detail. RN RCA: runtime indicates stray raw text node rendered under View on event detail; inspect recent JSX blocks around pre-event card/actions and any conditional fragments for accidental plain string nodes."
+}

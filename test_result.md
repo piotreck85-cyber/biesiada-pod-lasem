@@ -277,6 +277,8 @@ metadata:
 
 test_plan:
   current_focus:
+    - "Pre-event email 48h scheduler, fixed category mapping and one PDF attachment"
+    - "Pre-event email card with preview/send/resend actions"
     - "Weather multi-provider fallback"
     - "APScheduler + 2-day alerts scan"
     - "Alerts CRUD endpoints"
@@ -290,6 +292,25 @@ test_plan:
   test_priority: "high_first"
 
 agent_communication:
+    - agent: "main"
+      message: |
+        Post-fix verification complete for iteration 17 findings.
+        Auth without password_hash now returns safe 401 + Bearer header; password login remains 200.
+        Event screen browser console is clean after full reload. Regression: 15/15.
+        Scheduler persistence tested through a real backend restart: scheduled_at/status unchanged.
+        SMTP safety confirmed: 0 pre_event_email_logs and all temporary test events removed.
+    - agent: "main"
+      message: |
+        Iteration — Wiadomość przed imprezą 48h implemented.
+        Backend: /app/backend/pre_event_email.py + routes/hooks/scheduler in server.py.
+        Frontend: event/[id].tsx card + api.ts methods.
+        Assets: both user-provided regulation PDFs in backend/assets.
+        IMPORTANT: do not send SMTP messages to real addresses. Test mappings/attachments with
+        `python backend/test_pre_event_email.py` (dry-run only), and use far-future temporary events
+        for API/UI scheduling tests. Existing reports: pre_event_email_report.json 16/16 and
+        pre_event_email_api_report.json 7/7. Verify all five category groups, status gating,
+        date reschedule, cancellation, missing email notice, one attachment only, idempotency,
+        persisted scheduler fields and mobile card/testIDs.
     - agent: "main"
       message: |
         Please test the 5 backend tasks and 3 frontend tasks above. Test credentials at

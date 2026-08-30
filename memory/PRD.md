@@ -362,3 +362,19 @@ Polish mobile app for event organizers to manage:
 **Testy:**
 - ✅ Kod bez wysyłki (15%, 6 mc, notatka „urodziny") — `POWROT10-PDCN` utworzony
 - ✅ Kod z wysyłką (10%, 12 mc) — mail dostarczony na piotreck85@gmail.com, `POWROT10-2AZW`
+
+### Wiadomość przed imprezą — 48 godzin wcześniej
+
+- Backendowy skaner APScheduler co minutę odtwarza harmonogram z MongoDB; restart serwera nie gubi wysyłek.
+- Wysyłka dotyczy wyłącznie wydarzeń ze statusem `potwierdzona`; późne potwierdzenie planuje wysyłkę od razu.
+- Stałe mapowanie wyłącznie z pola `category` (bez AI i bez analizy opisu):
+  - `dorosli/okolicznosciowe`, `dorosli/firmowe` → `adults`
+  - `dzieci/urodzinki/*`, `warsztaty*`, `dzieci/wycieczki`, `dzieci/wycieczki_rodzice` → `children`
+- Załączniki: dokładnie jeden z dwóch plików `Regulamin_Biesiada_pod_Lasem_DOROSLI.pdf` / `Regulamin_Biesiada_pod_Lasem_DZIECI.pdf`.
+- Pola wydarzenia: `pre_event_email_status`, `pre_event_email_scheduled_at`, `pre_event_email_sent_at`, `pre_event_email_address`, `pre_event_email_message_id`, `regulation_type` oraz wewnętrzne pola blokady/idempotencji.
+- Zmiana daty/godziny/adresu/kategorii przelicza harmonogram; anulowanie, zmiana statusu i usunięcie wydarzenia blokują wysyłkę.
+- Brak e-maila tworzy alert owner/admin i komunikat: „Brak adresu e-mail klienta – wiadomość przed imprezą nie została wysłana.”
+- Karta wydarzenia pokazuje harmonogram/status oraz akcje: podgląd maila, podgląd regulaminu, wyślij teraz, świadome „wyślij ponownie”.
+- Raporty testów bez SMTP: `/app/test_reports/pre_event_email_report.json` (16/16), `/app/test_reports/pre_event_email_api_report.json` (7/7) i `/app/test_reports/iteration_17.json` (15/15).
+- Zweryfikowano trwałość: `scheduled_at` i status pozostały bez zmian po restarcie backendu; 0 logów wysyłki SMTP podczas testów.
+- Przy okazji zabezpieczono login hasłowy dla kont Google bez `password_hash` (kontrolowane 401 zamiast 500).
