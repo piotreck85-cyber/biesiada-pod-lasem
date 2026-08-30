@@ -8,6 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { MONTHS_PL } from "@/src/theme";
 
 type Ev = {
   id: string; date: string; name: string; time_start?: string; time_end?: string;
@@ -36,6 +37,16 @@ const addDaysISO = (iso: string, days: number) => {
   d.setDate(d.getDate() + days);
   return d.toISOString().slice(0, 10);
 };
+const DAY_LABELS = ["pn", "wt", "śr", "cz", "pt", "sb", "nd"];
+const buildMonthCells = (y: number, m: number): (string | null)[] => {
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const startPad = (new Date(y, m, 1).getDay() + 6) % 7;
+  const cells: (string | null)[] = [];
+  for (let i = 0; i < startPad; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(`${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+};
 
 export default function GrafikScreen() {
   const insets = useSafeAreaInsets();
@@ -49,6 +60,31 @@ export default function GrafikScreen() {
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const tomorrow = useMemo(() => addDaysISO(today, 1), [today]);
+
+  // ---- Month view (own schedule only) ----
+  const [view, setView] = useState<"lista" | "miesiac">("lista");
+  const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
+  const [monthEvents, setMonthEvents] = useState<Ev[]>([]);
+  const [selDay, setSelDay] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (view !== "miesiac") return;
+    const mm = String(ym.m + 1).padStart(2, "0");
+    api.mySchedule(`${ym.y}-${mm}-01`, `${ym.y}-${mm}-31`)
+      .then((r: any) => setMonthEvents(Array.isArray(r) ? r : []))
+      .catch(() => setMonthEvents([]));
+  }, [view, ym]);
+
+  const monthByDate = useMemo(() => {
+    const m: Record<string, Ev[]> = {};
+    monthEvents.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
+    return m;
+  }, [monthEvents]);
+  const gridCells = useMemo(() => buildMonthCells(ym.y, ym.m), [ym]);
+  const shiftYm = (delta: number) => {
+    setSelDay(null);
+    setYm(({ y, m }) => { const d = new Date(y, m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -254,6 +290,122 @@ export default function GrafikScreen() {
           </Pressable>
         </View>
 
+        {/* View toggle: Lista | Miesiąc */}
+        <View style={s.viewToggle}>
+          <Pressable onPress={() => setView("lista")} style={[s.viewToggleBtn, view === "lista" && s.viewToggleBtnActive]} testID="grafik-view-lista">
+            <Feather name="list" size={13} color={view === "lista" ? "#fff" : v2.color.forest} />
+            <Text style={[s.viewToggleText, view === "lista" && s.viewToggleTextActive]}>Lista</Text>
+          </Pressable>
+          <Pressable onPress={() => setView("miesiac")} style={[s.viewToggleBtn, view === "miesiac" && s.viewToggleBtnActive]} testID="grafik-view-miesiac">
+            <Feather name="calendar" size={13} color={view === "miesiac" ? "#fff" : v2.color.forest} />
+            <Text style={[s.viewToggleText, view === "miesiac" && s.viewToggleTextActive]}>Miesiąc</Text>
+          </Pressable>
+        </View>
+
+        {view === "miesiac" ? (
+          <>
+            {/* Month switcher */}
+            <View style={s.monthRow}>
+              <Pressable onPress={() => shiftYm(-1)} hitSlop={10} style={s.monthBtn} testID="grafik-prev-month">
+                <Feather name="chevron-left" size={18} color={v2.color.forest} />
+              </Pressable>
+              <Text style={s.monthLabel}>{MONTHS_PL[ym.m]} {ym.y}</Text>
+              <Pressable onPress={() => shiftYm(1)} hitSlop={10} style={s.monthBtn} testID="grafik-next-month">
+                <Feather name="chevron-right" size={18} color={v2.color.forest} />
+              </Pressable>
+            </View>
+
+            {/* Month grid — only own shifts */}
+            <View style={s.gridBox}>
+              <View style={{ flexDirection: "row", marginBottom: 4 }}>
+                {DAY_LABELS.map(d => <Text key={d} style={s.gridHeadText}>{d}</Text>)}
+              </View>
+              {Array.from({ length: gridCells.length / 7 }, (_, r) => (
+                <View key={r} style={{ flexDirection: "row" }}>
+                  {gridCells.slice(r * 7, r * 7 + 7).map((date, i) => {
+                    if (!date) return <View key={i} style={s.gcell} />;
+                    const has = (monthByDate[date] || []).length > 0;
+                    const isToday = date === today;
+                    const isSel = date === selDay;
+                    return (
+                      <Pressable
+                        key={i}
+                        onPress={() => setSelDay(isSel ? null : date)}
+                        style={[s.gcell, has && s.gcellHas, isToday && s.gcellToday, isSel && s.gcellSel]}
+                        testID={`grafik-day-${date}`}
+                      >
+                        <Text style={[s.gcellNum, has && { color: v2.color.forest, fontWeight: "800" }, isSel && { color: "#fff" }]}>
+                          {parseInt(date.slice(-2), 10)}
+                        </Text>
+                        {has ? <View style={[s.gcellDot, isSel && { backgroundColor: "#fff" }]} /> : null}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+
+            {/* Selected day detail */}
+            {selDay ? (
+              <View style={{ marginTop: 12 }}>
+                <Text style={s.sectionLabel}>
+                  {new Date(selDay + "T12:00:00").toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}
+                </Text>
+                {(monthByDate[selDay] || []).length === 0 ? (
+                  <View style={s.emptyDay}>
+                    <Feather name="coffee" size={18} color={v2.color.sage} />
+                    <Text style={s.emptyDayText}>Nie pracujesz tego dnia</Text>
+                  </View>
+                ) : (monthByDate[selDay] || []).map(ev => (
+                  <Pressable key={ev.id} style={s.evRow} onPress={() => router.push(`/moja-impreza/${ev.id}` as any)} testID={`grafik-month-event-${ev.id}`}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.evTitle} numberOfLines={1}>{ev.name}</Text>
+                      <Text style={s.evMeta}>
+                        {ev.time_start ? `${ev.time_start}${ev.time_end ? `–${ev.time_end}` : ""}` : ""}
+                        {ev.my_shift?.role ? ` · ${ev.my_shift.role}` : ""}
+                        {ev.my_shift?.hours ? ` · ${ev.my_shift.hours} h` : ""}
+                      </Text>
+                    </View>
+                    <Feather name="chevron-right" size={16} color={v2.color.textSubtle} />
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+
+            {/* Month shifts list */}
+            <View style={s.sectionHead}>
+              <Text style={s.sectionLabel}>Twoje zmiany w tym miesiącu ({monthEvents.length})</Text>
+            </View>
+            {monthEvents.length === 0 ? (
+              <View style={s.emptyDay}>
+                <Feather name="calendar" size={20} color={v2.color.sage} />
+                <Text style={s.emptyDayText}>Brak zmian w tym miesiącu</Text>
+              </View>
+            ) : monthEvents.map(ev => (
+              <Pressable key={ev.id} style={s.evRow} onPress={() => router.push(`/moja-impreza/${ev.id}` as any)}>
+                <View style={s.dateBox}>
+                  <Text style={s.dateBoxDay}>{ev.date.slice(-2)}</Text>
+                  <Text style={s.dateBoxMon}>{dow(ev.date)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.evTitle} numberOfLines={1}>{ev.name}</Text>
+                  <Text style={s.evMeta}>
+                    {ev.time_start ? `${ev.time_start}${ev.time_end ? `–${ev.time_end}` : ""}` : ""}
+                    {ev.my_shift?.hours ? ` · ${ev.my_shift.hours} h` : ""}
+                  </Text>
+                </View>
+                {ev.date === today ? (
+                  <View style={{ paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, backgroundColor: v2.color.mint }}>
+                    <Text style={{ color: v2.color.forest, fontSize: 9, fontWeight: "800" }}>DZIŚ</Text>
+                  </View>
+                ) : null}
+                <Feather name="chevron-right" size={16} color={v2.color.textSubtle} />
+              </Pressable>
+            ))}
+          </>
+        ) : (
+        <>
+
         {/* TODAY card */}
         <View style={s.sectionHead}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
@@ -334,6 +486,8 @@ export default function GrafikScreen() {
             <Feather name="chevron-right" size={16} color={v2.color.textSubtle} />
           </Pressable>
         ))}
+        </>
+        )}
       </ScrollView>
     </View>
   );
@@ -341,6 +495,30 @@ export default function GrafikScreen() {
 
 const s = StyleSheet.create({
   rootLoading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: v2.color.bg },
+
+  // View toggle + month view
+  viewToggle: {
+    flexDirection: "row", gap: 6, marginBottom: 14, padding: 4,
+    backgroundColor: v2.color.card, borderRadius: 12, borderWidth: 1, borderColor: v2.color.border,
+  },
+  viewToggleBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 9, borderRadius: 9,
+  },
+  viewToggleBtnActive: { backgroundColor: v2.color.forest },
+  viewToggleText: { color: v2.color.forest, fontSize: 13, fontWeight: "800" },
+  viewToggleTextActive: { color: "#fff" },
+  monthRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  monthBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
+  monthLabel: { color: v2.color.text, fontSize: 16, fontWeight: "800", textTransform: "capitalize" },
+  gridBox: { borderRadius: 14, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border, padding: 8 },
+  gridHeadText: { flex: 1, textAlign: "center", color: v2.color.textMuted, fontSize: 10, fontWeight: "800", textTransform: "uppercase" },
+  gcell: { flex: 1, aspectRatio: 0.95, alignItems: "center", justifyContent: "center", borderRadius: 8, margin: 1 },
+  gcellHas: { backgroundColor: v2.color.mint },
+  gcellToday: { borderWidth: 1.5, borderColor: v2.color.forest },
+  gcellSel: { backgroundColor: v2.color.forest },
+  gcellNum: { color: v2.color.text, fontSize: 13 },
+  gcellDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: v2.color.forest, marginTop: 2 },
 
   // Header (dark forest)
   header: {

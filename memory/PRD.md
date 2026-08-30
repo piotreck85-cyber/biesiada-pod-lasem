@@ -449,3 +449,16 @@ Polish mobile app for event organizers to manage:
 ### Pending / next
 - Grafik pracowników (monthly schedule view for admin in Więcej + month view in Moja praca + PDF print) — APPROVED by user, not yet built
 - Gmail OAuth GCP fix (user-side) — blocks live reply scanning + Gmail Etap 1/2
+
+## Iteration (Jun 2026) — Grafik pracowników (monthly schedule)
+- Admin screen `/grafik-pracownikow` (entry: Więcej → "Grafik pracowników (miesiąc)"):
+  month grid (Mon-first, day badges with event counts), month switcher, staff filter chips
+  (Wszyscy + staff having shifts that month), selected-day detail with staff chips
+  (name + shift time/hours, "⚠ brak obsady" when unstaffed), full month list, tap event → /event/{id}
+- PDF print: reused src/printSchedule.ts `printSchedule()` with NEW `includePay?: boolean` param —
+  schedule prints WITHOUT rates/payouts (safe for wall). Print restyled from old gold theme to forest green.
+  Filter-aware printing (per-employee schedule via ownerName subtitle).
+- Staff month view in Moja praca (grafik.tsx): toggle Lista | Miesiąc (testIDs grafik-view-lista/miesiac),
+  month grid marks ONLY own shifts (data: GET /staff/my/schedule?date_from&date_to), day tap → own events,
+  month list of own shifts; rows navigate to /moja-impreza/{id}. No other staff visible.
+- Gmail connection status: still 0 connections — user has NOT yet completed "Połącz Gmail" consent flow.

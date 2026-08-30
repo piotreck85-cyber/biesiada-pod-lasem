@@ -17,9 +17,10 @@ export type PrintScheduleInput = {
   events: any[];
   staff: any[];
   ownerName?: string;
+  includePay?: boolean; // false → no rates/payout amounts (safe to hang on the wall)
 };
 
-export function buildScheduleHtml({ year, month, events, staff, ownerName }: PrintScheduleInput): string {
+export function buildScheduleHtml({ year, month, events, staff, ownerName, includePay = true }: PrintScheduleInput): string {
   const staffMap: Record<string, any> = {};
   staff.forEach(s => staffMap[s.id] = s);
 
@@ -57,7 +58,8 @@ export function buildScheduleHtml({ year, month, events, staff, ownerName }: Pri
       const s = staffMap[sh.staff_id];
       if (!s) return "";
       const amt = (Number(sh.hours) || 0) * (Number(s.hourly_rate) || 0);
-      return `<span class="chip">${escapeHtml(s.name)} · ${(Number(sh.hours) || 0).toFixed(1)} h · ${escapeHtml(formatPLN(amt))}</span>`;
+      const time = sh.time_start ? `${sh.time_start}${sh.time_end ? `–${sh.time_end}` : ""}` : "";
+      return `<span class="chip">${escapeHtml(s.name)}${time ? " · " + escapeHtml(time) : ""} · ${(Number(sh.hours) || 0).toFixed(1)} h${includePay ? " · " + escapeHtml(formatPLN(amt)) : ""}</span>`;
     }).join(" ");
     const catHtml = ev.category ? `<div class="cat">${escapeHtml(categoryLabel(ev.category))}</div>` : "";
     return `
@@ -89,14 +91,14 @@ export function buildScheduleHtml({ year, month, events, staff, ownerName }: Pri
 <style>
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #0C0C0E; margin: 0; padding: 24px; background: #fff; }
-  .hero { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #D4AF37; padding-bottom: 12px; margin-bottom: 20px; }
-  .brand { font-size: 12px; letter-spacing: 4px; color: #D4AF37; font-weight: 700; margin-bottom: 4px; }
+  .hero { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #2E7D46; padding-bottom: 12px; margin-bottom: 20px; }
+  .brand { font-size: 12px; letter-spacing: 4px; color: #2E7D46; font-weight: 700; margin-bottom: 4px; }
   h1 { font-size: 28px; margin: 0; letter-spacing: -0.5px; }
   .subtitle { color: #555; font-size: 13px; margin-top: 4px; }
   .meta { font-size: 12px; color: #777; text-align: right; }
-  h2 { font-size: 14px; letter-spacing: 3px; color: #D4AF37; text-transform: uppercase; margin: 24px 0 10px; }
+  h2 { font-size: 14px; letter-spacing: 3px; color: #2E7D46; text-transform: uppercase; margin: 24px 0 10px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  thead th { background: #0C0C0E; color: #D4AF37; text-align: left; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; }
+  thead th { background: #1B3A26; color: #fff; text-align: left; padding: 8px 10px; font-size: 11px; letter-spacing: 1px; }
   tbody td { padding: 10px; border-bottom: 1px solid #E5E5E5; vertical-align: top; }
   tbody tr:nth-child(even) td { background: #FAFAF6; }
   .date { width: 70px; text-align: center; }
@@ -104,13 +106,13 @@ export function buildScheduleHtml({ year, month, events, staff, ownerName }: Pri
   .d2 { font-size: 10px; color: #777; margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
   .ev-name { font-weight: 700; font-size: 15px; margin-bottom: 3px; }
   .ev-meta { color: #555; font-size: 12px; margin-bottom: 6px; }
-  .cat { color: #B8901F; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .cat { color: #2E7D46; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 6px; }
   .shifts { margin-top: 6px; }
-  .chip { display: inline-block; background: #F4EDD8; color: #6B540B; border: 1px solid #E0CE93; border-radius: 999px; padding: 2px 10px; font-size: 11px; margin: 2px 4px 2px 0; }
+  .chip { display: inline-block; background: #E7F3EA; color: #1F4D2E; border: 1px solid #BFDCC7; border-radius: 999px; padding: 2px 10px; font-size: 11px; margin: 2px 4px 2px 0; }
   .empty { color: #999; font-style: italic; font-size: 11px; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .strong { font-weight: 800; color: #B8901F; }
-  tfoot td { background: #FFF9E5; padding: 10px; border-top: 3px solid #D4AF37; font-weight: 800; }
+  .strong { font-weight: 800; color: #1F4D2E; }
+  tfoot td { background: #EDF6EF; padding: 10px; border-top: 3px solid #2E7D46; font-weight: 800; }
   .empty-block { padding: 40px; text-align: center; border: 2px dashed #ddd; border-radius: 8px; color: #999; }
   @media print { body { padding: 12mm; } .hero { page-break-after: avoid; } table { page-break-inside: auto; } tr { page-break-inside: avoid; } }
 </style></head>
@@ -132,7 +134,7 @@ export function buildScheduleHtml({ year, month, events, staff, ownerName }: Pri
         <tbody>${eventRows}</tbody>
       </table>`}
 
-  <h2>Podsumowanie wypłat</h2>
+  ${!includePay ? "" : `<h2>Podsumowanie wypłat</h2>
   ${staffTotals.length === 0
     ? `<div class="empty-block">Brak zmian pracowników w tym miesiącu.</div>`
     : `<table>
@@ -144,7 +146,7 @@ export function buildScheduleHtml({ year, month, events, staff, ownerName }: Pri
           <td></td>
           <td class="num strong">${escapeHtml(formatPLN(grandAmount))}</td>
         </tr></tfoot>
-      </table>`}
+      </table>`}`}
 </body></html>`;
 }
 
