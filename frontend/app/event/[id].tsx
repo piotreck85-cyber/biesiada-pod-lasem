@@ -2129,6 +2129,30 @@ export default function EventDetail() {
                       />
                     </View>
                   </View>
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Rola na imprezie</Text>
+                      <TextInput
+                        testID={`shift-role-${i}`}
+                        value={sh.role || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, role: v } : x))}
+                        placeholder="np. przygotowanie / obsługa"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Notatka (opcjonalna)</Text>
+                      <TextInput
+                        testID={`shift-note-${i}`}
+                        value={sh.note || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, note: v } : x))}
+                        placeholder="np. dekoracje od 9:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
                 </View>
               );
             })}

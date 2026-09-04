@@ -204,10 +204,13 @@ class CostItem(BaseModel):
     amount: float
 
 class StaffShift(BaseModel):
+    model_config = {"extra": "allow"}
     staff_id: str
     hours: float = 0.0
-    time_start: Optional[str] = ""  # HH:MM
-    time_end: Optional[str] = ""    # HH:MM
+    time_start: Optional[str] = ""  # HH:MM (planned start — independent from event hours)
+    time_end: Optional[str] = ""    # HH:MM (planned end)
+    role: Optional[str] = ""        # stanowisko/rola podczas imprezy
+    note: Optional[str] = ""        # opcjonalna notatka
 
 class EventIn(BaseModel):
     model_config = {"extra": "allow"}  # accept optional custom fields (dinner_items, extras_qty, discount_pct, ...)
@@ -1328,7 +1331,7 @@ async def time_my(user=Depends(current_user), limit: int = 60):
     sid = user.get("staff_id")
     if not sid and is_staff(user):
         return []
-    q = {"owner_id": ws(user)}
+    q = {"owner_id": ws(user), "deleted": {"$ne": True}}
     if sid: q["staff_id"] = sid
     else:   q["user_id"] = user["id"]
     rows = await db.time_entries.find(q, {"_id": 0}).sort("start_at", -1).to_list(int(limit))
@@ -1340,7 +1343,7 @@ async def time_all(user=Depends(current_user), staff_id: str = "",
                    date_from: str = "", date_to: str = "", unpaid_only: bool = False):
     """Admin: list all time entries with optional filters."""
     require_admin(user)
-    q: dict = {"owner_id": ws(user)}
+    q: dict = {"owner_id": ws(user), "deleted": {"$ne": True}}
     if staff_id: q["staff_id"] = staff_id
     if unpaid_only: q["paid"] = False
     if date_from or date_to:
@@ -1361,29 +1364,351 @@ class TimeEntryPatch(BaseModel):
 
 @api.patch("/time-entries/{entry_id}")
 async def time_patch(entry_id: str, body: TimeEntryPatch, user=Depends(current_user)):
-    """Admin corrects a time entry (start/end/note)."""
+    """Admin edits NON-TIME fields directly (note/event). Any change of start/end of an
+    existing entry MUST go through a two-sided correction — enforced here, not only in UI."""
     require_admin(user)
-    updates = {k: v for k, v in body.dict().items() if v is not None}
-    if not updates: return {"ok": True}
-    updates["manual"] = True
-    if "start_at" in updates or "end_at" in updates:
-        row = await db.time_entries.find_one({"id": entry_id, "owner_id": ws(user)}, {"_id": 0})
-        if row:
-            s = updates.get("start_at") or row.get("start_at")
-            e = updates.get("end_at") or row.get("end_at")
-            if s and e:
-                try:
-                    updates["hours"] = round((datetime.fromisoformat(e) - datetime.fromisoformat(s)).total_seconds() / 3600.0, 3)
-                except Exception: pass
+    if body.start_at is not None or body.end_at is not None:
+        raise HTTPException(
+            409,
+            "Zmiana godzin wymaga korekty zatwierdzonej przez pracownika — użyj wniosku o korektę (/time-corrections)",
+        )
+    updates = {k: v for k, v in {"note": body.note, "event_id": body.event_id}.items() if v is not None}
+    if not updates:
+        return {"ok": True}
     await db.time_entries.update_one({"id": entry_id, "owner_id": ws(user)}, {"$set": updates})
     return {"ok": True}
 
 
 @api.delete("/time-entries/{entry_id}")
 async def time_delete(entry_id: str, user=Depends(current_user)):
+    """Direct delete allowed ONLY for an open (not finished) session — e.g. accidental start.
+    Deleting a closed entry requires a two-sided correction (corr_type=delete)."""
     require_admin(user)
+    row = await db.time_entries.find_one({"id": entry_id, "owner_id": ws(user)}, {"_id": 0})
+    if not row:
+        raise HTTPException(404, "Nie znaleziono wpisu")
+    if row.get("end_at"):
+        raise HTTPException(
+            409,
+            "Usunięcie zakończonego wpisu wymaga korekty zatwierdzonej przez pracownika (/time-corrections)",
+        )
     await db.time_entries.delete_one({"id": entry_id, "owner_id": ws(user)})
+    await log_change(user, "delete", "time_entry", entry_id, "Usunięto otwartą (niezakończoną) sesję pracy")
     return {"ok": True}
+
+
+# ---------- Time corrections — OBOWIĄZKOWA akceptacja dwóch stron ----------
+# Statuses: PENDING_EMPLOYEE | PENDING_MANAGER | APPROVED | REJECTED | CANCELLED
+# Backend-enforced: no unilateral change of worked time by either side.
+CORR_PENDING_STATUSES = ("PENDING_EMPLOYEE", "PENDING_MANAGER")
+
+
+class TimeCorrectionIn(BaseModel):
+    entry_id: Optional[str] = None
+    corr_type: str = "edit"           # edit | add | delete
+    proposed_start: Optional[str] = None  # ISO datetime
+    proposed_end: Optional[str] = None
+    reason: str = ""
+    staff_id: Optional[str] = None    # required when a manager files the correction
+    event_id: Optional[str] = None
+
+
+def _corr_parse_iso(value: str, field: str) -> str:
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).isoformat()
+    except Exception:
+        raise HTTPException(400, f"Nieprawidłowy format daty/godziny ({field})")
+
+
+def _corr_view(c: dict) -> dict:
+    c = dict(c)
+    c.pop("_id", None)
+    return c
+
+
+async def _apply_correction(corr: dict):
+    """Both sides approved — apply to time_entries. Original values stay in the correction doc."""
+    now_iso = now_utc().isoformat()
+    if corr["corr_type"] == "edit":
+        entry = await db.time_entries.find_one({"id": corr["entry_id"]}, {"_id": 0})
+        if not entry:
+            raise HTTPException(410, "Wpis czasu już nie istnieje")
+        new_start = corr.get("proposed_start") or entry.get("start_at")
+        new_end = corr.get("proposed_end") or entry.get("end_at")
+        updates = {"start_at": new_start, "end_at": new_end, "manual": True,
+                   "corrected": True, "correction_id": corr["id"], "pending_correction_id": None}
+        if new_start and new_end:
+            updates["hours"] = round((datetime.fromisoformat(new_end) - datetime.fromisoformat(new_start)).total_seconds() / 3600.0, 3)
+        if not entry.get("original_start_at"):
+            updates["original_start_at"] = entry.get("start_at")
+            updates["original_end_at"] = entry.get("end_at")
+        await db.time_entries.update_one({"id": corr["entry_id"]}, {"$set": updates})
+    elif corr["corr_type"] == "add":
+        hours = round((datetime.fromisoformat(corr["proposed_end"]) - datetime.fromisoformat(corr["proposed_start"])).total_seconds() / 3600.0, 3)
+        await db.time_entries.insert_one({
+            "id": str(uuid.uuid4()), "owner_id": corr["owner_id"], "staff_id": corr["staff_id"],
+            "user_id": corr.get("requested_by_user_id"), "event_id": corr.get("event_id"),
+            "start_at": corr["proposed_start"], "end_at": corr["proposed_end"],
+            "manual": True, "corrected": True, "correction_id": corr["id"],
+            "hours": hours, "note": f"Dodane korektą: {corr.get('reason','')}"[:200], "paid": False,
+            "created_at": now_iso,
+        })
+    elif corr["corr_type"] == "delete":
+        await db.time_entries.update_one(
+            {"id": corr["entry_id"]},
+            {"$set": {"deleted": True, "deleted_at": now_iso, "correction_id": corr["id"],
+                      "pending_correction_id": None}},
+        )
+
+
+@api.post("/time-corrections")
+async def create_time_correction(body: TimeCorrectionIn, user=Depends(current_user)):
+    owner = ws(user)
+    admin = is_admin(user)
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(400, "Podaj powód korekty")
+    if body.corr_type not in ("edit", "add", "delete"):
+        raise HTTPException(400, "Nieznany typ korekty")
+
+    # Whose time is being corrected — staff can ONLY correct their own
+    if admin:
+        sid = body.staff_id
+        if not sid:
+            raise HTTPException(400, "Wybierz pracownika, którego dotyczy korekta")
+    else:
+        sid = user.get("staff_id")
+        if not sid:
+            raise HTTPException(400, "Twoje konto nie jest powiązane z rekordem pracownika")
+        if body.staff_id and body.staff_id != sid:
+            raise HTTPException(403, "Nie możesz korygować czasu innych osób")
+    st = await db.staff.find_one({"id": sid, "owner_id": owner}, {"_id": 0, "name": 1})
+    if not st:
+        raise HTTPException(404, "Nie znaleziono pracownika")
+
+    entry = None
+    if body.corr_type in ("edit", "delete"):
+        if not body.entry_id:
+            raise HTTPException(400, "Wskaż wpis czasu do korekty")
+        entry = await db.time_entries.find_one(
+            {"id": body.entry_id, "owner_id": owner, "deleted": {"$ne": True}}, {"_id": 0})
+        if not entry:
+            raise HTTPException(404, "Nie znaleziono wpisu czasu")
+        if entry.get("staff_id") != sid:
+            raise HTTPException(403, "Wpis nie należy do wskazanego pracownika")
+        if entry.get("pending_correction_id"):
+            raise HTTPException(409, "Ten wpis ma już oczekującą korektę")
+
+    proposed_start = _corr_parse_iso(body.proposed_start, "start") if body.proposed_start else None
+    proposed_end = _corr_parse_iso(body.proposed_end, "koniec") if body.proposed_end else None
+    if body.corr_type == "add" and (not proposed_start or not proposed_end):
+        raise HTTPException(400, "Podaj godzinę rozpoczęcia i zakończenia")
+    if body.corr_type == "edit" and not proposed_start and not proposed_end:
+        raise HTTPException(400, "Podaj proponowaną godzinę rozpoczęcia lub zakończenia")
+    eff_start = proposed_start or (entry or {}).get("start_at")
+    eff_end = proposed_end or (entry or {}).get("end_at")
+    if eff_start and eff_end and eff_start >= eff_end:
+        raise HTTPException(400, "Godzina zakończenia musi być po godzinie rozpoczęcia")
+
+    now_iso = now_utc().isoformat()
+    actor = user.get("name") or user.get("email", "")
+    corr = {
+        "id": str(uuid.uuid4()), "owner_id": owner, "staff_id": sid,
+        "staff_name": st.get("name") or "",
+        "entry_id": body.entry_id, "corr_type": body.corr_type,
+        "original_start": (entry or {}).get("start_at"),
+        "original_end": (entry or {}).get("end_at"),
+        "proposed_start": proposed_start, "proposed_end": proposed_end,
+        "reason": reason, "event_id": body.event_id or (entry or {}).get("event_id"),
+        "requested_by_user_id": user["id"], "requested_by_name": actor,
+        "requested_side": "manager" if admin else "employee",
+        "employee_approved": not admin, "manager_approved": admin,
+        "employee_approved_by": None if admin else actor,
+        "employee_approved_at": None if admin else now_iso,
+        "manager_approved_by": actor if admin else None,
+        "manager_approved_at": now_iso if admin else None,
+        "status": "PENDING_EMPLOYEE" if admin else "PENDING_MANAGER",
+        "history": [{"at": now_iso, "by": actor, "action": "created",
+                     "detail": f"{'szef' if admin else 'pracownik'} zgłosił korektę: {reason}"}],
+        "created_at": now_iso,
+    }
+    await db.time_corrections.insert_one(dict(corr))
+    if entry:
+        await db.time_entries.update_one({"id": entry["id"]}, {"$set": {"pending_correction_id": corr["id"]}})
+    # notify the other side (in-app alert for admins when employee files)
+    if not admin:
+        try:
+            await db.alerts.insert_one({
+                "id": str(uuid.uuid4()), "owner_id": owner, "kind": "time_correction",
+                "message": f"Wniosek o korektę czasu pracy – {st.get('name','')}",
+                "comment_text": reason[:200], "created_at": now_iso,
+                "dismissed": False, "emailed": True,
+            })
+        except Exception:
+            pass
+    await log_change(user, "create", "time_correction", corr["id"],
+                     f"Korekta czasu ({body.corr_type}) dla {st.get('name','')}: {reason[:80]}")
+    return _corr_view(corr)
+
+
+@api.get("/time-corrections")
+async def list_time_corrections(user=Depends(current_user), status: str = "", staff_id: str = "", limit: int = 100):
+    q: dict = {"owner_id": ws(user)}
+    if is_staff(user):
+        q["staff_id"] = user.get("staff_id") or "__none__"   # staff sees ONLY own corrections
+    elif staff_id:
+        q["staff_id"] = staff_id
+    if status:
+        q["status"] = status
+    rows = await db.time_corrections.find(q, {"_id": 0}).sort("created_at", -1).to_list(int(limit))
+    return rows
+
+
+@api.post("/time-corrections/{corr_id}/approve")
+async def approve_time_correction(corr_id: str, user=Depends(current_user)):
+    """Second-side approval. Backend enforces: employee cannot approve the manager side,
+    manager cannot approve the employee side, nobody approves both sides alone."""
+    owner = ws(user)
+    corr = await db.time_corrections.find_one({"id": corr_id, "owner_id": owner}, {"_id": 0})
+    if not corr:
+        raise HTTPException(404, "Nie znaleziono korekty")
+    if corr["status"] not in CORR_PENDING_STATUSES:
+        raise HTTPException(409, "Ta korekta nie oczekuje już na akceptację")
+
+    now_iso = now_utc().isoformat()
+    actor = user.get("name") or user.get("email", "")
+    if corr["status"] == "PENDING_MANAGER":
+        if not is_admin(user):
+            raise HTTPException(403, "Tę korektę może zatwierdzić tylko właściciel/szef")
+        corr["manager_approved"] = True
+        corr["manager_approved_by"] = actor
+        corr["manager_approved_at"] = now_iso
+    else:  # PENDING_EMPLOYEE
+        if is_admin(user):
+            raise HTTPException(403, "Tę korektę musi zatwierdzić pracownik — szef nie może zatwierdzić za niego")
+        if user.get("staff_id") != corr["staff_id"]:
+            raise HTTPException(403, "Możesz zatwierdzać wyłącznie własne korekty")
+        corr["employee_approved"] = True
+        corr["employee_approved_by"] = actor
+        corr["employee_approved_at"] = now_iso
+
+    if corr["employee_approved"] and corr["manager_approved"]:
+        await _apply_correction(corr)
+        corr["status"] = "APPROVED"
+        corr["applied_at"] = now_iso
+    corr["history"] = (corr.get("history") or []) + [
+        {"at": now_iso, "by": actor, "action": "approved",
+         "detail": "zatwierdzone przez obie strony — korekta obowiązuje" if corr["status"] == "APPROVED" else "zatwierdzono jedną stronę"}
+    ]
+    await db.time_corrections.update_one({"id": corr_id}, {"$set": {k: v for k, v in corr.items() if k != "id"}})
+    await log_change(user, "update", "time_correction", corr_id,
+                     f"Zatwierdzono korektę czasu ({corr['staff_name']}) — status {corr['status']}")
+    return _corr_view(corr)
+
+
+@api.post("/time-corrections/{corr_id}/reject")
+async def reject_time_correction(corr_id: str, user=Depends(current_user)):
+    owner = ws(user)
+    corr = await db.time_corrections.find_one({"id": corr_id, "owner_id": owner}, {"_id": 0})
+    if not corr:
+        raise HTTPException(404, "Nie znaleziono korekty")
+    if corr["status"] not in CORR_PENDING_STATUSES:
+        raise HTTPException(409, "Ta korekta nie oczekuje już na decyzję")
+    # only the side whose approval is pending may reject
+    if corr["status"] == "PENDING_MANAGER" and not is_admin(user):
+        raise HTTPException(403, "Odrzucić może tylko właściciel/szef")
+    if corr["status"] == "PENDING_EMPLOYEE":
+        if is_admin(user):
+            raise HTTPException(403, "Odrzucić może tylko pracownik, którego dotyczy korekta")
+        if user.get("staff_id") != corr["staff_id"]:
+            raise HTTPException(403, "Możesz odrzucać wyłącznie własne korekty")
+    now_iso = now_utc().isoformat()
+    actor = user.get("name") or user.get("email", "")
+    updates = {"status": "REJECTED", "rejected_by": actor, "rejected_at": now_iso,
+               "history": (corr.get("history") or []) + [{"at": now_iso, "by": actor, "action": "rejected", "detail": "korekta odrzucona — obowiązuje poprzedni czas"}]}
+    await db.time_corrections.update_one({"id": corr_id}, {"$set": updates})
+    if corr.get("entry_id"):
+        await db.time_entries.update_one({"id": corr["entry_id"]}, {"$set": {"pending_correction_id": None}})
+    await log_change(user, "update", "time_correction", corr_id, f"Odrzucono korektę czasu ({corr['staff_name']})")
+    return {"ok": True, "status": "REJECTED"}
+
+
+@api.post("/time-corrections/{corr_id}/cancel")
+async def cancel_time_correction(corr_id: str, user=Depends(current_user)):
+    owner = ws(user)
+    corr = await db.time_corrections.find_one({"id": corr_id, "owner_id": owner}, {"_id": 0})
+    if not corr:
+        raise HTTPException(404, "Nie znaleziono korekty")
+    if corr["status"] not in CORR_PENDING_STATUSES:
+        raise HTTPException(409, "Ta korekta nie oczekuje już na decyzję")
+    if corr.get("requested_by_user_id") != user["id"]:
+        raise HTTPException(403, "Wycofać wniosek może tylko osoba, która go zgłosiła")
+    now_iso = now_utc().isoformat()
+    actor = user.get("name") or user.get("email", "")
+    await db.time_corrections.update_one({"id": corr_id}, {"$set": {
+        "status": "CANCELLED", "cancelled_at": now_iso,
+        "history": (corr.get("history") or []) + [{"at": now_iso, "by": actor, "action": "cancelled", "detail": "wniosek wycofany"}],
+    }})
+    if corr.get("entry_id"):
+        await db.time_entries.update_one({"id": corr["entry_id"]}, {"$set": {"pending_correction_id": None}})
+    await log_change(user, "update", "time_correction", corr_id, "Wycofano wniosek o korektę czasu")
+    return {"ok": True, "status": "CANCELLED"}
+
+
+@api.get("/time/team")
+async def time_team(user=Depends(require_admin), date: str = ""):
+    """Admin view 'Czas pracy zespołu': per staff — planned shift vs actual time for a day."""
+    owner = ws(user)
+    date = date or now_utc().date().isoformat()
+    staff_rows = await db.staff.find({"owner_id": owner}, {"_id": 0, "id": 1, "name": 1, "role": 1}).to_list(300)
+    smap = {s["id"]: s for s in staff_rows}
+    # planned from event shifts that day
+    planned: Dict[str, list] = {}
+    async for ev in db.events.find(
+        {"owner_id": owner, "date": date, "status": {"$ne": "anulowana"}},
+        {"_id": 0, "id": 1, "name": 1, "time_start": 1, "time_end": 1, "shifts": 1},
+    ):
+        for sh in (ev.get("shifts") or []):
+            planned.setdefault(sh.get("staff_id"), []).append({
+                "event_id": ev["id"], "event_name": ev.get("name") or "",
+                "event_time": f"{ev.get('time_start') or ''}–{ev.get('time_end') or ''}",
+                "time_start": sh.get("time_start") or "", "time_end": sh.get("time_end") or "",
+                "hours": sh.get("hours"), "role": sh.get("role") or "", "note": sh.get("note") or "",
+            })
+    # actual entries that day + open sessions
+    entries: Dict[str, list] = {}
+    async for e in db.time_entries.find(
+        {"owner_id": owner, "deleted": {"$ne": True},
+         "$or": [{"start_at": {"$gte": date, "$lt": date + "T23:59:59.999"}}, {"end_at": None}]},
+        {"_id": 0},
+    ):
+        entries.setdefault(e.get("staff_id"), []).append(e)
+    # pending corrections per staff
+    pending: Dict[str, int] = {}
+    async for c in db.time_corrections.find(
+        {"owner_id": owner, "status": {"$in": list(CORR_PENDING_STATUSES)}}, {"_id": 0, "staff_id": 1}):
+        pending[c["staff_id"]] = pending.get(c["staff_id"], 0) + 1
+
+    rows = []
+    for sid in set(list(planned.keys()) + list(entries.keys()) + list(pending.keys())):
+        st = smap.get(sid)
+        if not st:
+            continue
+        ent = sorted(entries.get(sid, []), key=lambda x: x.get("start_at") or "")
+        active = next((e for e in ent if not e.get("end_at")), None)
+        actual_hours = round(sum(float(e.get("hours") or 0) for e in ent if e.get("end_at")), 3)
+        planned_hours = round(sum(float(p.get("hours") or 0) for p in planned.get(sid, [])), 3)
+        rows.append({
+            "staff_id": sid, "name": st.get("name") or "", "role": st.get("role") or "",
+            "planned": planned.get(sid, []), "entries": ent, "active": active,
+            "planned_hours": planned_hours, "actual_hours": actual_hours,
+            "diff_minutes": round((actual_hours - planned_hours) * 60) if planned_hours else None,
+            "pending_corrections": pending.get(sid, 0),
+        })
+    rows.sort(key=lambda r: r["name"])
+    pending_total = await db.time_corrections.count_documents(
+        {"owner_id": owner, "status": "PENDING_MANAGER"})
+    return {"date": date, "rows": rows, "corrections_awaiting_manager": pending_total}
 
 
 # ---------- Payroll: weekly settlement ----------
@@ -1393,7 +1718,7 @@ async def payroll_summary(user=Depends(require_admin), date_from: str = "", date
     Sums CLOSED time entries; each staff's `hourly_rate` × total hours = amount to pay.
     """
     owner = ws(user)
-    q: dict = {"owner_id": owner, "end_at": {"$ne": None}}
+    q: dict = {"owner_id": owner, "end_at": {"$ne": None}, "deleted": {"$ne": True}}
     if unpaid_only:
         q["paid"] = {"$ne": True}
     if date_from or date_to:
@@ -1416,9 +1741,17 @@ async def payroll_summary(user=Depends(require_admin), date_from: str = "", date
         row["hours"] += float(e.get("hours") or 0)
         row["entries"].append(e.get("id"))
     rows = list(by_staff.values())
+    # payroll must NOT silently change on pending corrections — flag them instead
+    pending_by_staff: dict = {}
+    async for c in db.time_corrections.find(
+        {"owner_id": owner, "status": {"$in": ["PENDING_EMPLOYEE", "PENDING_MANAGER"]}},
+        {"_id": 0, "staff_id": 1},
+    ):
+        pending_by_staff[c["staff_id"]] = pending_by_staff.get(c["staff_id"], 0) + 1
     for r in rows:
         r["hours"] = round(r["hours"], 3)
         r["amount"] = round(r["hours"] * r["hourly_rate"], 2)
+        r["pending_corrections"] = pending_by_staff.get(r["staff_id"], 0)
     rows.sort(key=lambda r: r["name"])
     total = round(sum(r["amount"] for r in rows), 2)
     return {"date_from": date_from, "date_to": date_to, "total": total, "staff": rows}
@@ -1437,6 +1770,7 @@ class PayrollMarkPaidIn(BaseModel):
 async def payroll_mark_paid(body: PayrollMarkPaidIn, user=Depends(require_admin)):
     owner = ws(user)
     q: dict = {"owner_id": owner, "end_at": {"$ne": None}, "paid": {"$ne": True},
+               "deleted": {"$ne": True},
                "start_at": {"$gte": body.date_from, "$lt": body.date_to + "T23:59:59"}}
     if body.staff_id: q["staff_id"] = body.staff_id
     entries = await db.time_entries.find(q, {"_id": 0}).to_list(5000)

@@ -478,3 +478,19 @@ Polish mobile app for event organizers to manage:
 - UI: Finanse → tile "Import kosztów" → /import-kosztow screen (report chips, pending cards with editable
   amount/category, event candidate picker, action buttons). Verified working.
 - NOTE: import ran on PREVIEW DB. Owner account for real data: piotreck85@gmail.com (password unknown to agent).
+
+## Iteration (Jun 2026) — Moduł czasu pracy: plan + korekty dwustronne
+- StaffShift model extended: role, note (+extra allow); planned shift hours independent of event hours
+- time_entries: soft-delete (deleted flag), pending_correction_id, corrected, original_start_at/end_at
+- NEW collection `time_corrections`: statuses PENDING_EMPLOYEE/PENDING_MANAGER/APPROVED/REJECTED/CANCELLED,
+  full audit (original/proposed times, requester, approvals both sides, reason, history[])
+- BACKEND-ENFORCED two-sided approval: PATCH /time-entries start/end → 409; DELETE closed entry → 409;
+  employee can't approve manager side & vice versa; staff only own corrections
+- Endpoints: POST/GET /time-corrections, POST .../{id}/approve|reject|cancel, GET /time/team (admin day view)
+- Payroll: excludes deleted, pending corrections flagged (pending_corrections) — never silently change pay
+- Frontend: grafik.tsx (TWÓJ CZAS PRACY banner, correction quick buttons + Korekty badge),
+  /korekty-czasu (staff form: popraw START/STOP, dodaj wpis; approval lists both roles),
+  /czas-zespolu (admin: plan vs faktycznie, diff, PRACA TRWA, propose correction per entry),
+  wiecej.tsx row "Czas pracy zespołu", obecnosc.tsx correction badges, event/[id].tsx shift role+note inputs
+- Tests: /app/backend/tests/test_time_corrections_e2e.py — 32/32 (all 11 spec scenarios + payroll rules)
+- No destructive migration; legacy time_entries compatible (verified in tests)

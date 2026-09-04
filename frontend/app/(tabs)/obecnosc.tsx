@@ -115,7 +115,11 @@ export default function ObecnoscScreen() {
               <Text style={s.date}>{fmtDate(e.start_at)}</Text>
               <Text style={s.meta}>Wejście: {fmtTime(e.start_at)} · Wyjście: {fmtTime(e.end_at)}</Text>
               {e.note ? <Text style={s.note}>{e.note}</Text> : null}
-              {e.manual ? <Text style={s.manual}>· korekta administratora</Text> : null}
+              {e.pending_correction_id ? (
+                <Text style={{ color: "#B45309", fontSize: 11, fontWeight: "800", marginTop: 2 }}>⏳ Czas oczekuje na zatwierdzenie korekty</Text>
+              ) : e.corrected ? (
+                <Text style={{ color: theme.color.brand, fontSize: 11, fontWeight: "700", marginTop: 2 }}>✓ po korekcie (zatwierdzona przez obie strony)</Text>
+              ) : e.manual ? <Text style={s.manual}>· wpis ręczny</Text> : null}
             </View>
             <View style={{ alignItems: "flex-end" }}>
               {e.end_at ? (

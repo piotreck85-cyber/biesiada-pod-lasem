@@ -21,7 +21,8 @@ function AuthGate() {
   useEffect(() => {
     if (loading) return;
     const inAuth = segments[0] === "(auth)";
-    if (!user && !inAuth) router.replace("/(auth)/login");
+    const isPublicRegulamin = segments[0] === "regulamin";
+    if (!user && !inAuth && !isPublicRegulamin) router.replace("/(auth)/login");
     else if (user && inAuth) {
       const home = (user as any)?.role === "staff" ? "/(tabs)/grafik" : "/(tabs)/kalendarz";
       router.replace(home);

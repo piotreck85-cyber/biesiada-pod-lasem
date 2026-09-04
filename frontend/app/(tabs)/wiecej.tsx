@@ -59,6 +59,11 @@ export default function WiecejScreen() {
             <Text style={s.rowLabel}>Grafik pracowników (miesiąc)</Text>
             <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
           </Pressable>
+          <Pressable onPress={() => router.push("/czas-zespolu" as any)} style={s.row} testID="wiecej-czas-zespolu">
+            <Feather name="clock" size={16} color={theme.color.onSurfaceSecondary} />
+            <Text style={s.rowLabel}>Czas pracy zespołu</Text>
+            <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
+          </Pressable>
           <Pressable onPress={() => router.push("/checklist-templates" as any)} style={s.row} testID="wiecej-templates">
             <Feather name="check-square" size={16} color={theme.color.onSurfaceSecondary} />
             <Text style={s.rowLabel}>Szablony zadań (checklisty)</Text>

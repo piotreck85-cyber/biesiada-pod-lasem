@@ -86,6 +86,14 @@ export default function GrafikScreen() {
     setYm(({ y, m }) => { const d = new Date(y, m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() }; });
   };
 
+  // pending corrections awaiting MY approval (manager proposed a change)
+  const [pendingMy, setPendingMy] = useState(0);
+  useEffect(() => {
+    api.timeCorrections({ status: "PENDING_EMPLOYEE" })
+      .then((r: any) => setPendingMy(Array.isArray(r) ? r.length : 0))
+      .catch(() => {});
+  }, [loading]);
+
   const load = useCallback(async () => {
     try {
       const [sched, mine]: any[] = await Promise.all([
@@ -179,6 +187,17 @@ export default function GrafikScreen() {
           </View>
         ) : null}
       </View>
+      {ev.my_shift?.time_start ? (
+        <View style={s.planBanner}>
+          <Feather name="clock" size={14} color="#fff" />
+          <Text style={s.planBannerText}>
+            TWÓJ CZAS PRACY: {ev.my_shift.time_start}{ev.my_shift.time_end ? `–${ev.my_shift.time_end}` : ""}
+          </Text>
+        </View>
+      ) : null}
+      {ev.my_shift?.note ? (
+        <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 4 }}>📝 {ev.my_shift.note}</Text>
+      ) : null}
       {ev.notes_public ? (
         <View style={s.notesBox}>
           <Feather name="file-text" size={12} color={v2.color.info} />
@@ -288,6 +307,21 @@ export default function GrafikScreen() {
           <Pressable onPress={() => router.push("/obecnosc")} style={s.linkBtn}>
             <Text style={s.linkBtnText}>Zobacz moją historię obecności ›</Text>
           </Pressable>
+          <View style={{ flexDirection: "row", gap: 6, marginTop: 4 }}>
+            <Pressable
+              testID="grafik-report-correction"
+              onPress={() => router.push((openSession ? `/korekty-czasu?mode=stop&entry=${openSession.id}` : "/korekty-czasu?mode=start") as any)}
+              style={s.corrBtn}
+            >
+              <Feather name="alert-circle" size={13} color="#B45309" />
+              <Text style={s.corrBtnText} numberOfLines={1}>
+                {openSession ? "Popraw godzinę zakończenia" : "Zgłoś brak rozpoczęcia pracy"}
+              </Text>
+            </Pressable>
+            <Pressable testID="grafik-open-corrections" onPress={() => router.push("/korekty-czasu" as any)} style={s.corrLink}>
+              <Text style={s.corrLinkText}>Korekty{pendingMy > 0 ? ` (${pendingMy})` : ""} ›</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* View toggle: Lista | Miesiąc */}
@@ -519,6 +553,18 @@ const s = StyleSheet.create({
   gcellSel: { backgroundColor: v2.color.forest },
   gcellNum: { color: v2.color.text, fontSize: 13 },
   gcellDot: { width: 5, height: 5, borderRadius: 999, backgroundColor: v2.color.forest, marginTop: 2 },
+  planBanner: {
+    flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10,
+    backgroundColor: v2.color.forest, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10,
+  },
+  planBannerText: { color: "#fff", fontSize: 13, fontWeight: "900", letterSpacing: 0.3 },
+  corrBtn: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 9, borderRadius: 9, backgroundColor: "#FEF3C7", borderWidth: 1, borderColor: "#F59E0B66",
+  },
+  corrBtnText: { color: "#92400E", fontSize: 11, fontWeight: "800" },
+  corrLink: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 9, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
+  corrLinkText: { color: v2.color.forest, fontSize: 11, fontWeight: "800" },
 
   // Header (dark forest)
   header: {

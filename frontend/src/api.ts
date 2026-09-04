@@ -250,6 +250,20 @@ export const api = {
   costImportResolve: (rec_id: string, data: { action: string; event_id?: string; amount?: number; category?: string }) =>
     request(`/cost-import/${rec_id}/resolve`, { method: "POST", body: JSON.stringify(data) }),
   listInvestments: () => request("/investments"),
+  // Time corrections (dwustronna akceptacja)
+  timeCorrectionCreate: (data: { entry_id?: string; corr_type: string; proposed_start?: string; proposed_end?: string; reason: string; staff_id?: string; event_id?: string }) =>
+    request("/time-corrections", { method: "POST", body: JSON.stringify(data) }),
+  timeCorrections: (params?: { status?: string; staff_id?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    if (params?.staff_id) q.set("staff_id", params.staff_id);
+    const qs = q.toString();
+    return request(`/time-corrections${qs ? `?${qs}` : ""}`);
+  },
+  timeCorrectionApprove: (id: string) => request(`/time-corrections/${id}/approve`, { method: "POST" }),
+  timeCorrectionReject: (id: string) => request(`/time-corrections/${id}/reject`, { method: "POST" }),
+  timeCorrectionCancel: (id: string) => request(`/time-corrections/${id}/cancel`, { method: "POST" }),
+  timeTeam: (date?: string) => request(`/time/team${date ? `?date=${date}` : ""}`),
   mySchedule: (from?: string, to?: string) => {
     const p = new URLSearchParams();
     if (from) p.set("date_from", from);
