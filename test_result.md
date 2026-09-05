@@ -397,4 +397,16 @@ agent_communication:
           2. Modal opens on bell click; alert rows navigate; dismiss works.
           3. Days with mixed statuses show correct dot colors (create 2 events on same day: one
              potwierdzona (green) + one anulowana (red) → two dots visible).
-          4. Statystyki → Google Calendar card shows a URL; Copy button copies to clipboard.
+          4. Statystyki → Google Calendar card shows a URL; Copy button copies to clipboard.    - agent: "main"
+      message: |
+        Iteration 22 — Staff Availability module (Dostępność pracowników).
+        Backend (server.py): collection staff_availability; endpoints GET/PUT /api/availability/my[/{date}],
+        GET /api/availability/team, GET /api/availability/for-date (admin). POST/PUT /api/events now
+        return 400 when a NEWLY assigned staff declared 'unavailable' for the event date (all-day always;
+        partial hours only on window overlap; date change re-checks all shifts). Existing assignments are
+        never blocked. Backend E2E: /app/backend/tests/test_availability_e2e.py — 22/22 PASSED.
+        Frontend: src/components/AvailabilityCalendar.tsx (staff, in Moja praca → toggle "Dostępność",
+        testIDs grafik-view-dostepnosc, avail-day-{date}, avail-status-*, avail-save);
+        app/dostepnosc-zespolu.tsx (admin, entry Więcej → "Dostępność zespołu", testID wiecej-dostepnosc);
+        event/[id].tsx staff picker pills + block Alert + assigned-shift warning; save() error Alert fix;
+        shift role/note now persisted.

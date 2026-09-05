@@ -270,6 +270,22 @@ export const api = {
     if (to) p.set("date_to", to);
     return request(`/staff/my/schedule${p.toString() ? `?${p.toString()}` : ""}`);
   },
+  // Staff availability (Dostępność pracowników)
+  availabilityMy: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set("date_from", from);
+    if (to) p.set("date_to", to);
+    return request(`/availability/my${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  availabilitySet: (date: string, data: { status: string; all_day?: boolean; time_from?: string; time_to?: string; note?: string }) =>
+    request(`/availability/my/${date}`, { method: "PUT", body: JSON.stringify(data) }),
+  availabilityTeam: (from?: string, to?: string) => {
+    const p = new URLSearchParams();
+    if (from) p.set("date_from", from);
+    if (to) p.set("date_to", to);
+    return request(`/availability/team${p.toString() ? `?${p.toString()}` : ""}`);
+  },
+  availabilityForDate: (date: string) => request(`/availability/for-date?date=${encodeURIComponent(date)}`),
   timeStart: (data?: { event_id?: string; note?: string }) =>
     request("/time-entries/start", { method: "POST", body: JSON.stringify(data || {}) }),
   timeStop: (data?: { entry_id?: string; note?: string }) =>

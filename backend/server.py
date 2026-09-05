@@ -961,6 +961,8 @@ async def delete_staff(staff_id: str, user=Depends(current_user)):
     await db.staff.delete_one({"id": staff_id, "owner_id": ws(user)})
     # remove linked staff login (User) if any
     await db.users.delete_many({"staff_id": staff_id, "workspace_id": ws(user)})
+    # remove availability declarations of the deleted staff
+    await db.staff_availability.delete_many({"staff_id": staff_id, "owner_id": ws(user)})
     if doc: await log_change(user, "delete", "staff", staff_id, f"Usunięto pracownika: {doc.get('name','')}")
     return {"ok": True}
 
@@ -1892,6 +1894,173 @@ async def delete_asset(asset_id: str, user=Depends(require_admin)):
 
 
 # ---------- Staff-scoped views (own schedule / events) ----------
+# ---------- Staff availability (Dostępność pracowników) ----------
+# Collection `staff_availability`: one doc per (owner_id, staff_id, date).
+# Absence of a doc = "brak deklaracji" (no declaration).
+AVAIL_STATUSES = {"available", "unavailable"}
+
+
+class AvailabilitySetIn(BaseModel):
+    status: str                    # "available" | "unavailable" | "none" (none = usuń deklarację)
+    all_day: bool = True
+    time_from: Optional[str] = ""  # HH:MM — wymagane gdy all_day=False
+    time_to: Optional[str] = ""
+    note: Optional[str] = ""
+
+
+def _hhmm_min(t: Optional[str]) -> Optional[int]:
+    """Parse 'HH:MM' → minutes since midnight; None when invalid/empty."""
+    try:
+        h, m = (t or "").strip().split(":")
+        v = int(h) * 60 + int(m)
+        return v if 0 <= v <= 24 * 60 else None
+    except Exception:
+        return None
+
+
+def _windows_overlap(a_from, a_to, b_from, b_to) -> bool:
+    """Minute-based window overlap. Unknown windows are treated as overlapping (safe)."""
+    if a_from is None or a_to is None or b_from is None or b_to is None:
+        return True
+    if a_to <= a_from:
+        a_to += 24 * 60  # overnight
+    if b_to <= b_from:
+        b_to += 24 * 60
+    return a_from < b_to and b_from < a_to
+
+
+async def _availability_for_date(owner_id: str, date: str) -> dict:
+    rows = await db.staff_availability.find(
+        {"owner_id": owner_id, "date": date}, {"_id": 0}
+    ).to_list(500)
+    return {r["staff_id"]: r for r in rows}
+
+
+async def _availability_conflicts(owner_id: str, date: str, shifts: list,
+                                  ev_start: str = "", ev_end: str = "",
+                                  only_staff_ids: Optional[set] = None) -> list:
+    """Conflicts between event shifts and 'unavailable' declarations for the date.
+
+    only_staff_ids — restrict check to these staff (e.g. only NEWLY added on update,
+    because staff may declare unavailability AFTER being assigned — existing
+    assignments stay untouched, per business rule)."""
+    if not shifts or not date:
+        return []
+    decls = await _availability_for_date(owner_id, date)
+    if not decls:
+        return []
+    ids = [sh.get("staff_id") for sh in shifts if sh.get("staff_id")]
+    names = {}
+    async for st in db.staff.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1}):
+        names[st["id"]] = st.get("name", "?")
+    out = []
+    for sh in shifts:
+        sid = sh.get("staff_id")
+        if not sid or (only_staff_ids is not None and sid not in only_staff_ids):
+            continue
+        d = decls.get(sid)
+        if not d or d.get("status") != "unavailable":
+            continue
+        if d.get("all_day", True):
+            out.append({"staff_id": sid, "name": names.get(sid, "?"), "range": "cały dzień"})
+            continue
+        s_from = _hhmm_min(sh.get("time_start") or ev_start)
+        s_to = _hhmm_min(sh.get("time_end") or ev_end)
+        u_from = _hhmm_min(d.get("time_from"))
+        u_to = _hhmm_min(d.get("time_to"))
+        if _windows_overlap(s_from, s_to, u_from, u_to):
+            out.append({"staff_id": sid, "name": names.get(sid, "?"),
+                        "range": f"{d.get('time_from', '')}–{d.get('time_to', '')}"})
+    return out
+
+
+def _availability_block_msg(conflicts: list) -> str:
+    parts = [f"{c['name']} ({c['range']})" for c in conflicts]
+    return "Nie można przypisać do imprezy – pracownik zgłosił brak dostępności: " + ", ".join(parts)
+
+
+@api.get("/availability/my")
+async def availability_my(user=Depends(current_user), date_from: str = "", date_to: str = ""):
+    """Own availability declarations of the logged-in staff member."""
+    sid = user.get("staff_id")
+    if not sid:
+        return []
+    q: dict = {"owner_id": ws(user), "staff_id": sid}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    return await db.staff_availability.find(q, {"_id": 0}).sort("date", 1).to_list(400)
+
+
+@api.put("/availability/my/{date}")
+async def availability_set(date: str, body: AvailabilitySetIn, user=Depends(current_user)):
+    """Staff sets own availability for a date. status='none' removes the declaration.
+    Declaration can be changed anytime — existing event assignments stay untouched."""
+    sid = user.get("staff_id")
+    if not sid:
+        raise HTTPException(403, "Tylko pracownik z przypisanym profilem może deklarować dostępność")
+    try:
+        datetime.strptime(date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(400, "Nieprawidłowa data (wymagany format YYYY-MM-DD)")
+    st = (body.status or "").strip().lower()
+    key = {"owner_id": ws(user), "staff_id": sid, "date": date}
+    if st in ("none", ""):
+        await db.staff_availability.delete_one(key)
+        await log_change(user, "delete", "availability", date, f"Usunięto deklarację dostępności {date}")
+        return {"ok": True, "date": date, "status": "none"}
+    if st not in AVAIL_STATUSES:
+        raise HTTPException(400, "Status musi być: available | unavailable | none")
+    all_day = bool(body.all_day)
+    if not all_day and (_hhmm_min(body.time_from) is None or _hhmm_min(body.time_to) is None):
+        raise HTTPException(400, "Podaj godziny od–do w formacie HH:MM")
+    await db.staff_availability.update_one(key, {
+        "$set": {
+            "status": st,
+            "all_day": all_day,
+            "time_from": (body.time_from or "").strip() if not all_day else "",
+            "time_to": (body.time_to or "").strip() if not all_day else "",
+            "note": (body.note or "").strip(),
+            "updated_at": now_utc().isoformat(),
+            "updated_by": user.get("id"),
+        },
+        "$setOnInsert": {"id": str(uuid.uuid4()), "created_at": now_utc().isoformat()},
+    }, upsert=True)
+    label = "Dostępny" if st == "available" else "Niedostępny"
+    rng = "cały dzień" if all_day else f"{body.time_from}–{body.time_to}"
+    await log_change(user, "update", "availability", date, f"Deklaracja dostępności {date}: {label} ({rng})")
+    return await db.staff_availability.find_one(key, {"_id": 0})
+
+
+@api.get("/availability/team")
+async def availability_team(user=Depends(require_admin), date_from: str = "", date_to: str = ""):
+    """All staff declarations in a date range (admin) — enriched with staff name/role."""
+    q: dict = {"owner_id": ws(user)}
+    if date_from or date_to:
+        q["date"] = {}
+        if date_from: q["date"]["$gte"] = date_from
+        if date_to:   q["date"]["$lte"] = date_to
+    rows = await db.staff_availability.find(q, {"_id": 0}).sort("date", 1).to_list(2000)
+    ids = list({r["staff_id"] for r in rows})
+    smap = {}
+    if ids:
+        async for st in db.staff.find({"id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "role": 1}):
+            smap[st["id"]] = st
+    for r in rows:
+        r["staff_name"] = (smap.get(r["staff_id"]) or {}).get("name", "?")
+        r["staff_role"] = (smap.get(r["staff_id"]) or {}).get("role", "")
+    return rows
+
+
+@api.get("/availability/for-date")
+async def availability_for_date_ep(user=Depends(require_admin), date: str = ""):
+    """Map staff_id → declaration for a single date (used by the event staff picker)."""
+    if not date:
+        raise HTTPException(400, "Podaj datę (?date=YYYY-MM-DD)")
+    return await _availability_for_date(ws(user), date)
+
+
 @api.get("/staff/my/schedule")
 async def my_schedule(user=Depends(current_user), date_from: str = "", date_to: str = ""):
     """Return events where the logged-in staff member is assigned via shifts.
@@ -1967,6 +2136,13 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
 @api.post("/events")
 async def create_event(body: EventIn, user=Depends(require_admin)):
     doc = body.dict()
+    # BLOKADA: nie można przypisać pracownika, który zgłosił brak dostępności
+    conflicts = await _availability_conflicts(
+        ws(user), doc.get("date") or "", doc.get("shifts") or [],
+        doc.get("time_start") or "", doc.get("time_end") or "",
+    )
+    if conflicts:
+        raise HTTPException(400, _availability_block_msg(conflicts))
     doc["id"] = str(uuid.uuid4())
     doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
     doc["created_at"] = now_utc().isoformat()
@@ -2406,6 +2582,22 @@ async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)
     prev_status = (prev or {}).get("status") or ""
     new_status = (body.status or "")
     updates = body.dict()
+    # BLOKADA dostępności: sprawdzamy tylko NOWO dodanych pracowników (albo wszystkich,
+    # gdy zmieniono datę). Istniejące przypisania zostają — pracownik może zmienić
+    # deklarację w każdej chwili, ale to nie zrywa wcześniejszych przypisań.
+    if prev:
+        new_shifts = updates.get("shifts") or []
+        prev_ids = {sh.get("staff_id") for sh in (prev.get("shifts") or [])}
+        date_changed = (prev.get("date") or "") != (updates.get("date") or "")
+        only = None if date_changed else ({sh.get("staff_id") for sh in new_shifts} - prev_ids)
+        if only is None or only:
+            conflicts = await _availability_conflicts(
+                ws(user), updates.get("date") or "", new_shifts,
+                updates.get("time_start") or "", updates.get("time_end") or "",
+                only_staff_ids=only,
+            )
+            if conflicts:
+                raise HTTPException(400, _availability_block_msg(conflicts))
     # If status moved OUT of tracked set, dismiss any existing alerts for this event
     if prev_status in _TRACKED_STATUSES and new_status not in _TRACKED_STATUSES:
         updates["alert_sent"] = False  # reset for future re-tracking if flipped back

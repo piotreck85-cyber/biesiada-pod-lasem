@@ -9,6 +9,7 @@ import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
 import { MONTHS_PL } from "@/src/theme";
+import AvailabilityCalendar from "@/src/components/AvailabilityCalendar";
 
 type Ev = {
   id: string; date: string; name: string; time_start?: string; time_end?: string;
@@ -62,7 +63,7 @@ export default function GrafikScreen() {
   const tomorrow = useMemo(() => addDaysISO(today, 1), [today]);
 
   // ---- Month view (own schedule only) ----
-  const [view, setView] = useState<"lista" | "miesiac">("lista");
+  const [view, setView] = useState<"lista" | "miesiac" | "dostepnosc">("lista");
   const [ym, setYm] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const [monthEvents, setMonthEvents] = useState<Ev[]>([]);
   const [selDay, setSelDay] = useState<string | null>(null);
@@ -334,9 +335,15 @@ export default function GrafikScreen() {
             <Feather name="calendar" size={13} color={view === "miesiac" ? "#fff" : v2.color.forest} />
             <Text style={[s.viewToggleText, view === "miesiac" && s.viewToggleTextActive]}>Miesiąc</Text>
           </Pressable>
+          <Pressable onPress={() => setView("dostepnosc")} style={[s.viewToggleBtn, view === "dostepnosc" && s.viewToggleBtnActive]} testID="grafik-view-dostepnosc">
+            <Feather name="user-check" size={13} color={view === "dostepnosc" ? "#fff" : v2.color.forest} />
+            <Text style={[s.viewToggleText, view === "dostepnosc" && s.viewToggleTextActive]}>Dostępność</Text>
+          </Pressable>
         </View>
 
-        {view === "miesiac" ? (
+        {view === "dostepnosc" ? (
+          <AvailabilityCalendar />
+        ) : view === "miesiac" ? (
           <>
             {/* Month switcher */}
             <View style={s.monthRow}>

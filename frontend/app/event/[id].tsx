@@ -21,7 +21,7 @@ import EventPayments from "@/src/components/EventPayments";
 import ManualDiscountModal from "@/src/components/ManualDiscountModal";
 
 type Cost = { label: string; amount: number };
-type Shift = { staff_id: string; hours: number; time_start?: string; time_end?: string };
+type Shift = { staff_id: string; hours: number; time_start?: string; time_end?: string; role?: string; note?: string };
 
 function todayIso() {
   const d = new Date();
@@ -110,6 +110,17 @@ export default function EventDetail() {
   const [replySuggestions, setReplySuggestions] = useState<any[]>([]);
   const [sugEdit, setSugEdit] = useState<Record<string, string>>({});
   const [sugBusy, setSugBusy] = useState(false);
+
+  // ---- Dostępność pracowników dla daty imprezy (staff_id -> deklaracja) ----
+  const [availByStaff, setAvailByStaff] = useState<Record<string, any>>({});
+  useEffect(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) { setAvailByStaff({}); return; }
+    let cancelled = false;
+    api.availabilityForDate(date)
+      .then((r: any) => { if (!cancelled) setAvailByStaff(r && typeof r === "object" && !Array.isArray(r) ? r : {}); })
+      .catch(() => { if (!cancelled) setAvailByStaff({}); });
+    return () => { cancelled = true; };
+  }, [date]);
 
   const fmtStamp = (iso?: string | null) => {
     try { return iso ? new Date(iso).toLocaleString("pl-PL", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""; }
@@ -429,6 +440,8 @@ export default function EventDetail() {
         hours: Number(sh.hours) || 0,
         time_start: sh.time_start || "",
         time_end: sh.time_end || "",
+        role: sh.role || "",
+        note: sh.note || "",
       })),
       image_url: imageUrl,
     };
@@ -436,7 +449,10 @@ export default function EventDetail() {
       if (isNew) await api.createEvent(body);
       else await api.updateEvent(id as string, body);
       if (!opts.skipReturn) router.back();
-    } catch {} finally { if (!opts.skipReturn) setSaving(false); }
+    } catch (e: any) {
+      if (opts.skipReturn) throw e;
+      Alert.alert("Błąd zapisu", e?.message || "Nie udało się zapisać imprezy.");
+    } finally { if (!opts.skipReturn) setSaving(false); }
   };
 
   const refreshPreEventEmail = async () => {
@@ -2083,6 +2099,17 @@ export default function EventDetail() {
                       <Feather name="x" size={16} color={v2.color.textMuted} />
                     </Pressable>
                   </View>
+                  {availByStaff[sh.staff_id]?.status === "unavailable" ? (
+                    <View style={s.availWarn}>
+                      <Feather name="alert-triangle" size={13} color={v2.color.error} />
+                      <Text style={s.availWarnText}>
+                        Zgłoszony brak dostępności {availByStaff[sh.staff_id].all_day === false
+                          ? `w godz. ${availByStaff[sh.staff_id].time_from}–${availByStaff[sh.staff_id].time_to}`
+                          : "(cały dzień)"}
+                        {availByStaff[sh.staff_id].note ? ` · „${availByStaff[sh.staff_id].note}”` : ""}
+                      </Text>
+                    </View>
+                  ) : null}
                   <View style={s.shiftTimeRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={s.miniLabel}>Od</Text>
@@ -2212,16 +2239,54 @@ export default function EventDetail() {
           <View style={s.grip} />
           <Text style={s.sheetTitle}>Wybierz pracownika</Text>
           <ScrollView>
-            {availStaff.map(st => (
-              <Pressable key={st.id} testID={`picker-staff-${st.id}`} style={s.pickerRow} onPress={() => addStaff(st.id)}>
-                <View style={s.avatar}><Text style={s.avatarText}>{initials(st.name)}</Text></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.shiftName}>{st.name}</Text>
-                  <Text style={s.shiftRate}>{st.role || "—"}  ·  {formatPLN(st.hourly_rate)}/godz.</Text>
-                </View>
-                <Feather name="plus" size={18} color={v2.color.forest} />
-              </Pressable>
-            ))}
+            {availStaff.map(st => {
+              const decl = availByStaff[st.id];
+              const blockedAllDay = decl?.status === "unavailable" && decl?.all_day !== false;
+              const blockedPartial = decl?.status === "unavailable" && decl?.all_day === false;
+              const pill = !decl
+                ? { txt: "⚪ Brak deklaracji", bg: v2.color.cardMuted, fg: v2.color.textMuted }
+                : decl.status === "available"
+                  ? { txt: decl.all_day === false ? `🟢 Dostępny ${decl.time_from}–${decl.time_to}` : "🟢 Dostępny", bg: v2.color.successBg, fg: v2.color.success }
+                  : { txt: decl.all_day === false ? `🔴 Niedostępny ${decl.time_from}–${decl.time_to}` : "🔴 Niedostępny (cały dzień)", bg: v2.color.errorBg, fg: v2.color.error };
+              return (
+                <Pressable
+                  key={st.id}
+                  testID={`picker-staff-${st.id}`}
+                  style={[s.pickerRow, blockedAllDay && { opacity: 0.45 }]}
+                  onPress={() => {
+                    if (blockedAllDay) {
+                      Alert.alert(
+                        "Pracownik niedostępny",
+                        `${st.name} zgłosił(a) brak dostępności w tym dniu (cały dzień).${decl?.note ? `\n„${decl.note}”` : ""}\n\nNie można przypisać do imprezy.`
+                      );
+                      return;
+                    }
+                    if (blockedPartial) {
+                      Alert.alert(
+                        "Częściowa niedostępność",
+                        `${st.name} zgłosił(a) brak dostępności w godz. ${decl.time_from}–${decl.time_to}.${decl?.note ? `\n„${decl.note}”` : ""}\n\nMożesz przypisać tylko poza tymi godzinami — zapis zostanie zablokowany, jeśli zmiana nachodzi na te godziny.`,
+                        [
+                          { text: "Anuluj", style: "cancel" },
+                          { text: "Dodaj mimo to", onPress: () => addStaff(st.id) },
+                        ]
+                      );
+                      return;
+                    }
+                    addStaff(st.id);
+                  }}
+                >
+                  <View style={s.avatar}><Text style={s.avatarText}>{initials(st.name)}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.shiftName}>{st.name}</Text>
+                    <Text style={s.shiftRate}>{st.role || "—"}  ·  {formatPLN(st.hourly_rate)}/godz.</Text>
+                    <View style={[s.availPill, { backgroundColor: pill.bg }]}>
+                      <Text style={[s.availPillText, { color: pill.fg }]}>{pill.txt}</Text>
+                    </View>
+                  </View>
+                  <Feather name={blockedAllDay ? "slash" : "plus"} size={18} color={blockedAllDay ? v2.color.error : v2.color.forest} />
+                </Pressable>
+              );
+            })}
           </ScrollView>
         </View>
       </Modal>
@@ -2744,6 +2809,14 @@ const s = StyleSheet.create({
   grip: { alignSelf: "center", width: 40, height: 4, borderRadius: 2, backgroundColor: v2.color.borderStrong, marginBottom: 12 },
   sheetTitle: { color: v2.color.text, fontSize: 18, fontWeight: "800", marginBottom: 12 },
   pickerRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: v2.color.divider },
+  availPill: { alignSelf: "flex-start", marginTop: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
+  availPillText: { fontSize: 10, fontWeight: "800" },
+  availWarn: {
+    flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8,
+    padding: 8, borderRadius: 8, backgroundColor: v2.color.errorBg,
+    borderWidth: 1, borderColor: v2.color.error + "44",
+  },
+  availWarnText: { flex: 1, color: v2.color.error, fontSize: 11, fontWeight: "700" },
   imageBox: {
     height: 160, borderRadius: v2.radius.xl, backgroundColor: v2.color.cardMuted,
     overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: v2.color.border,

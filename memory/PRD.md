@@ -494,3 +494,27 @@ Polish mobile app for event organizers to manage:
   wiecej.tsx row "Czas pracy zespołu", obecnosc.tsx correction badges, event/[id].tsx shift role+note inputs
 - Tests: /app/backend/tests/test_time_corrections_e2e.py — 32/32 (all 11 spec scenarios + payroll rules)
 - No destructive migration; legacy time_entries compatible (verified in tests)
+
+## Iteration (Jun 2026) — Dostępność pracowników (Staff Availability)
+- New collection `staff_availability`: one doc per (owner_id, staff_id, date);
+  {status: available|unavailable, all_day, time_from/time_to (HH:MM), note, updated_at/by}.
+  No doc = "brak deklaracji". Cascade-deleted with staff.
+- Staff (Moja praca → toggle "Dostępność", `src/components/AvailabilityCalendar.tsx`):
+  month grid (green/red/neutral cells), tap future day → bottom sheet: 🟢 Dostępny / 🔴 Niedostępny /
+  ⚪ Brak deklaracji, switch "Cały dzień" vs hours HH:MM, note; list of month declarations.
+  Past days view-only. Staff can change declaration ANYTIME (existing assignments stay).
+- Endpoints: GET/PUT /api/availability/my[/{date}] (staff), GET /api/availability/team,
+  GET /api/availability/for-date?date= (admin only).
+- BACKEND-ENFORCED BLOCK (400) in POST/PUT /api/events: cannot assign staff who declared
+  unavailable — all-day always blocks; partial-day blocks only when shift window
+  (fallback: event window) overlaps; unknown windows treated as overlap (safe).
+  On UPDATE only NEWLY added staff are checked (date change re-checks all) — so a later
+  unavailable declaration never breaks saving an event with an existing assignment.
+- Admin UI: event/[id].tsx staff picker shows per-staff pill (🟢/🔴/⚪ + hours);
+  all-day unavailable = blocked with Alert; partial = confirm "Dodaj mimo to";
+  assigned shifts show red warning banner when staff declared unavailable.
+  save() now surfaces backend errors via Alert (was silently swallowed) and
+  persists shift role/note (previously dropped on save).
+- Admin screen /dostepnosc-zespolu (Więcej → "Dostępność zespołu"): month grid with
+  green/red dots, day detail = all staff with status pills, month list of unavailabilities.
+- Tests: /app/backend/tests/test_availability_e2e.py — 22/22.
