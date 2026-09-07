@@ -2403,6 +2403,112 @@ async def client_replies_scan_now(user=Depends(require_admin)):
     return await _creplies.scan_client_replies(db)
 
 
+# ---------- Etap 2 — AI draft replies to client emails ----------
+class SendClientReplyIn(BaseModel):
+    text: str
+    subject: Optional[str] = ""
+    to_email: Optional[str] = ""
+
+
+@api.post("/client-reply-suggestions/{sug_id}/draft-reply")
+async def draft_client_reply_ep(sug_id: str, user=Depends(current_user)):
+    """Generate an AI draft e-mail reply to the client's message (owner reviews & sends)."""
+    await _require_admin_or_partner(user)
+    sug = await db.client_reply_suggestions.find_one(
+        {"id": sug_id, "owner_id": ws(user), "status": {"$in": ["pending", "approved"]}}, {"_id": 0})
+    if not sug:
+        raise HTTPException(404, "Nie znaleziono sugestii")
+    ev = await db.events.find_one({"id": sug["event_id"], "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    draft = await _creplies.generate_reply_draft(ev, sug)
+    if not draft:
+        raise HTTPException(502, "Nie udało się wygenerować szkicu odpowiedzi (AI niedostępne)")
+    await db.client_reply_suggestions.update_one(
+        {"id": sug_id},
+        {"$set": {"reply_draft": draft, "reply_draft_at": now_utc().isoformat()}})
+    return {
+        "draft": draft,
+        "subject": f"Re: {pre_email.EMAIL_SUBJECT}",
+        "to_email": sug.get("from_email") or ev.get("client_email") or "",
+    }
+
+
+@api.post("/client-reply-suggestions/{sug_id}/send-reply")
+async def send_client_reply_ep(sug_id: str, body: SendClientReplyIn, user=Depends(current_user)):
+    """Send the (owner-approved) reply e-mail to the client via SMTP."""
+    await _require_admin_or_partner(user)
+    sug = await db.client_reply_suggestions.find_one(
+        {"id": sug_id, "owner_id": ws(user), "status": {"$in": ["pending", "approved"]}}, {"_id": 0})
+    if not sug:
+        raise HTTPException(404, "Nie znaleziono sugestii")
+    ev = await db.events.find_one({"id": sug["event_id"], "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    to = (body.to_email or sug.get("from_email") or ev.get("client_email") or "").strip()
+    if not to or "@" not in to:
+        raise HTTPException(400, "Brak adresu e-mail klienta")
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(400, "Treść odpowiedzi jest pusta")
+    subject = (body.subject or "").strip() or f"Re: {pre_email.EMAIL_SUBJECT}"
+    import asyncio as _aio
+    from offer_email import send_offer_email as _send
+    try:
+        await _aio.to_thread(_send, to_email=to, subject=subject, body_text=text)
+    except Exception as e:
+        raise HTTPException(500, f"Błąd wysyłki: {e}")
+    sent_by = user.get("name") or user.get("email", "")
+    await db.client_reply_suggestions.update_one(
+        {"id": sug_id},
+        {"$set": {"reply_sent_at": now_utc().isoformat(), "reply_sent_by": sent_by,
+                  "reply_sent_to": to, "reply_sent_text": text[:4000]}})
+    try:
+        await db.ai_email_logs.insert_one({
+            "id": str(uuid.uuid4()), "owner_id": ws(user), "event_id": ev["id"],
+            "kind": "client_reply_answer", "recipient": to, "subject": subject,
+            "status": "sent", "sent_at": now_utc().isoformat(), "sent_by": sent_by,
+        })
+    except Exception:
+        pass
+    await log_change(user, "update", "client_reply", sug_id, f"Wysłano odpowiedź do klienta ({to})")
+    return {"ok": True, "to": to}
+
+
+# ---------- Etap 3 — dokumenty PDF imprezy ----------
+@api.get("/events/{event_id}/pdf/confirmation")
+async def event_pdf_confirmation(event_id: str, user=Depends(require_admin)):
+    """Elegant client-facing event confirmation PDF (details + payments)."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    import event_pdfs as _epdf
+    pdf = _epdf.build_confirmation_pdf(ev, dinner_names=DEFAULT_DINNER_MENU)
+    from fastapi.responses import Response
+    await log_change(user, "update", "event", event_id, "Wygenerowano PDF: potwierdzenie imprezy")
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="Potwierdzenie-Biesiada-pod-Lasem.pdf"'})
+
+
+@api.get("/events/{event_id}/pdf/staff-card")
+async def event_pdf_staff_card(event_id: str, user=Depends(current_user)):
+    """Internal staff card PDF — organization, team, tasks. NO financial data."""
+    await _require_admin_or_partner(user)
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    staff_map = await load_owner_staff_map(ws(user))
+    checklist = await db.checklist_items.find(
+        {"event_id": event_id}, {"_id": 0, "title": 1, "done": 1, "done_by_name": 1, "order": 1}
+    ).sort("order", 1).to_list(200)
+    import event_pdfs as _epdf
+    pdf = _epdf.build_staff_card_pdf(ev, staff_map, checklist)
+    from fastapi.responses import Response
+    await log_change(user, "update", "event", event_id, "Wygenerowano PDF: karta dla obsługi")
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'inline; filename="Karta-obslugi.pdf"'})
+
+
 # ---------- Cost import (BPL_2026) — review & resolve ----------
 class CostResolveIn(BaseModel):
     action: str  # event | general | investment | settlement | reject

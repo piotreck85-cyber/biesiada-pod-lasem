@@ -483,6 +483,46 @@ export default function EventDetail() {
     }
   };
 
+  // ---- Etap 3: dokumenty PDF ----
+  const [pdfBusy, setPdfBusy] = useState<null | "conf" | "staff">(null);
+  const downloadEventPdf = async (kind: "conf" | "staff") => {
+    setPdfBusy(kind);
+    try {
+      const blob = kind === "conf"
+        ? await api.eventConfirmationPdf(id as string)
+        : await api.eventStaffCardPdf(id as string);
+      await openBlobPdf(blob, kind === "conf" ? "Potwierdzenie-Biesiada-pod-Lasem.pdf" : "Karta-obslugi.pdf");
+    } catch (e: any) {
+      Alert.alert("Błąd", e?.message || "Nie udało się wygenerować PDF.");
+    } finally { setPdfBusy(null); }
+  };
+
+  // ---- Etap 2: AI szkice odpowiedzi do klienta ----
+  const [sugReply, setSugReply] = useState<Record<string, { draft: string; subject: string; to: string; busy: boolean; sent?: string }>>({});
+  const generateReplyDraft = async (sug: any) => {
+    setSugReply(p => ({ ...p, [sug.id]: { draft: "", subject: "", to: "", busy: true } }));
+    try {
+      const r: any = await api.draftClientReply(sug.id);
+      setSugReply(p => ({ ...p, [sug.id]: { draft: r.draft || "", subject: r.subject || "", to: r.to_email || "", busy: false } }));
+    } catch (e: any) {
+      setSugReply(p => { const n = { ...p }; delete n[sug.id]; return n; });
+      Alert.alert("Błąd", e?.message || "Nie udało się wygenerować szkicu.");
+    }
+  };
+  const sendReply = async (sug: any) => {
+    const r = sugReply[sug.id];
+    if (!r?.draft.trim()) { Alert.alert("Błąd", "Treść odpowiedzi jest pusta"); return; }
+    setSugReply(p => ({ ...p, [sug.id]: { ...p[sug.id], busy: true } }));
+    try {
+      const res: any = await api.sendClientReply(sug.id, { text: r.draft.trim(), subject: r.subject.trim(), to_email: r.to });
+      setSugReply(p => ({ ...p, [sug.id]: { ...p[sug.id], busy: false, sent: res.to } }));
+      Alert.alert("Wysłano ✓", `Odpowiedź wysłana na ${res.to}`);
+    } catch (e: any) {
+      setSugReply(p => ({ ...p, [sug.id]: { ...p[sug.id], busy: false } }));
+      Alert.alert("Błąd wysyłki", e?.message || "");
+    }
+  };
+
   const previewPreEventRegulation = async () => {
     setPreEventEmailBusy(true);
     try {
@@ -811,6 +851,19 @@ export default function EventDetail() {
 
   const availStaff = staffAll.filter(s => !shifts.some(sh => sh.staff_id === s.id));
 
+  // Kompaktowe podsumowanie (nagłówek karty)
+  const statusMeta: Record<string, { label: string; color: string }> = {
+    wstepne: { label: "Wstępne zapytanie", color: "#F59E0B" },
+    rezerwacja: { label: "Rezerwacja", color: "#F97316" },
+    potwierdzona: { label: "Potwierdzona", color: "#10B981" },
+    zakonczona: { label: "Zakończona", color: "#3B82F6" },
+    anulowana: { label: "Anulowana", color: "#EF4444" },
+  };
+  const priceForKpi = parseAmt(priceTotal) > 0
+    ? (parseAmt(discountPct) > 0 ? parseAmt(priceTotal) * (1 - parseAmt(discountPct) / 100) : parseAmt(priceTotal))
+    : discountedValue;
+  const kpiRemaining = priceForKpi - (depositPaid ? parseAmt(depositAmount) : 0);
+
   return (
     <View style={s.root} testID="event-detail-screen">
       <View style={[s.header, { paddingTop: insets.top + 12 }]}>
@@ -842,6 +895,50 @@ export default function EventDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
+          {/* Kompaktowe podsumowanie */}
+          <View style={s.compactCard} testID="event-compact-summary">
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              <View style={[s.compactPill, { backgroundColor: v2.color.mint }]}>
+                <Text style={[s.compactPillText, { color: v2.color.forest }]}>{category ? categoryLabel(category) : "Bez kategorii"}</Text>
+              </View>
+              {statusMeta[status] ? (
+                <View style={[s.compactPill, { backgroundColor: statusMeta[status].color + "22", borderWidth: 1, borderColor: statusMeta[status].color }]}>
+                  <Text style={[s.compactPillText, { color: statusMeta[status].color }]}>{statusMeta[status].label}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={s.compactRow}>
+              <Feather name="calendar" size={13} color={v2.color.textMuted} />
+              <Text style={s.compactText}>{date || "—"}{timeStart ? `  ·  ${timeStart}${timeEnd ? `–${timeEnd}` : ""}` : ""}</Text>
+              <Feather name="users" size={13} color={v2.color.textMuted} style={{ marginLeft: 10 }} />
+              <Text style={s.compactText}>{peopleNum || 0} os.</Text>
+            </View>
+            {(clientName || clientPhone) ? (
+              <View style={s.compactRow}>
+                <Feather name="user" size={13} color={v2.color.textMuted} />
+                <Text style={s.compactText} numberOfLines={1}>{clientName || "—"}{clientPhone ? `  ·  ${clientPhone}` : ""}</Text>
+              </View>
+            ) : null}
+            <View style={s.compactKpiRow}>
+              <View style={s.compactKpi}>
+                <Text style={s.compactKpiLabel}>CENA</Text>
+                <Text style={s.compactKpiVal}>{priceForKpi > 0 ? `${priceForKpi.toFixed(0)} zł` : "—"}</Text>
+              </View>
+              <View style={s.compactKpi}>
+                <Text style={s.compactKpiLabel}>DO ZAPŁATY</Text>
+                <Text style={[s.compactKpiVal, { color: priceForKpi > 0 && kpiRemaining > 0 ? v2.color.warning : v2.color.success }]}>{priceForKpi > 0 ? `${kpiRemaining.toFixed(0)} zł` : "—"}</Text>
+              </View>
+              <View style={s.compactKpi}>
+                <Text style={s.compactKpiLabel}>ZYSK PRZEW.</Text>
+                <Text style={[s.compactKpiVal, { color: plannedProfit >= 0 ? v2.color.forest : v2.color.error }]}>{plannedProfit.toFixed(0)} zł</Text>
+              </View>
+              <View style={s.compactKpi}>
+                <Text style={s.compactKpiLabel}>MARŻA</Text>
+                <Text style={s.compactKpiVal}>{discountedValue > 0 ? `${((plannedProfit / discountedValue) * 100).toFixed(0)}%` : "—"}</Text>
+              </View>
+            </View>
+          </View>
+
           {/* Finance import banner */}
           {financeMeta?.import_batch_id ? (
             <View style={s.financeBanner}>
@@ -857,77 +954,6 @@ export default function EventDetail() {
               )}
             </View>
           ) : null}
-
-          {/* Image */}
-          <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
-            {imageUrl ? (
-              <>
-                <Image source={imageUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
-                <LinearGradient
-                  colors={["rgba(12,12,14,0.15)", "rgba(12,12,14,0.85)"]}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={s.imageEditRow}>
-                  <View style={s.imageBadge}>
-                    <Feather name="camera" size={14} color={'#fff'} />
-                    <Text style={s.imageBadgeText}>Zmień zdjęcie</Text>
-                  </View>
-                  <Pressable testID="event-image-remove" onPress={(e) => { e.stopPropagation?.(); setImageUrl(""); }} hitSlop={10} style={s.imageRemoveBtn}>
-                    <Feather name="x" size={16} color={v2.color.text} />
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <View style={s.imagePlaceholder}>
-                <Feather name="camera" size={28} color={v2.color.forest} />
-                <Text style={s.imagePlaceholderText}>Dodaj zdjęcie imprezy</Text>
-                <Text style={s.imagePlaceholderSub}>Galeria lub aparat</Text>
-              </View>
-            )}
-          </Pressable>
-
-          {/* Template chips - shown for new events */}
-          {isNew && templates.length > 0 && (
-            <Pressable testID="tpl-load-btn" onPress={() => setTplPickerOpen(true)} style={s.tplLoadBtn}>
-              <Feather name="copy" size={16} color={v2.color.forest} />
-              <Text style={s.tplLoadText}>Wczytaj z szablonu ({templates.length})</Text>
-            </Pressable>
-          )}
-
-          {/* Info */}
-          <Section title="Informacje">
-            <Field label="Nazwa">
-              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="Wesele Kowalscy" placeholderTextColor={v2.color.textMuted} style={s.input} />
-            </Field>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Data (RRRR-MM-DD)">
-                  <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="2026-05-15" placeholderTextColor={v2.color.textMuted} style={s.input} autoCapitalize="none" />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Godzina od">
-                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Godzina do">
-                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
-                </Field>
-              </View>
-            </View>
-            <Field label="Kategoria">
-              <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-                <Text style={{ color: category ? v2.color.text : v2.color.textMuted, fontSize: 15 }}>
-                  {category ? categoryLabel(category) : "Wybierz kategorię"}
-                </Text>
-                <Feather name="chevron-down" size={18} color={v2.color.textMuted} />
-              </Pressable>
-            </Field>
-            <Field label="Notatki">
-              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
-            </Field>
-          </Section>
 
           {/* NOWA ODPPOWIEDŹ KLIENTA — AI suggestions from Gmail replies */}
           {!isNew && replySuggestions.map(sug => (
@@ -987,11 +1013,775 @@ export default function EventDetail() {
                   <Text style={{ color: "#B91C1C", fontSize: 12, fontWeight: "900" }}>ODRZUĆ</Text>
                 </Pressable>
               </View>
+
+              {/* Etap 2 — AI odpowiedź do klienta */}
+              {(sugReply[sug.id]?.sent || sug.reply_sent_at) ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10, padding: 8, borderRadius: 8, backgroundColor: "#DCFCE7" }}>
+                  <Feather name="check-circle" size={14} color="#16A34A" />
+                  <Text style={{ color: "#166534", fontSize: 12, fontWeight: "800" }}>
+                    Odpowiedź wysłana{sugReply[sug.id]?.sent ? ` na ${sugReply[sug.id]?.sent}` : (sug.reply_sent_to ? ` na ${sug.reply_sent_to}` : "")}
+                  </Text>
+                </View>
+              ) : sugReply[sug.id] ? (
+                sugReply[sug.id].busy && !sugReply[sug.id].draft ? (
+                  <View style={{ marginTop: 12, alignItems: "center", gap: 6 }}>
+                    <ActivityIndicator color="#1E40AF" />
+                    <Text style={{ color: "#1E40AF", fontSize: 11, fontWeight: "700" }}>AI pisze szkic odpowiedzi…</Text>
+                  </View>
+                ) : (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={{ color: "#1E40AF", fontSize: 10, fontWeight: "800", marginBottom: 4 }}>SZKIC ODPOWIEDZI (AI) — edytuj przed wysyłką:</Text>
+                    <TextInput
+                      value={sugReply[sug.id].subject}
+                      onChangeText={t => setSugReply(p => ({ ...p, [sug.id]: { ...p[sug.id], subject: t } }))}
+                      style={[s.input, { backgroundColor: "#fff", marginBottom: 6 }]}
+                      placeholder="Temat"
+                      placeholderTextColor={v2.color.textMuted}
+                      testID={`sug-reply-subject-${sug.id}`}
+                    />
+                    <TextInput
+                      value={sugReply[sug.id].draft}
+                      onChangeText={t => setSugReply(p => ({ ...p, [sug.id]: { ...p[sug.id], draft: t } }))}
+                      multiline
+                      style={[s.input, { height: 170, textAlignVertical: "top", backgroundColor: "#fff" }]}
+                      testID={`sug-reply-draft-${sug.id}`}
+                    />
+                    <Pressable
+                      testID={`sug-reply-send-${sug.id}`}
+                      disabled={sugReply[sug.id].busy}
+                      onPress={() => sendReply(sug)}
+                      style={{ marginTop: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: "#1E40AF", alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, opacity: sugReply[sug.id].busy ? 0.5 : 1 }}
+                    >
+                      {sugReply[sug.id].busy ? <ActivityIndicator color="#fff" size="small" /> : <Feather name="send" size={14} color="#fff" />}
+                      <Text style={{ color: "#fff", fontSize: 12, fontWeight: "900" }}>
+                        WYŚLIJ ODPOWIEDŹ{sugReply[sug.id].to ? ` (${sugReply[sug.id].to})` : ""}
+                      </Text>
+                    </Pressable>
+                  </View>
+                )
+              ) : (
+                <Pressable
+                  testID={`sug-reply-generate-${sug.id}`}
+                  onPress={() => generateReplyDraft(sug)}
+                  style={{ marginTop: 8, paddingVertical: 11, borderRadius: 10, borderWidth: 1.5, borderColor: "#7C3AED", alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6, backgroundColor: "#F5F3FF" }}
+                >
+                  <Feather name="edit-3" size={13} color="#6D28D9" />
+                  <Text style={{ color: "#6D28D9", fontSize: 12, fontWeight: "900" }}>✨ WYGENERUJ ODPOWIEDŹ AI</Text>
+                </Pressable>
+              )}
             </View>
           ))}
 
+          {/* Template chips - shown for new events */}
+          {isNew && templates.length > 0 && (
+            <Pressable testID="tpl-load-btn" onPress={() => setTplPickerOpen(true)} style={s.tplLoadBtn}>
+              <Feather name="copy" size={16} color={v2.color.forest} />
+              <Text style={s.tplLoadText}>Wczytaj z szablonu ({templates.length})</Text>
+            </Pressable>
+          )}
+
+          <Collapse title="Dane imprezy i klienta" icon="info" defaultOpen testID="sec-dane">
+          {/* Info */}
+          <Section title="">
+            <Field label="Nazwa">
+              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="Wesele Kowalscy" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Data (RRRR-MM-DD)">
+                  <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="2026-05-15" placeholderTextColor={v2.color.textMuted} style={s.input} autoCapitalize="none" />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Godzina od">
+                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Godzina do">
+                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
+                </Field>
+              </View>
+            </View>
+            <Field label="Kategoria">
+              <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+                <Text style={{ color: category ? v2.color.text : v2.color.textMuted, fontSize: 15 }}>
+                  {category ? categoryLabel(category) : "Wybierz kategorię"}
+                </Text>
+                <Feather name="chevron-down" size={18} color={v2.color.textMuted} />
+              </Pressable>
+            </Field>
+          </Section>
+
+          {/* Client */}
+          <Section title="Klient">
+            <Field label="Imię i nazwisko / nazwa firmy">
+              <TextInput testID="client-name" value={clientName} onChangeText={setClientName}
+                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Telefon">
+              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+                <TextInput testID="client-phone" value={clientPhone} onChangeText={setClientPhone}
+                  placeholder="+48 123 456 789" placeholderTextColor={v2.color.textMuted}
+                  keyboardType="phone-pad" style={[s.input, { flex: 1 }]} />
+                <Pressable
+                  testID="client-call"
+                  disabled={!clientPhone.trim()}
+                  onPress={() => Linking.openURL(`tel:${clientPhone.replace(/\s/g, "")}`)}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
+                >
+                  <Feather name="phone" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
+                </Pressable>
+                <Pressable
+                  testID="client-sms"
+                  disabled={!clientPhone.trim()}
+                  onPress={() => Linking.openURL(`sms:${clientPhone.replace(/\s/g, "")}`)}
+                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
+                >
+                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
+                </Pressable>
+              </View>
+            </Field>
+            <Field label="E-mail">
+              <TextInput testID="client-email" value={clientEmail} onChangeText={setClientEmail}
+                placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
+                keyboardType="email-address" autoCapitalize="none" style={s.input} />
+            </Field>
+
+            <Field label="Notatki o kliencie">
+              <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
+                placeholder="Preferencje, historia współpracy..." placeholderTextColor={v2.color.textMuted}
+                style={[s.input, { height: 60, textAlignVertical: "top" }]} multiline />
+            </Field>
+          </Section>
+
+          </Collapse>
+
+          <Collapse title="Status imprezy" icon="flag" defaultOpen testID="sec-status">
+          {/* Status */}
+          <Section title="">
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {([
+                { k: "wstepne",     label: "Wstępne zapytanie", color: "#F59E0B" },
+                { k: "rezerwacja",  label: "Rezerwacja",        color: "#F97316" },
+                { k: "potwierdzona",label: "Potwierdzona",      color: "#10B981" },
+                { k: "zakonczona",  label: "Zakończona",        color: "#3B82F6" },
+                { k: "anulowana",   label: "Anulowana",         color: "#EF4444" },
+              ] as const).map(st => {
+                const active = status === st.k;
+                return (
+                  <Pressable
+                    key={st.k}
+                    testID={`status-${st.k}`}
+                    onPress={() => setStatus(active ? "" : st.k)}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 6,
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                      backgroundColor: active ? st.color : v2.color.cardMuted,
+                      borderWidth: 1, borderColor: active ? st.color : v2.color.border,
+                    }}
+                  >
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
+                    <Text style={{ color: active ? "#0A0A0A" : v2.color.text, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {status === "wstepne" && (
+              <Field label="Ważne do (data ważności zapytania)">
+                <TextInput
+                  testID="event-valid-until"
+                  value={validUntil}
+                  onChangeText={setValidUntil}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={v2.color.textMuted}
+                  style={s.input}
+                />
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                  💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
+                </Text>
+              </Field>
+            )}
+
+          </Section>
+
+          </Collapse>
+
+          <Collapse title="Finanse" icon="dollar-sign" defaultOpen testID="sec-finanse">
+          {/* Payment */}
+          <Section title="Cena i wpłaty">
+            {/* Auto forecast — Przewidywane rozliczenie */}
+            <View style={{
+              marginBottom: 14, padding: 14, borderRadius: 14,
+              borderWidth: 1, borderColor: v2.color.forest + "55",
+              backgroundColor: v2.color.forest + "0A",
+            }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Feather name="target" size={13} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
+                  PRZEWIDYWANE ROZLICZENIE
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: v2.color.text, fontSize: 12 }}>Wartość / rezerwacja</Text>
+                <Text style={{ color: v2.color.success, fontSize: 12, fontWeight: "700" }}>
+                  +{discountedValue.toFixed(0)} zł
+                </Text>
+              </View>
+              {cateringCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Koszt cateringu (auto)</Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{cateringCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {grillCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
+                    Koszt grilla ({grillCostPerPerson} zł × {peopleNum || 0})
+                  </Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{grillCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {beveragesCost > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
+                    Napoje (8 zł × {peopleNum || 0})
+                  </Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{beveragesCost.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              {otherPlannedCosts > 0 && (
+                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Pozostałe koszty</Text>
+                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
+                    −{otherPlannedCosts.toFixed(0)} zł
+                  </Text>
+                </View>
+              )}
+              <View style={{ height: 1, backgroundColor: v2.color.forest + "44", marginVertical: 6 }} />
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
+                <Text style={{ color: v2.color.error, fontSize: 13, fontWeight: "800" }}>
+                  −{totalPlannedCost.toFixed(0)} zł
+                </Text>
+              </View>
+              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
+                <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
+                <Text style={{
+                  color: plannedProfit >= 0 ? v2.color.forest : v2.color.error,
+                  fontSize: 18, fontWeight: "800",
+                }}>
+                  {plannedProfit >= 0 ? "+" : ""}{plannedProfit.toFixed(0)} zł
+                </Text>
+              </View>
+              {discountedValue > 0 && (
+                <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 4 }}>
+                  Marża: {((plannedProfit / discountedValue) * 100).toFixed(1)}%
+                </Text>
+              )}
+            </View>
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 2 }}>
+                <Field label="Całkowita cena imprezy">
+                  <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
+                    placeholder="0" placeholderTextColor={v2.color.textMuted}
+                    keyboardType="decimal-pad" style={s.input} />
+                </Field>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field label="Rabat %">
+                  <TextInput testID="discount-pct" value={discountPct} onChangeText={setDiscountPct}
+                    placeholder="0" placeholderTextColor={v2.color.textMuted}
+                    keyboardType="decimal-pad" style={s.input} />
+                </Field>
+              </View>
+            </View>
+            {(() => {
+              const total = parseAmt(priceTotal);
+              const disc = parseAmt(discountPct);
+              if (total > 0 && disc > 0) {
+                const discAmt = total * (disc / 100);
+                const afterDisc = total - discAmt;
+                return (
+                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: v2.color.forest + "10", borderWidth: 1, borderColor: v2.color.forest + "44" }}>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                      <Text style={{ fontSize: 11, color: v2.color.textMuted, letterSpacing: 0.5 }}>
+                        RABAT −{disc.toFixed(0)}% ({discAmt.toFixed(2)} zł)
+                      </Text>
+                      <Text style={{ fontSize: 16, fontWeight: "800", color: v2.color.forest }}>
+                        {afterDisc.toFixed(2)} zł
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }
+              return null;
+            })()}
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+              {[{v: true, lbl: "Zaliczka wpłacona"}, {v: false, lbl: "Brak zaliczki"}].map(o => {
+                const active = depositPaid === o.v;
+                return (
+                  <Pressable
+                    key={String(o.v)}
+                    testID={`deposit-${o.v}`}
+                    onPress={() => setDepositPaid(o.v)}
+                    style={{
+                      flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
+                      backgroundColor: active ? (o.v ? v2.color.success : v2.color.cardMuted) : v2.color.cardMuted,
+                      borderWidth: 1, borderColor: active ? (o.v ? v2.color.success : v2.color.borderStrong) : v2.color.border,
+                    }}
+                  >
+                    <Text style={{ color: active && o.v ? "#022C22" : v2.color.text, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {depositPaid && (
+              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                <View style={{ flex: 1 }}>
+                  <Field label="Kwota zaliczki">
+                    <TextInput testID="deposit-amount" value={depositAmount} onChangeText={setDepositAmount}
+                      placeholder="0" placeholderTextColor={v2.color.textMuted}
+                      keyboardType="decimal-pad" style={s.input} />
+                  </Field>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field label="Data wpłaty">
+                    <TextInput testID="deposit-date" value={depositDate} onChangeText={setDepositDate}
+                      placeholder="YYYY-MM-DD" placeholderTextColor={v2.color.textMuted}
+                      style={s.input} />
+                  </Field>
+                </View>
+              </View>
+            )}
+            {parseAmt(priceTotal) > 0 && (
+              <View style={{
+                marginTop: 14, padding: 14, borderRadius: 12,
+                backgroundColor: v2.color.cardMuted,
+                borderWidth: 1, borderColor: v2.color.forest,
+              }}>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
+                {(() => {
+                  const total = parseAmt(priceTotal);
+                  const disc = parseAmt(discountPct);
+                  const afterDisc = disc > 0 ? total * (1 - disc / 100) : total;
+                  const remaining = afterDisc - (depositPaid ? parseAmt(depositAmount) : 0);
+                  return (
+                    <Text style={{
+                      color: remaining > 0 ? v2.color.forest : v2.color.success,
+                      fontSize: 24, fontWeight: "800", marginTop: 4,
+                    }}>
+                      {remaining.toFixed(2)} zł
+                    </Text>
+                  );
+                })()}
+              </View>
+            )}
+
+            {/* Kody rabatowe klienta */}
+            {/* Manual discount code generator — always available if client info is filled */}
+            {!!(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
+              <Pressable
+                testID="manual-discount-btn"
+                onPress={() => setManualCodeOpen(true)}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.forest + "55", marginTop: 6 }}
+              >
+                <Feather name="gift" size={13} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 12 }}>Wygeneruj kod rabatowy dla klienta</Text>
+              </Pressable>
+            )}
+
+            {/* Active discount banner — for NEW event when client has an active code */}
+            {isNew && clientDiscounts.length > 0 && !appliedDiscount && (
+              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.mint, borderWidth: 1, borderColor: v2.color.forest + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="tag" size={16} color={v2.color.forest} />
+                  <Text style={{ flex: 1, color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>
+                    Klient posiada aktywny rabat {clientDiscounts[0].amount_pct || 10}%
+                  </Text>
+                </View>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>
+                  Kod {clientDiscounts[0].code} · ważny do {clientDiscounts[0].expires_at_date}
+                </Text>
+                <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 2, fontStyle: "italic" }}>
+                  💡 Aby zastosować, zapisz najpierw imprezę — potem otwórz ponownie i użyj przycisku „Zastosuj rabat".
+                </Text>
+              </View>
+            )}
+            {/* Apply discount button — only for EXISTING event (need event_id) when client has active discount */}
+            {!isNew && clientDiscounts.length > 0 && !appliedDiscount && (
+              <Pressable
+                testID="apply-discount-btn"
+                onPress={() => {
+                  const d = clientDiscounts[0];
+                  Alert.alert(
+                    "Zastosować rabat?",
+                    `Kod: ${d.code}\nRabat: ${d.amount_pct}% od ceny pakietu\nWażny do: ${d.expires_at_date}\n\nRabat zostanie zapisany w tej imprezie i naliczony od ceny podstawowego pakietu.`,
+                    [
+                      { text: "Anuluj", style: "cancel" },
+                      { text: "Zastosuj", onPress: async () => {
+                        try {
+                          const r: any = await api.applyDiscount(id as string, d.code);
+                          setAppliedDiscount({ code: r.code, amount_zl: r.applied_amount, amount_pct: d.amount_pct });
+                          if (r.applied_amount > 0 && priceTotal) {
+                            const newTotal = Math.max(0, parseAmt(priceTotal) - r.applied_amount);
+                            setPriceTotal(String(newTotal));
+                          }
+                          setClientDiscounts([]);
+                          Alert.alert("Zastosowano", `Rabat ${r.code}: -${r.applied_amount.toFixed(2)} zł`);
+                        } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                      }},
+                    ]
+                  );
+                }}
+                style={{ marginTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest }}
+              >
+                <Feather name="tag" size={14} color="#fff" />
+                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
+                  Zastosuj rabat {clientDiscounts[0].code} (-{clientDiscounts[0].amount_pct}%)
+                </Text>
+              </Pressable>
+            )}
+            {/* Applied discount info */}
+            {appliedDiscount && (
+              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.successBg, borderWidth: 1, borderColor: v2.color.success + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Feather name="check-circle" size={14} color={v2.color.success} />
+                  <Text style={{ flex: 1, color: v2.color.text, fontWeight: "800", fontSize: 13 }}>
+                    Zastosowano rabat {appliedDiscount.code}
+                  </Text>
+                  {!isNew && (
+                    <Pressable
+                      testID="remove-discount-btn"
+                      onPress={() => {
+                        Alert.alert("Cofnąć rabat?", "Kod wróci na listę dostępnych, cena zostanie przywrócona.", [
+                          { text: "Anuluj", style: "cancel" },
+                          { text: "Cofnij", style: "destructive", onPress: async () => {
+                            try {
+                              await api.removeDiscount(id as string);
+                              if (appliedDiscount.amount_zl && priceTotal) {
+                                setPriceTotal(String(parseAmt(priceTotal) + appliedDiscount.amount_zl));
+                              }
+                              setAppliedDiscount(null);
+                              // Refresh discounts
+                              const r: any = await api.discountsForClient(clientEmail);
+                              setClientDiscounts(r?.active || []);
+                            } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                          }},
+                        ]);
+                      }}
+                      hitSlop={10}
+                    >
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
+                    </Pressable>
+                  )}
+                </View>
+                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 4 }}>
+                  Wartość: -{Number(appliedDiscount.amount_zl || 0).toFixed(2)} zł ({appliedDiscount.amount_pct}% od ceny pakietu)
+                </Text>
+              </View>
+            )}
+
+          </Section>
+
+          {/* Wpłaty klienta (Faza 2 v2.0) — historia wpłat */}
+          {!isNew && (
+            <Section title="Wpłaty klienta">
+              <EventPayments eventId={String(id)} priceTotalOverride={parseAmt(priceTotal)} />
+              <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
+                💡 Pole „Zaliczka wpłacona" powyżej pozostaje na razie dla kompatybilności — nowe wpłaty rejestruj tutaj.
+              </Text>
+            </Section>
+          )}
+
+          {/* Financials */}
+          <Section title="Kalkulator przychodu i kosztów">
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Field label="Liczba osób">
+                  <TextInput
+                    testID="event-people-input"
+                    value={people}
+                    onChangeText={(v) => { setPeople(v); setAutoPrice(true); }}
+                    placeholder="np. 25"
+                    placeholderTextColor={v2.color.textMuted}
+                    keyboardType="number-pad"
+                    style={s.input}
+                  />
+                </Field>
+              </View>
+              <View style={{ flex: 1.2 }}>
+                <Field label="Przychód (PLN)">
+                  <TextInput
+                    testID="event-revenue-input"
+                    value={revenue}
+                    onChangeText={(v) => { setRevenue(v); setAutoPrice(false); }}
+                    placeholder="0"
+                    placeholderTextColor={v2.color.textMuted}
+                    keyboardType="decimal-pad"
+                    style={s.input}
+                  />
+                </Field>
+              </View>
+            </View>
+            {isAdult && (
+              <View style={s.zestawRow} testID="adult-sets">
+                {ADULT_SETS.map(zs => {
+                  const sel = packageSet === zs.id;
+                  return (
+                    <Pressable
+                      key={zs.id}
+                      testID={`zestaw-${zs.id}`}
+                      onPress={() => { setPackageSet(sel ? "" : zs.id); setAutoPrice(true); }}
+                      style={[s.zestawBtn, sel && s.zestawBtnActive]}
+                    >
+                      <Text style={[s.zestawName, sel && { color: '#fff' }]}>{zs.name}</Text>
+                      <Text style={[s.zestawPrice, sel && { color: '#fff' }]}>{zs.price_per_person} zł/os.</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            {isAdult && !!packageSet && findAdultSet(packageSet) && (
+              <View style={s.zestawDetails}>
+                <Text style={s.zestawDetailsTitle}>W {findAdultSet(packageSet)!.name}:</Text>
+                {findAdultSet(packageSet)!.items.map((it, i) => (
+                  <Text key={i} style={s.zestawItem}>• {it}</Text>
+                ))}
+                <Text style={[s.zestawDetailsTitle, { marginTop: 6 }]}>Dodatki w cenie:</Text>
+                {findAdultSet(packageSet)!.addons.map((it, i) => (
+                  <Text key={i} style={s.zestawItem}>• {it}</Text>
+                ))}
+              </View>
+            )}
+            {pricing && (
+              <View style={s.pricingCard} testID="pricing-breakdown">
+                <View style={{ flex: 1 }}>
+                  <Text style={s.pricingBreakdown}>{pricing.breakdown}</Text>
+                  {extrasTotal > 0 && <Text style={s.pricingBreakdown}>+ Dodatki: {extrasTotal.toFixed(0)} zł</Text>}
+                  <Text style={s.pricingHint}>{autoPrice ? "Cena wpisana automatycznie" : "Cena ręczna — dotknij, aby użyć auto"}</Text>
+                </View>
+                <Pressable
+                  testID="pricing-apply-btn"
+                  onPress={() => { setRevenue(String(combinedTotal)); setAutoPrice(true); }}
+                  style={s.pricingApply}
+                >
+                  <Text style={s.pricingApplyText}>{formatPLN(combinedTotal)}</Text>
+                </Pressable>
+              </View>
+            )}
+
+            <View style={{ marginTop: 12, marginBottom: 4 }}>
+              <Text style={s.label}>{
+                activeExtras.length > 0
+                  ? (isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)"
+                    : isParentTrip ? "Dodatki (catering, konie, animacje)"
+                    : isBirthday ? "Dodatki (catering)"
+                    : "Dodatki")
+                  : "Koszty (materiały, wynajem itp.)"
+              }</Text>
+            </View>
+            {activeExtras.map(ex => {
+              const q = extras[ex.id] || 0;
+              const line = ex.unit === "kwota" ? q : q * ex.price;
+              return (
+                <View key={ex.id} style={s.extraRow} testID={`extra-${ex.id}`}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.extraName}>{ex.name}</Text>
+                    <Text style={s.extraHint}>{ex.unit === "kwota" ? "Wpisz kwotę (zł)" : `${ex.price} zł / ${ex.unit}`}{ex.hint ? ` · ${ex.hint}` : ""}</Text>
+                  </View>
+                  <TextInput
+                    testID={`extra-qty-${ex.id}`}
+                    value={q ? String(q) : ""}
+                    onChangeText={(v) => {
+                      const n = parseAmt(v);
+                      setExtras(prev => ({ ...prev, [ex.id]: n }));
+                      setAutoPrice(true);
+                    }}
+                    placeholder="0"
+                    placeholderTextColor={v2.color.textMuted}
+                    keyboardType="decimal-pad"
+                    style={s.extraQtyInput}
+                  />
+                  <Text style={s.extraLine}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
+                </View>
+              );
+            })}
+
+            {activeExtras.length > 0 && (
+              <View style={{ marginTop: 12, marginBottom: 4 }}>
+                <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
+              </View>
+            )}
+
+            {costs.map((c, i) => (
+              <View key={i} style={s.costRow}>
+                <TextInput
+                  testID={`cost-label-${i}`}
+                  value={c.label}
+                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, label: v } : x))}
+                  placeholder="np. Catering"
+                  placeholderTextColor={v2.color.textMuted}
+                  style={[s.input, { flex: 2 }]}
+                />
+                <TextInput
+                  testID={`cost-amount-${i}`}
+                  value={String(c.amount || "")}
+                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, amount: parseAmt(v) } : x))}
+                  placeholder="0"
+                  placeholderTextColor={v2.color.textMuted}
+                  keyboardType="decimal-pad"
+                  style={[s.input, { flex: 1 }]}
+                />
+                <Pressable testID={`cost-del-${i}`} onPress={() => setCosts(costs.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
+                  <Feather name="x" size={16} color={v2.color.textMuted} />
+                </Pressable>
+              </View>
+            ))}
+            <Pressable testID="cost-add-btn" onPress={() => setCosts([...costs, { label: "", amount: 0 }])} style={s.addRow}>
+              <Feather name="plus" size={16} color={v2.color.forest} />
+              <Text style={s.addRowText}>Dodaj koszt</Text>
+            </Pressable>
+          </Section>
+
+          {/* Summary */}
+          <View style={s.summary}>
+            <SummaryRow label="Przychód" value={revenueNum} />
+            <SummaryRow label="Koszty materiałowe" value={-materialCost} />
+            <SummaryRow label="Koszty pracy" value={-laborCost} />
+            <View style={s.sep} />
+            <SummaryRow label="Zysk" value={profit} bold />
+            {revenueNum > 0 ? (
+              <Text style={{ color: v2.color.sage, fontSize: 11, textAlign: "right", marginTop: 4 }}>Marża: {((profit / revenueNum) * 100).toFixed(1)}%</Text>
+            ) : null}
+          </View>
+
+          </Collapse>
+
+          <Collapse title="Pracownicy na zmianie" icon="users" defaultOpen testID="sec-pracownicy">
+          {/* Staff */}
+          <Section title="">
+            {shifts.length === 0 && <Text style={s.hint}>Brak przypisanych pracowników</Text>}
+            {shifts.map((sh, i) => {
+              const s2 = staffMap[sh.staff_id];
+              return (
+                <View key={sh.staff_id} style={s.shiftBlock}>
+                  <View style={s.shiftRow}>
+                    <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.shiftName}>{s2?.name || "?"}</Text>
+                      <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text>
+                    </View>
+                    <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
+                    <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
+                    </Pressable>
+                  </View>
+                  {availByStaff[sh.staff_id]?.status === "unavailable" ? (
+                    <View style={s.availWarn}>
+                      <Feather name="alert-triangle" size={13} color={v2.color.error} />
+                      <Text style={s.availWarnText}>
+                        Zgłoszony brak dostępności {availByStaff[sh.staff_id].all_day === false
+                          ? `w godz. ${availByStaff[sh.staff_id].time_from}–${availByStaff[sh.staff_id].time_to}`
+                          : "(cały dzień)"}
+                        {availByStaff[sh.staff_id].note ? ` · „${availByStaff[sh.staff_id].note}”` : ""}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={s.shiftTimeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Od</Text>
+                      <TextInput
+                        testID={`shift-start-${i}`}
+                        value={sh.time_start || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_start: v };
+                          const h = hoursBetween(v, next.time_end);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="18:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Do</Text>
+                      <TextInput
+                        testID={`shift-end-${i}`}
+                        value={sh.time_end || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_end: v };
+                          const h = hoursBetween(next.time_start, v);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="22:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Godziny (ręcznie)</Text>
+                      <TextInput
+                        testID={`shift-hours-${i}`}
+                        value={String(sh.hours || "")}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
+                        placeholder="4"
+                        placeholderTextColor={v2.color.textMuted}
+                        keyboardType="decimal-pad"
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Rola na imprezie</Text>
+                      <TextInput
+                        testID={`shift-role-${i}`}
+                        value={sh.role || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, role: v } : x))}
+                        placeholder="np. przygotowanie / obsługa"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Notatka (opcjonalna)</Text>
+                      <TextInput
+                        testID={`shift-note-${i}`}
+                        value={sh.note || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, note: v } : x))}
+                        placeholder="np. dekoracje od 9:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+            {availStaff.length > 0 ? (
+              <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
+                <Feather name="plus" size={16} color={v2.color.forest} />
+                <Text style={s.addRowText}>Dodaj pracownika</Text>
+              </Pressable>
+            ) : staffAll.length === 0 ? (
+              <Text style={s.hint}>Najpierw dodaj pracowników w zakładce Pracownicy</Text>
+            ) : null}
+          </Section>
+
+          </Collapse>
+
+          <Collapse title="Organizacja — widoczna dla obsługi" icon="clipboard" testID="sec-organizacja">
           {/* Organizacja — widoczne dla obsługi */}
-          <Section title="Organizacja — widoczne dla obsługi">
+          <Section title="">
             <View style={{ flexDirection: "row", gap: 10 }}>
               <View style={{ flex: 1 }}>
                 <Field label="Dzieci (liczba)">
@@ -1181,722 +1971,7 @@ export default function EventDetail() {
             </Section>
           )}
 
-          {/* Status */}
-          <Section title="Status imprezy">
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {([
-                { k: "wstepne",     label: "Wstępne zapytanie", color: "#F59E0B" },
-                { k: "rezerwacja",  label: "Rezerwacja",        color: "#F97316" },
-                { k: "potwierdzona",label: "Potwierdzona",      color: "#10B981" },
-                { k: "zakonczona",  label: "Zakończona",        color: "#3B82F6" },
-                { k: "anulowana",   label: "Anulowana",         color: "#EF4444" },
-              ] as const).map(st => {
-                const active = status === st.k;
-                return (
-                  <Pressable
-                    key={st.k}
-                    testID={`status-${st.k}`}
-                    onPress={() => setStatus(active ? "" : st.k)}
-                    style={{
-                      flexDirection: "row", alignItems: "center", gap: 6,
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                      backgroundColor: active ? st.color : v2.color.cardMuted,
-                      borderWidth: 1, borderColor: active ? st.color : v2.color.border,
-                    }}
-                  >
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
-                    <Text style={{ color: active ? "#0A0A0A" : v2.color.text, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {status === "wstepne" && (
-              <Field label="Ważne do (data ważności zapytania)">
-                <TextInput
-                  testID="event-valid-until"
-                  value={validUntil}
-                  onChangeText={setValidUntil}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={v2.color.textMuted}
-                  style={s.input}
-                />
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
-                  💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
-                </Text>
-              </Field>
-            )}
-
-            {/* Thank-you status card — only for existing events that are already completed */}
-            {!isNew && status === "zakonczona" && thanksStatus && (
-              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: thanksStatus.sent ? v2.color.successBg : v2.color.warningBg, borderWidth: 1, borderColor: thanksStatus.sent ? v2.color.success + "55" : v2.color.warning + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <Feather name={thanksStatus.sent ? "check-circle" : "alert-circle"} size={14} color={thanksStatus.sent ? v2.color.success : v2.color.warning} />
-                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>
-                    {thanksStatus.sent ? "Wysłano podziękowanie z rabatem" : (thanksStatus.log?.status === "no_email" ? "Nie wysłano — brak e-maila klienta" : (thanksStatus.log?.status === "failed" ? "Błąd wysyłki" : "Podziękowanie niewysłane"))}
-                  </Text>
-                </View>
-                {thanksStatus.sent && thanksStatus.code ? (
-                  <>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Kod: <Text style={{ fontWeight: "800", color: v2.color.text }}>{thanksStatus.code.code}</Text> · ważny do {thanksStatus.code.expires_at_date}</Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>Odbiorca: {thanksStatus.log?.recipient} · {thanksStatus.log?.sent_at ? new Date(thanksStatus.log.sent_at).toLocaleString("pl-PL") : ""}</Text>
-                  </>
-                ) : null}
-                {thanksStatus.log?.status === "failed" ? (
-                  <Text style={{ color: v2.color.error, fontSize: 11, marginTop: 2 }}>{thanksStatus.log?.error || ""}</Text>
-                ) : null}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <Pressable
-                    testID="thanks-preview"
-                    onPress={async () => {
-                      try {
-                        const p: any = await api.eventThanksPreview(id as string);
-                        Alert.alert(p.subject, p.body);
-                      } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                    }}
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border }}
-                  >
-                    <Feather name="eye" size={13} color={v2.color.text} />
-                    <Text style={{ color: v2.color.text, fontWeight: "800", fontSize: 12 }}>Podgląd</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="thanks-resend"
-                    onPress={async () => {
-                      Alert.alert(
-                        thanksStatus.sent ? "Wysłać ponownie?" : "Wysłać teraz?",
-                        thanksStatus.sent ? "Zostanie użyty ten sam kod rabatowy." : "Wyślemy podziękowanie na e-mail klienta.",
-                        [
-                          { text: "Anuluj", style: "cancel" },
-                          { text: "Wyślij", onPress: async () => {
-                            try {
-                              if (thanksStatus.sent) {
-                                await api.eventResendThanks(id as string);
-                              } else {
-                                await api.eventComplete(id as string, true);
-                              }
-                              const ts: any = await api.eventThanksStatus(id as string);
-                              setThanksStatus(ts);
-                              Alert.alert("Wysłano", "Podziękowanie zostało wysłane.");
-                            } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się wysłać"); }
-                          }},
-                        ]
-                      );
-                    }}
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.forest }}
-                  >
-                    <Feather name="send" size={13} color="#fff" />
-                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{thanksStatus.sent ? "Wyślij ponownie" : "Wyślij teraz"}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Section>
-
-          {!isNew && preEventEmail && (
-            <Section title="Wiadomość przed imprezą">
-              <View testID="pre-event-email-card" style={s.preEmailCard}>
-                <PreEmailRow label="Rodzaj imprezy" value={categoryLabel(preEventEmail.event_category)} testID="pre-event-email-category" />
-                <PreEmailRow label="Regulamin" value={preEventEmail.regulation_label} testID="pre-event-email-regulation" />
-                <PreEmailRow
-                  label="Planowana wysyłka"
-                  value={preEventEmail.scheduled_at ? new Date(preEventEmail.scheduled_at).toLocaleString("pl-PL") : "—"}
-                  testID="pre-event-email-scheduled-at"
-                />
-                <PreEmailRow label="Adres e-mail" value={preEventEmail.address || "Brak"} testID="pre-event-email-address" />
-                <PreEmailRow
-                  label="Status"
-                  value={({ scheduled: "Oczekuje", sent: "Wysłano", failed: "Błąd", cancelled: "Anulowano", not_scheduled: "Oczekuje" } as Record<string, string>)[preEventEmail.status] || preEventEmail.status}
-                  testID="pre-event-email-status"
-                />
-                <View testID="pre-event-email-attachments" style={s.preEmailAttachments}>
-                  <Text style={s.preEmailAttachmentsTitle}>Załączniki</Text>
-                  {(preEventEmail.attachments || []).map((attachment: any) => (
-                    <View key={attachment.kind} testID={`pre-event-email-attachment-${attachment.kind}`} style={s.preEmailAttachmentRow}>
-                      <Feather name="check-circle" size={16} color={v2.color.success} />
-                      <Text style={s.preEmailAttachmentText}>{attachment.label}</Text>
-                    </View>
-                  ))}
-                </View>
-                {!!preEventEmail.notice && (
-                  <View testID="pre-event-email-notice" style={s.preEmailNotice}>
-                    <Feather name="alert-circle" size={16} color={v2.color.error} />
-                    <Text style={s.preEmailNoticeText}>{preEventEmail.notice}</Text>
-                  </View>
-                )}
-                {!!preEventEmail.error && !preEventEmail.notice && (
-                  <Text testID="pre-event-email-error" style={s.preEmailError}>{preEventEmail.error}</Text>
-                )}
-                <View style={s.preEmailActions}>
-                  <Pressable
-                    testID="pre-event-email-preview-button"
-                    onPress={async () => {
-                      try {
-                        const preview: any = await api.preEventEmailPreview(id as string);
-                        Alert.alert(preview.subject, preview.body);
-                      } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się pobrać podglądu."); }
-                    }}
-                    style={s.preEmailSecondaryButton}
-                  >
-                    <Feather name="mail" size={14} color={v2.color.forest} />
-                    <Text style={s.preEmailSecondaryText}>Podgląd maila</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="pre-event-regulation-preview-button"
-                    onPress={previewPreEventRegulation}
-                    disabled={preEventEmailBusy || !preEventEmail.regulation_type}
-                    style={[s.preEmailSecondaryButton, (!preEventEmail.regulation_type || preEventEmailBusy) && { opacity: 0.5 }]}
-                  >
-                    <Feather name="file-text" size={14} color={v2.color.forest} />
-                    <Text style={s.preEmailSecondaryText}>Podgląd regulaminu</Text>
-                  </Pressable>
-                </View>
-                <View style={s.preEmailActions}>
-                  <Pressable
-                    testID="pre-event-email-send-now-button"
-                    onPress={() => sendPreEventEmail(false)}
-                    disabled={preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona"}
-                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
-                  >
-                    {preEventEmailBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={14} color="#fff" />}
-                    <Text style={s.preEmailPrimaryText}>Wyślij teraz</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="pre-event-email-resend-button"
-                    onPress={() => sendPreEventEmail(true)}
-                    disabled={preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona"}
-                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
-                  >
-                    <Feather name="repeat" size={14} color="#fff" />
-                    <Text style={s.preEmailPrimaryText}>Wyślij ponownie</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </Section>
-          )}
-
-          {/* Client */}
-          <Section title="Klient">
-            <Field label="Imię i nazwisko / nazwa firmy">
-              <TextInput testID="client-name" value={clientName} onChangeText={setClientName}
-                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={v2.color.textMuted} style={s.input} />
-            </Field>
-            <Field label="Telefon">
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <TextInput testID="client-phone" value={clientPhone} onChangeText={setClientPhone}
-                  placeholder="+48 123 456 789" placeholderTextColor={v2.color.textMuted}
-                  keyboardType="phone-pad" style={[s.input, { flex: 1 }]} />
-                <Pressable
-                  testID="client-call"
-                  disabled={!clientPhone.trim()}
-                  onPress={() => Linking.openURL(`tel:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
-                >
-                  <Feather name="phone" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
-                </Pressable>
-                <Pressable
-                  testID="client-sms"
-                  disabled={!clientPhone.trim()}
-                  onPress={() => Linking.openURL(`sms:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
-                >
-                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
-                </Pressable>
-              </View>
-            </Field>
-            <Field label="E-mail">
-              <TextInput testID="client-email" value={clientEmail} onChangeText={setClientEmail}
-                placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
-                keyboardType="email-address" autoCapitalize="none" style={s.input} />
-            </Field>
-
-            {/* Manual discount code generator — always available if client info is filled */}
-            {!!(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
-              <Pressable
-                testID="manual-discount-btn"
-                onPress={() => setManualCodeOpen(true)}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.forest + "55", marginTop: 6 }}
-              >
-                <Feather name="gift" size={13} color={v2.color.forest} />
-                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 12 }}>Wygeneruj kod rabatowy dla klienta</Text>
-              </Pressable>
-            )}
-
-            {/* Active discount banner — for NEW event when client has an active code */}
-            {isNew && clientDiscounts.length > 0 && !appliedDiscount && (
-              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.mint, borderWidth: 1, borderColor: v2.color.forest + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="tag" size={16} color={v2.color.forest} />
-                  <Text style={{ flex: 1, color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>
-                    Klient posiada aktywny rabat {clientDiscounts[0].amount_pct || 10}%
-                  </Text>
-                </View>
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>
-                  Kod {clientDiscounts[0].code} · ważny do {clientDiscounts[0].expires_at_date}
-                </Text>
-                <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 2, fontStyle: "italic" }}>
-                  💡 Aby zastosować, zapisz najpierw imprezę — potem otwórz ponownie i użyj przycisku „Zastosuj rabat".
-                </Text>
-              </View>
-            )}
-            {/* Apply discount button — only for EXISTING event (need event_id) when client has active discount */}
-            {!isNew && clientDiscounts.length > 0 && !appliedDiscount && (
-              <Pressable
-                testID="apply-discount-btn"
-                onPress={() => {
-                  const d = clientDiscounts[0];
-                  Alert.alert(
-                    "Zastosować rabat?",
-                    `Kod: ${d.code}\nRabat: ${d.amount_pct}% od ceny pakietu\nWażny do: ${d.expires_at_date}\n\nRabat zostanie zapisany w tej imprezie i naliczony od ceny podstawowego pakietu.`,
-                    [
-                      { text: "Anuluj", style: "cancel" },
-                      { text: "Zastosuj", onPress: async () => {
-                        try {
-                          const r: any = await api.applyDiscount(id as string, d.code);
-                          setAppliedDiscount({ code: r.code, amount_zl: r.applied_amount, amount_pct: d.amount_pct });
-                          if (r.applied_amount > 0 && priceTotal) {
-                            const newTotal = Math.max(0, parseAmt(priceTotal) - r.applied_amount);
-                            setPriceTotal(String(newTotal));
-                          }
-                          setClientDiscounts([]);
-                          Alert.alert("Zastosowano", `Rabat ${r.code}: -${r.applied_amount.toFixed(2)} zł`);
-                        } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                      }},
-                    ]
-                  );
-                }}
-                style={{ marginTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest }}
-              >
-                <Feather name="tag" size={14} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                  Zastosuj rabat {clientDiscounts[0].code} (-{clientDiscounts[0].amount_pct}%)
-                </Text>
-              </Pressable>
-            )}
-            {/* Applied discount info */}
-            {appliedDiscount && (
-              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.successBg, borderWidth: 1, borderColor: v2.color.success + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="check-circle" size={14} color={v2.color.success} />
-                  <Text style={{ flex: 1, color: v2.color.text, fontWeight: "800", fontSize: 13 }}>
-                    Zastosowano rabat {appliedDiscount.code}
-                  </Text>
-                  {!isNew && (
-                    <Pressable
-                      testID="remove-discount-btn"
-                      onPress={() => {
-                        Alert.alert("Cofnąć rabat?", "Kod wróci na listę dostępnych, cena zostanie przywrócona.", [
-                          { text: "Anuluj", style: "cancel" },
-                          { text: "Cofnij", style: "destructive", onPress: async () => {
-                            try {
-                              await api.removeDiscount(id as string);
-                              if (appliedDiscount.amount_zl && priceTotal) {
-                                setPriceTotal(String(parseAmt(priceTotal) + appliedDiscount.amount_zl));
-                              }
-                              setAppliedDiscount(null);
-                              // Refresh discounts
-                              const r: any = await api.discountsForClient(clientEmail);
-                              setClientDiscounts(r?.active || []);
-                            } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                          }},
-                        ]);
-                      }}
-                      hitSlop={10}
-                    >
-                      <Feather name="x" size={16} color={v2.color.textMuted} />
-                    </Pressable>
-                  )}
-                </View>
-                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 4 }}>
-                  Wartość: -{Number(appliedDiscount.amount_zl || 0).toFixed(2)} zł ({appliedDiscount.amount_pct}% od ceny pakietu)
-                </Text>
-              </View>
-            )}
-
-            <Field label="Notatki o kliencie">
-              <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
-                placeholder="Preferencje, historia współpracy..." placeholderTextColor={v2.color.textMuted}
-                style={[s.input, { height: 60, textAlignVertical: "top" }]} multiline />
-            </Field>
-          </Section>
-
-          {/* Payment */}
-          <Section title="Płatność">
-            {/* Auto forecast — Przewidywane rozliczenie */}
-            <View style={{
-              marginBottom: 14, padding: 14, borderRadius: 14,
-              borderWidth: 1, borderColor: v2.color.forest + "55",
-              backgroundColor: v2.color.forest + "0A",
-            }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Feather name="target" size={13} color={v2.color.forest} />
-                <Text style={{ color: v2.color.forest, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
-                  PRZEWIDYWANE ROZLICZENIE
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 12 }}>Wartość / rezerwacja</Text>
-                <Text style={{ color: v2.color.success, fontSize: 12, fontWeight: "700" }}>
-                  +{discountedValue.toFixed(0)} zł
-                </Text>
-              </View>
-              {cateringCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Koszt cateringu (auto)</Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{cateringCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {grillCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
-                    Koszt grilla ({grillCostPerPerson} zł × {peopleNum || 0})
-                  </Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{grillCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {beveragesCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
-                    Napoje (8 zł × {peopleNum || 0})
-                  </Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{beveragesCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {otherPlannedCosts > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Pozostałe koszty</Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{otherPlannedCosts.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              <View style={{ height: 1, backgroundColor: v2.color.forest + "44", marginVertical: 6 }} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
-                <Text style={{ color: v2.color.error, fontSize: 13, fontWeight: "800" }}>
-                  −{totalPlannedCost.toFixed(0)} zł
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
-                <Text style={{
-                  color: plannedProfit >= 0 ? v2.color.forest : v2.color.error,
-                  fontSize: 18, fontWeight: "800",
-                }}>
-                  {plannedProfit >= 0 ? "+" : ""}{plannedProfit.toFixed(0)} zł
-                </Text>
-              </View>
-              {discountedValue > 0 && (
-                <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 4 }}>
-                  Marża: {((plannedProfit / discountedValue) * 100).toFixed(1)}%
-                </Text>
-              )}
-            </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 2 }}>
-                <Field label="Całkowita cena imprezy">
-                  <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
-                    placeholder="0" placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad" style={s.input} />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Rabat %">
-                  <TextInput testID="discount-pct" value={discountPct} onChangeText={setDiscountPct}
-                    placeholder="0" placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad" style={s.input} />
-                </Field>
-              </View>
-            </View>
-            {(() => {
-              const total = parseAmt(priceTotal);
-              const disc = parseAmt(discountPct);
-              if (total > 0 && disc > 0) {
-                const discAmt = total * (disc / 100);
-                const afterDisc = total - discAmt;
-                return (
-                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: v2.color.forest + "10", borderWidth: 1, borderColor: v2.color.forest + "44" }}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                      <Text style={{ fontSize: 11, color: v2.color.textMuted, letterSpacing: 0.5 }}>
-                        RABAT −{disc.toFixed(0)}% ({discAmt.toFixed(2)} zł)
-                      </Text>
-                      <Text style={{ fontSize: 16, fontWeight: "800", color: v2.color.forest }}>
-                        {afterDisc.toFixed(2)} zł
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
-              return null;
-            })()}
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-              {[{v: true, lbl: "Zaliczka wpłacona"}, {v: false, lbl: "Brak zaliczki"}].map(o => {
-                const active = depositPaid === o.v;
-                return (
-                  <Pressable
-                    key={String(o.v)}
-                    testID={`deposit-${o.v}`}
-                    onPress={() => setDepositPaid(o.v)}
-                    style={{
-                      flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-                      backgroundColor: active ? (o.v ? v2.color.success : v2.color.cardMuted) : v2.color.cardMuted,
-                      borderWidth: 1, borderColor: active ? (o.v ? v2.color.success : v2.color.borderStrong) : v2.color.border,
-                    }}
-                  >
-                    <Text style={{ color: active && o.v ? "#022C22" : v2.color.text, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {depositPaid && (
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Kwota zaliczki">
-                    <TextInput testID="deposit-amount" value={depositAmount} onChangeText={setDepositAmount}
-                      placeholder="0" placeholderTextColor={v2.color.textMuted}
-                      keyboardType="decimal-pad" style={s.input} />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Data wpłaty">
-                    <TextInput testID="deposit-date" value={depositDate} onChangeText={setDepositDate}
-                      placeholder="YYYY-MM-DD" placeholderTextColor={v2.color.textMuted}
-                      style={s.input} />
-                  </Field>
-                </View>
-              </View>
-            )}
-            {parseAmt(priceTotal) > 0 && (
-              <View style={{
-                marginTop: 14, padding: 14, borderRadius: 12,
-                backgroundColor: v2.color.cardMuted,
-                borderWidth: 1, borderColor: v2.color.forest,
-              }}>
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
-                {(() => {
-                  const total = parseAmt(priceTotal);
-                  const disc = parseAmt(discountPct);
-                  const afterDisc = disc > 0 ? total * (1 - disc / 100) : total;
-                  const remaining = afterDisc - (depositPaid ? parseAmt(depositAmount) : 0);
-                  return (
-                    <Text style={{
-                      color: remaining > 0 ? v2.color.forest : v2.color.success,
-                      fontSize: 24, fontWeight: "800", marginTop: 4,
-                    }}>
-                      {remaining.toFixed(2)} zł
-                    </Text>
-                  );
-                })()}
-              </View>
-            )}
-          </Section>
-
-          {/* Wpłaty klienta (Faza 2 v2.0) — historia wpłat */}
-          {!isNew && (
-            <Section title="Wpłaty klienta">
-              <EventPayments eventId={String(id)} priceTotalOverride={parseAmt(priceTotal)} />
-              <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
-                💡 Pole „Zaliczka wpłacona" powyżej pozostaje na razie dla kompatybilności — nowe wpłaty rejestruj tutaj.
-              </Text>
-            </Section>
-          )}
-
-          {/* Weather */}
-          <Section title="Pogoda w dniu imprezy">
-            <Pressable
-              testID="weather-fetch"
-              onPress={async () => {
-                if (!date) return;
-                setWeatherLoading(true);
-                try {
-                  const w = await api.weather(date, timeStart, timeEnd);
-                  setWeather(w);
-                } catch (e: any) {
-                  setWeather({ available: false, message: e?.message || "Błąd pobierania prognozy" });
-                } finally { setWeatherLoading(false); }
-              }}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                paddingVertical: 12, borderRadius: 10,
-                backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.forest,
-              }}
-            >
-              {weatherLoading ? (
-                <ActivityIndicator color={v2.color.forest} size="small" />
-              ) : (
-                <>
-                  <Feather name="cloud" size={16} color={v2.color.forest} />
-                  <Text style={{ color: v2.color.forest, fontWeight: "700", fontSize: 13 }}>
-                    {weather ? "Odśwież prognozę" : "Sprawdź prognozę pogody"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
-            {weather && !weather.available && (
-              <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
-                {weather.message || "Prognoza niedostępna"}
-              </Text>
-            )}
-            {weather && weather.available && (
-              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Feather name={weather.icon || "cloud"} size={40} color={v2.color.forest} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "800" }}>
-                      {weather.temp_min !== null ? `${weather.temp_min}°` : "—"}
-                      {" – "}
-                      {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
-                    </Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>{`${weather.description || ""} · ${weather.time_window || ""}`}</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
-                  </View>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
-                  </View>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
-                  </View>
-                </View>
-              {!!weather.warning && (
-                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: v2.color.warning }}>
-                    <Text style={{ color: v2.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </Section>
-
-          {/* Financials */}
-          <Section title="Finanse">
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Liczba osób">
-                  <TextInput
-                    testID="event-people-input"
-                    value={people}
-                    onChangeText={(v) => { setPeople(v); setAutoPrice(true); }}
-                    placeholder="np. 25"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="number-pad"
-                    style={s.input}
-                  />
-                </Field>
-              </View>
-              <View style={{ flex: 1.2 }}>
-                <Field label="Przychód (PLN)">
-                  <TextInput
-                    testID="event-revenue-input"
-                    value={revenue}
-                    onChangeText={(v) => { setRevenue(v); setAutoPrice(false); }}
-                    placeholder="0"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad"
-                    style={s.input}
-                  />
-                </Field>
-              </View>
-            </View>
-            {isAdult && (
-              <View style={s.zestawRow} testID="adult-sets">
-                {ADULT_SETS.map(zs => {
-                  const sel = packageSet === zs.id;
-                  return (
-                    <Pressable
-                      key={zs.id}
-                      testID={`zestaw-${zs.id}`}
-                      onPress={() => { setPackageSet(sel ? "" : zs.id); setAutoPrice(true); }}
-                      style={[s.zestawBtn, sel && s.zestawBtnActive]}
-                    >
-                      <Text style={[s.zestawName, sel && { color: '#fff' }]}>{zs.name}</Text>
-                      <Text style={[s.zestawPrice, sel && { color: '#fff' }]}>{zs.price_per_person} zł/os.</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-            {isAdult && !!packageSet && findAdultSet(packageSet) && (
-              <View style={s.zestawDetails}>
-                <Text style={s.zestawDetailsTitle}>W {findAdultSet(packageSet)!.name}:</Text>
-                {findAdultSet(packageSet)!.items.map((it, i) => (
-                  <Text key={i} style={s.zestawItem}>• {it}</Text>
-                ))}
-                <Text style={[s.zestawDetailsTitle, { marginTop: 6 }]}>Dodatki w cenie:</Text>
-                {findAdultSet(packageSet)!.addons.map((it, i) => (
-                  <Text key={i} style={s.zestawItem}>• {it}</Text>
-                ))}
-              </View>
-            )}
-            {pricing && (
-              <View style={s.pricingCard} testID="pricing-breakdown">
-                <View style={{ flex: 1 }}>
-                  <Text style={s.pricingBreakdown}>{pricing.breakdown}</Text>
-                  {extrasTotal > 0 && <Text style={s.pricingBreakdown}>+ Dodatki: {extrasTotal.toFixed(0)} zł</Text>}
-                  <Text style={s.pricingHint}>{autoPrice ? "Cena wpisana automatycznie" : "Cena ręczna — dotknij, aby użyć auto"}</Text>
-                </View>
-                <Pressable
-                  testID="pricing-apply-btn"
-                  onPress={() => { setRevenue(String(combinedTotal)); setAutoPrice(true); }}
-                  style={s.pricingApply}
-                >
-                  <Text style={s.pricingApplyText}>{formatPLN(combinedTotal)}</Text>
-                </Pressable>
-              </View>
-            )}
-
-            <View style={{ marginTop: 12, marginBottom: 4 }}>
-              <Text style={s.label}>{
-                activeExtras.length > 0
-                  ? (isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)"
-                    : isParentTrip ? "Dodatki (catering, konie, animacje)"
-                    : isBirthday ? "Dodatki (catering)"
-                    : "Dodatki")
-                  : "Koszty (materiały, wynajem itp.)"
-              }</Text>
-            </View>
-            {activeExtras.map(ex => {
-              const q = extras[ex.id] || 0;
-              const line = ex.unit === "kwota" ? q : q * ex.price;
-              return (
-                <View key={ex.id} style={s.extraRow} testID={`extra-${ex.id}`}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.extraName}>{ex.name}</Text>
-                    <Text style={s.extraHint}>{ex.unit === "kwota" ? "Wpisz kwotę (zł)" : `${ex.price} zł / ${ex.unit}`}{ex.hint ? ` · ${ex.hint}` : ""}</Text>
-                  </View>
-                  <TextInput
-                    testID={`extra-qty-${ex.id}`}
-                    value={q ? String(q) : ""}
-                    onChangeText={(v) => {
-                      const n = parseAmt(v);
-                      setExtras(prev => ({ ...prev, [ex.id]: n }));
-                      setAutoPrice(true);
-                    }}
-                    placeholder="0"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad"
-                    style={s.extraQtyInput}
-                  />
-                  <Text style={s.extraLine}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
-                </View>
-              );
-            })}
-
-            {activeExtras.length > 0 && (
-              <View style={{ marginTop: 12, marginBottom: 4 }}>
-                <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
-              </View>
-            )}
-
+          <Section title="Menu / Catering — oferta obiadowa">
             {/* Oferta obiadowa — quick picker with auto-margin (collapsible — not always needed for pricing) */}
             {(() => {
               const dinnerCount = Object.values(dinnerQty).reduce((sum, q) => sum + (Number(q) || 0), 0);
@@ -2051,146 +2126,6 @@ export default function EventDetail() {
                 <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
               </Pressable>
             ) : null}
-            {costs.map((c, i) => (
-              <View key={i} style={s.costRow}>
-                <TextInput
-                  testID={`cost-label-${i}`}
-                  value={c.label}
-                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, label: v } : x))}
-                  placeholder="np. Catering"
-                  placeholderTextColor={v2.color.textMuted}
-                  style={[s.input, { flex: 2 }]}
-                />
-                <TextInput
-                  testID={`cost-amount-${i}`}
-                  value={String(c.amount || "")}
-                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, amount: parseAmt(v) } : x))}
-                  placeholder="0"
-                  placeholderTextColor={v2.color.textMuted}
-                  keyboardType="decimal-pad"
-                  style={[s.input, { flex: 1 }]}
-                />
-                <Pressable testID={`cost-del-${i}`} onPress={() => setCosts(costs.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                  <Feather name="x" size={16} color={v2.color.textMuted} />
-                </Pressable>
-              </View>
-            ))}
-            <Pressable testID="cost-add-btn" onPress={() => setCosts([...costs, { label: "", amount: 0 }])} style={s.addRow}>
-              <Feather name="plus" size={16} color={v2.color.forest} />
-              <Text style={s.addRowText}>Dodaj koszt</Text>
-            </Pressable>
-          </Section>
-
-          {/* Staff */}
-          <Section title="Pracownicy na zmianie">
-            {shifts.length === 0 && <Text style={s.hint}>Brak przypisanych pracowników</Text>}
-            {shifts.map((sh, i) => {
-              const s2 = staffMap[sh.staff_id];
-              return (
-                <View key={sh.staff_id} style={s.shiftBlock}>
-                  <View style={s.shiftRow}>
-                    <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.shiftName}>{s2?.name || "?"}</Text>
-                      <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text>
-                    </View>
-                    <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
-                    <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                      <Feather name="x" size={16} color={v2.color.textMuted} />
-                    </Pressable>
-                  </View>
-                  {availByStaff[sh.staff_id]?.status === "unavailable" ? (
-                    <View style={s.availWarn}>
-                      <Feather name="alert-triangle" size={13} color={v2.color.error} />
-                      <Text style={s.availWarnText}>
-                        Zgłoszony brak dostępności {availByStaff[sh.staff_id].all_day === false
-                          ? `w godz. ${availByStaff[sh.staff_id].time_from}–${availByStaff[sh.staff_id].time_to}`
-                          : "(cały dzień)"}
-                        {availByStaff[sh.staff_id].note ? ` · „${availByStaff[sh.staff_id].note}”` : ""}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View style={s.shiftTimeRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Od</Text>
-                      <TextInput
-                        testID={`shift-start-${i}`}
-                        value={sh.time_start || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
-                          if (ix !== i) return x;
-                          const next = { ...x, time_start: v };
-                          const h = hoursBetween(v, next.time_end);
-                          return { ...next, hours: h || x.hours };
-                        }))}
-                        placeholder="18:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Do</Text>
-                      <TextInput
-                        testID={`shift-end-${i}`}
-                        value={sh.time_end || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
-                          if (ix !== i) return x;
-                          const next = { ...x, time_end: v };
-                          const h = hoursBetween(next.time_start, v);
-                          return { ...next, hours: h || x.hours };
-                        }))}
-                        placeholder="22:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Godziny (ręcznie)</Text>
-                      <TextInput
-                        testID={`shift-hours-${i}`}
-                        value={String(sh.hours || "")}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
-                        placeholder="4"
-                        placeholderTextColor={v2.color.textMuted}
-                        keyboardType="decimal-pad"
-                        style={s.timeInput}
-                      />
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Rola na imprezie</Text>
-                      <TextInput
-                        testID={`shift-role-${i}`}
-                        value={sh.role || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, role: v } : x))}
-                        placeholder="np. przygotowanie / obsługa"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Notatka (opcjonalna)</Text>
-                      <TextInput
-                        testID={`shift-note-${i}`}
-                        value={sh.note || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, note: v } : x))}
-                        placeholder="np. dekoracje od 9:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-            {availStaff.length > 0 ? (
-              <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
-                <Feather name="plus" size={16} color={v2.color.forest} />
-                <Text style={s.addRowText}>Dodaj pracownika</Text>
-              </Pressable>
-            ) : staffAll.length === 0 ? (
-              <Text style={s.hint}>Najpierw dodaj pracowników w zakładce Pracownicy</Text>
-            ) : null}
           </Section>
 
           {/* Checklist (Zadania imprezy) — only for saved events */}
@@ -2211,19 +2146,291 @@ export default function EventDetail() {
             </Pressable>
           )}
 
-          {/* Summary */}
-          <View style={s.summary}>
-            <SummaryRow label="Przychód" value={revenueNum} />
-            <SummaryRow label="Koszty materiałowe" value={-materialCost} />
-            <SummaryRow label="Koszty pracy" value={-laborCost} />
-            <View style={s.sep} />
-            <SummaryRow label="Zysk" value={profit} bold />
-          </View>
+          </Collapse>
+
+          <Collapse title="Komunikacja i automatyzacje" icon="mail" testID="sec-komunikacja">
+          {!isNew && preEventEmail && (
+            <Section title="Wiadomość przed imprezą">
+              <View testID="pre-event-email-card" style={s.preEmailCard}>
+                <PreEmailRow label="Rodzaj imprezy" value={categoryLabel(preEventEmail.event_category)} testID="pre-event-email-category" />
+                <PreEmailRow label="Regulamin" value={preEventEmail.regulation_label} testID="pre-event-email-regulation" />
+                <PreEmailRow
+                  label="Planowana wysyłka"
+                  value={preEventEmail.scheduled_at ? new Date(preEventEmail.scheduled_at).toLocaleString("pl-PL") : "—"}
+                  testID="pre-event-email-scheduled-at"
+                />
+                <PreEmailRow label="Adres e-mail" value={preEventEmail.address || "Brak"} testID="pre-event-email-address" />
+                <PreEmailRow
+                  label="Status"
+                  value={({ scheduled: "Oczekuje", sent: "Wysłano", failed: "Błąd", cancelled: "Anulowano", not_scheduled: "Oczekuje" } as Record<string, string>)[preEventEmail.status] || preEventEmail.status}
+                  testID="pre-event-email-status"
+                />
+                <View testID="pre-event-email-attachments" style={s.preEmailAttachments}>
+                  <Text style={s.preEmailAttachmentsTitle}>Załączniki</Text>
+                  {(preEventEmail.attachments || []).map((attachment: any) => (
+                    <View key={attachment.kind} testID={`pre-event-email-attachment-${attachment.kind}`} style={s.preEmailAttachmentRow}>
+                      <Feather name="check-circle" size={16} color={v2.color.success} />
+                      <Text style={s.preEmailAttachmentText}>{attachment.label}</Text>
+                    </View>
+                  ))}
+                </View>
+                {!!preEventEmail.notice && (
+                  <View testID="pre-event-email-notice" style={s.preEmailNotice}>
+                    <Feather name="alert-circle" size={16} color={v2.color.error} />
+                    <Text style={s.preEmailNoticeText}>{preEventEmail.notice}</Text>
+                  </View>
+                )}
+                {!!preEventEmail.error && !preEventEmail.notice && (
+                  <Text testID="pre-event-email-error" style={s.preEmailError}>{preEventEmail.error}</Text>
+                )}
+                <View style={s.preEmailActions}>
+                  <Pressable
+                    testID="pre-event-email-preview-button"
+                    onPress={async () => {
+                      try {
+                        const preview: any = await api.preEventEmailPreview(id as string);
+                        Alert.alert(preview.subject, preview.body);
+                      } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się pobrać podglądu."); }
+                    }}
+                    style={s.preEmailSecondaryButton}
+                  >
+                    <Feather name="mail" size={14} color={v2.color.forest} />
+                    <Text style={s.preEmailSecondaryText}>Podgląd maila</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="pre-event-regulation-preview-button"
+                    onPress={previewPreEventRegulation}
+                    disabled={preEventEmailBusy || !preEventEmail.regulation_type}
+                    style={[s.preEmailSecondaryButton, (!preEventEmail.regulation_type || preEventEmailBusy) && { opacity: 0.5 }]}
+                  >
+                    <Feather name="file-text" size={14} color={v2.color.forest} />
+                    <Text style={s.preEmailSecondaryText}>Podgląd regulaminu</Text>
+                  </Pressable>
+                </View>
+                <View style={s.preEmailActions}>
+                  <Pressable
+                    testID="pre-event-email-send-now-button"
+                    onPress={() => sendPreEventEmail(false)}
+                    disabled={preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona"}
+                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
+                  >
+                    {preEventEmailBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={14} color="#fff" />}
+                    <Text style={s.preEmailPrimaryText}>Wyślij teraz</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="pre-event-email-resend-button"
+                    onPress={() => sendPreEventEmail(true)}
+                    disabled={preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona"}
+                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
+                  >
+                    <Feather name="repeat" size={14} color="#fff" />
+                    <Text style={s.preEmailPrimaryText}>Wyślij ponownie</Text>
+                  </Pressable>
+                </View>
+              </View>
+            </Section>
+          )}
+
+            {/* Thank-you status card — only for existing events that are already completed */}
+            {!isNew && status === "zakonczona" && thanksStatus && (
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: thanksStatus.sent ? v2.color.successBg : v2.color.warningBg, borderWidth: 1, borderColor: thanksStatus.sent ? v2.color.success + "55" : v2.color.warning + "55" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <Feather name={thanksStatus.sent ? "check-circle" : "alert-circle"} size={14} color={thanksStatus.sent ? v2.color.success : v2.color.warning} />
+                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>
+                    {thanksStatus.sent ? "Wysłano podziękowanie z rabatem" : (thanksStatus.log?.status === "no_email" ? "Nie wysłano — brak e-maila klienta" : (thanksStatus.log?.status === "failed" ? "Błąd wysyłki" : "Podziękowanie niewysłane"))}
+                  </Text>
+                </View>
+                {thanksStatus.sent && thanksStatus.code ? (
+                  <>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Kod: <Text style={{ fontWeight: "800", color: v2.color.text }}>{thanksStatus.code.code}</Text> · ważny do {thanksStatus.code.expires_at_date}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>Odbiorca: {thanksStatus.log?.recipient} · {thanksStatus.log?.sent_at ? new Date(thanksStatus.log.sent_at).toLocaleString("pl-PL") : ""}</Text>
+                  </>
+                ) : null}
+                {thanksStatus.log?.status === "failed" ? (
+                  <Text style={{ color: v2.color.error, fontSize: 11, marginTop: 2 }}>{thanksStatus.log?.error || ""}</Text>
+                ) : null}
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
+                  <Pressable
+                    testID="thanks-preview"
+                    onPress={async () => {
+                      try {
+                        const p: any = await api.eventThanksPreview(id as string);
+                        Alert.alert(p.subject, p.body);
+                      } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
+                    }}
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border }}
+                  >
+                    <Feather name="eye" size={13} color={v2.color.text} />
+                    <Text style={{ color: v2.color.text, fontWeight: "800", fontSize: 12 }}>Podgląd</Text>
+                  </Pressable>
+                  <Pressable
+                    testID="thanks-resend"
+                    onPress={async () => {
+                      Alert.alert(
+                        thanksStatus.sent ? "Wysłać ponownie?" : "Wysłać teraz?",
+                        thanksStatus.sent ? "Zostanie użyty ten sam kod rabatowy." : "Wyślemy podziękowanie na e-mail klienta.",
+                        [
+                          { text: "Anuluj", style: "cancel" },
+                          { text: "Wyślij", onPress: async () => {
+                            try {
+                              if (thanksStatus.sent) {
+                                await api.eventResendThanks(id as string);
+                              } else {
+                                await api.eventComplete(id as string, true);
+                              }
+                              const ts: any = await api.eventThanksStatus(id as string);
+                              setThanksStatus(ts);
+                              Alert.alert("Wysłano", "Podziękowanie zostało wysłane.");
+                            } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się wysłać"); }
+                          }},
+                        ]
+                      );
+                    }}
+                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.forest }}
+                  >
+                    <Feather name="send" size={13} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{thanksStatus.sent ? "Wyślij ponownie" : "Wyślij teraz"}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+          </Collapse>
+
+          <Collapse title="Dodatkowe" icon="more-horizontal" testID="sec-dodatkowe">
+          {/* Weather */}
+          <Section title="Pogoda w dniu imprezy">
+            <Pressable
+              testID="weather-fetch"
+              onPress={async () => {
+                if (!date) return;
+                setWeatherLoading(true);
+                try {
+                  const w = await api.weather(date, timeStart, timeEnd);
+                  setWeather(w);
+                } catch (e: any) {
+                  setWeather({ available: false, message: e?.message || "Błąd pobierania prognozy" });
+                } finally { setWeatherLoading(false); }
+              }}
+              style={{
+                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+                paddingVertical: 12, borderRadius: 10,
+                backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.forest,
+              }}
+            >
+              {weatherLoading ? (
+                <ActivityIndicator color={v2.color.forest} size="small" />
+              ) : (
+                <>
+                  <Feather name="cloud" size={16} color={v2.color.forest} />
+                  <Text style={{ color: v2.color.forest, fontWeight: "700", fontSize: 13 }}>
+                    {weather ? "Odśwież prognozę" : "Sprawdź prognozę pogody"}
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            {weather && !weather.available && (
+              <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
+                {weather.message || "Prognoza niedostępna"}
+              </Text>
+            )}
+            {weather && weather.available && (
+              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <Feather name={weather.icon || "cloud"} size={40} color={v2.color.forest} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "800" }}>
+                      {weather.temp_min !== null ? `${weather.temp_min}°` : "—"}
+                      {" – "}
+                      {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
+                    </Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>{`${weather.description || ""} · ${weather.time_window || ""}`}</Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
+                  <View>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
+                  </View>
+                  <View>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
+                    <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
+                  </View>
+                </View>
+              {!!weather.warning && (
+                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: v2.color.warning }}>
+                    <Text style={{ color: v2.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </Section>
+
+          <Section title="">
+            <Field label="Notatki">
+              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
+            </Field>
+          </Section>
+
+          {/* Image */}
+          <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
+            {imageUrl ? (
+              <>
+                <Image source={imageUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
+                <LinearGradient
+                  colors={["rgba(12,12,14,0.15)", "rgba(12,12,14,0.85)"]}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={s.imageEditRow}>
+                  <View style={s.imageBadge}>
+                    <Feather name="camera" size={14} color={'#fff'} />
+                    <Text style={s.imageBadgeText}>Zmień zdjęcie</Text>
+                  </View>
+                  <Pressable testID="event-image-remove" onPress={(e) => { e.stopPropagation?.(); setImageUrl(""); }} hitSlop={10} style={s.imageRemoveBtn}>
+                    <Feather name="x" size={16} color={v2.color.text} />
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <View style={s.imagePlaceholder}>
+                <Feather name="camera" size={28} color={v2.color.forest} />
+                <Text style={s.imagePlaceholderText}>Dodaj zdjęcie imprezy</Text>
+                <Text style={s.imagePlaceholderSub}>Galeria lub aparat</Text>
+              </View>
+            )}
+          </Pressable>
+
+          {/* Etap 3 — dokumenty PDF */}
+          {!isNew && (
+            <Section title="Dokumenty PDF">
+              <Pressable testID="pdf-confirmation-btn" onPress={() => downloadEventPdf("conf")} disabled={pdfBusy !== null} style={s.pdfRow}>
+                <View style={s.checklistIconBox}><Feather name="file-text" size={20} color={v2.color.forest} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.checklistLabel}>Potwierdzenie imprezy</Text>
+                  <Text style={s.checklistSub}>Elegancki PDF dla klienta — szczegóły i płatności</Text>
+                </View>
+                {pdfBusy === "conf" ? <ActivityIndicator color={v2.color.forest} /> : <Feather name="download" size={18} color={v2.color.textMuted} />}
+              </Pressable>
+              <Pressable testID="pdf-staffcard-btn" onPress={() => downloadEventPdf("staff")} disabled={pdfBusy !== null} style={[s.pdfRow, { borderTopWidth: 1, borderTopColor: v2.color.divider }]}>
+                <View style={s.checklistIconBox}><Feather name="clipboard" size={20} color={v2.color.forest} /></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.checklistLabel}>Karta dla obsługi</Text>
+                  <Text style={s.checklistSub}>Wewnętrzny PDF — organizacja, zespół, zadania (bez finansów)</Text>
+                </View>
+                {pdfBusy === "staff" ? <ActivityIndicator color={v2.color.forest} /> : <Feather name="download" size={18} color={v2.color.textMuted} />}
+              </Pressable>
+            </Section>
+          )}
 
           <Pressable testID="save-as-template-btn" onPress={saveAsTemplate} disabled={!name.trim()} style={[s.tplSaveBtn, !name.trim() && { opacity: 0.5 }]}>
             <Feather name="bookmark" size={16} color={v2.color.forest} />
             <Text style={s.tplLoadText}>Zapisz jako szablon</Text>
-          </Pressable>
+          </Pressable>          </Collapse>
+
+
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -2660,8 +2867,23 @@ export default function EventDetail() {
 function Section({ title, children }: any) {
   return (
     <View style={s.section}>
-      <Text style={s.sectionTitle}>{title}</Text>
+      {title ? <Text style={s.sectionTitle}>{title}</Text> : null}
       {children}
+    </View>
+  );
+}
+function Collapse({ title, icon, defaultOpen = false, children, testID }: any) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <View style={s.collapseWrap}>
+      <Pressable onPress={() => setOpen((o: boolean) => !o)} style={s.collapseHead} testID={testID}>
+        <View style={s.collapseIconBox}>
+          <Feather name={icon || "folder"} size={15} color={v2.color.forest} />
+        </View>
+        <Text style={s.collapseTitle}>{title}</Text>
+        <Feather name={open ? "chevron-up" : "chevron-down"} size={18} color={v2.color.textMuted} />
+      </Pressable>
+      {open ? <View style={{ marginTop: 10 }}>{children}</View> : null}
     </View>
   );
 }
@@ -2817,6 +3039,28 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: v2.color.error + "44",
   },
   availWarnText: { flex: 1, color: v2.color.error, fontSize: 11, fontWeight: "700" },
+  pdfRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  // Collapsible sections + compact summary (UX reorg)
+  collapseWrap: { marginBottom: 12 },
+  collapseHead: {
+    flexDirection: "row", alignItems: "center", gap: 10, padding: 14,
+    borderRadius: v2.radius.lg, backgroundColor: v2.color.card,
+    borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm,
+  },
+  collapseIconBox: { width: 30, height: 30, borderRadius: 8, backgroundColor: v2.color.mint, alignItems: "center", justifyContent: "center" },
+  collapseTitle: { flex: 1, color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  compactCard: {
+    backgroundColor: v2.color.card, borderRadius: v2.radius.xl, padding: 14, marginBottom: 14,
+    borderWidth: 1, borderColor: v2.color.border, ...v2.shadow.sm,
+  },
+  compactRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  compactText: { color: v2.color.text, fontSize: 13, fontWeight: "700", flexShrink: 1 },
+  compactKpiRow: { flexDirection: "row", gap: 6, marginTop: 12 },
+  compactKpi: { flex: 1, backgroundColor: v2.color.bg, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: v2.color.divider },
+  compactKpiLabel: { color: v2.color.textSubtle, fontSize: 8.5, fontWeight: "800", letterSpacing: 0.4 },
+  compactKpiVal: { color: v2.color.text, fontSize: 13, fontWeight: "800", marginTop: 2 },
+  compactPill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  compactPillText: { fontSize: 11, fontWeight: "800" },
   imageBox: {
     height: 160, borderRadius: v2.radius.xl, backgroundColor: v2.color.cardMuted,
     overflow: "hidden", marginBottom: 14, borderWidth: 1, borderColor: v2.color.border,

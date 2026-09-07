@@ -410,3 +410,27 @@ agent_communication:
         app/dostepnosc-zespolu.tsx (admin, entry Więcej → "Dostępność zespołu", testID wiecej-dostepnosc);
         event/[id].tsx staff picker pills + block Alert + assigned-shift warning; save() error Alert fix;
         shift role/note now persisted.
+    - agent: "main"
+      message: |
+        Iteration 23 — Etap 3 PDF + Etap 2 AI draft replies.
+        Backend: new module /app/backend/event_pdfs.py (Liberation Sans for Polish diacritics).
+        Endpoints: GET /api/events/{id}/pdf/confirmation (admin), GET /api/events/{id}/pdf/staff-card
+        (admin/partner — NO finances/client contact, verified via extracted PDF text);
+        POST /api/client-reply-suggestions/{id}/draft-reply (GPT-5.6-Terra draft, persisted as reply_draft);
+        POST /api/client-reply-suggestions/{id}/send-reply (SMTP, sets reply_sent_at/to, ai_email_logs).
+        Frontend event/[id].tsx: "Dokumenty PDF" section (pdf-confirmation-btn, pdf-staffcard-btn);
+        AI reply flow in client-reply suggestion card (sug-reply-generate-{id}, sug-reply-subject/draft/send-{id}).
+        Backend E2E: /app/backend/tests/test_pdf_and_reply_e2e.py — 23/23 PASSED (no real emails sent).
+        UI smoke-verified via screenshots (PDF section renders, confirmation opens without error).
+    - agent: "main"
+      message: |
+        Iteration 24 — Event card UX reorganization (event/[id].tsx, JSX-only, no logic/endpoint changes).
+        New Collapse component + compact summary header (event-compact-summary: category/status pills,
+        date/time, people, client/phone, KPIs CENA/DO ZAPŁATY/ZYSK/MARŻA).
+        7 collapsible sections in order (testIDs): sec-dane, sec-status, sec-finanse (merged Płatność +
+        discount codes + Wpłaty klienta + revenue/costs calculator + profit card with margin),
+        sec-pracownicy, sec-organizacja (org + client update + service info + team info + dinner/catering
+        moved from Finanse + checklist link), sec-komunikacja (pre-event email + thank-you),
+        sec-dodatkowe (weather, notes moved from Informacje, image, PDFs, save-as-template).
+        Sections 1-4 defaultOpen. Client reply suggestions stay on top. Staff view untouched.
+        Verified via screenshots: all sections render, expand/collapse works, event save OK (no errors).

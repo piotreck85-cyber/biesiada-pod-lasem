@@ -132,6 +132,66 @@ async def extract_reply_info(text: str) -> dict | None:
 
 
 # ---------------------------------------------------------------------------
+# Etap 2 — AI draft reply generation (owner reviews & sends)
+# ---------------------------------------------------------------------------
+
+_DRAFT_SYSTEM = (
+    "Jesteś asystentem firmy 'Biesiada pod Lasem' (imprezy plenerowe, Kielce — Dolina Przygód). "
+    "Piszesz krótkie, ciepłe i profesjonalne odpowiedzi e-mail po polsku na wiadomości klientów "
+    "przed ich imprezą. Zasady:\n"
+    "- Potwierdź otrzymane od klienta informacje (podziękuj za wiadomość).\n"
+    "- Odpowiadaj na pytania TYLKO jeśli odpowiedź wynika wprost z przekazanych danych imprezy; "
+    "w przeciwnym razie napisz, że potwierdzimy szczegóły telefonicznie lub na miejscu.\n"
+    "- NIE wymyślaj cen, rabatów ani nowych ustaleń. Nie podawaj żadnych kwot.\n"
+    "- Zwięźle: 4-8 zdań, bez tematu wiadomości, sam tekst e-maila.\n"
+    "- Zakończ dokładnie takim podpisem:\n"
+    "Pozdrawiamy serdecznie,\nZespół Biesiada pod Lasem 🌲"
+)
+
+
+async def generate_reply_draft(ev: dict, sug: dict) -> str | None:
+    """Generate a Polish draft e-mail reply to the client's message. None when AI unavailable."""
+    key = os.environ.get("EMERGENT_LLM_KEY") or ""
+    if not key:
+        return None
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception:
+        return None
+    ctx_lines = [
+        f"Nazwa imprezy: {ev.get('name') or ''}",
+        f"Data: {ev.get('date') or ''}",
+        f"Godziny: {ev.get('time_start') or ''}–{ev.get('time_end') or ''}",
+        f"Liczba gości: {ev.get('people') or ''}",
+        f"Kategoria: {ev.get('category') or ''}",
+    ]
+    org = ev.get("org") or {}
+    for k in ("menu_details", "grill", "attractions", "early_arrival_time"):
+        if str(org.get(k) or "").strip():
+            ctx_lines.append(f"{k}: {org[k]}")
+    summary = "\n".join(f"- {l}" for l in (sug.get("summary_lines") or []))
+    prompt = (
+        f"Dane imprezy:\n" + "\n".join(ctx_lines) + "\n\n"
+        f"Klient ({sug.get('from_name') or sug.get('from_email') or 'klient'}) napisał:\n"
+        f"{(sug.get('client_text') or '')[:3000]}\n\n"
+        + (f"Wcześniej rozpoznane informacje:\n{summary}\n\n" if summary else "")
+        + "Napisz szkic odpowiedzi e-mail do klienta."
+    )
+    try:
+        chat = LlmChat(
+            api_key=key,
+            session_id=f"client-reply-draft-{uuid.uuid4()}",
+            system_message=_DRAFT_SYSTEM,
+        ).with_model("openai", "gpt-5.6-terra")
+        raw = await chat.send_message(UserMessage(text=prompt))
+        text = str(raw or "").strip()
+        return text or None
+    except Exception as e:
+        log.warning(f"AI reply draft failed: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Gmail scanning
 # ---------------------------------------------------------------------------
 

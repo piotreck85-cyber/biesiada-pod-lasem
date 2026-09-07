@@ -518,3 +518,42 @@ Polish mobile app for event organizers to manage:
 - Admin screen /dostepnosc-zespolu (Więcej → "Dostępność zespołu"): month grid with
   green/red dots, day detail = all staff with status pills, month list of unavailabilities.
 - Tests: /app/backend/tests/test_availability_e2e.py — 22/22.
+
+## Iteration (Jun 2026) — Etap 3 PDF + Etap 2 AI szkice odpowiedzi
+### Etap 3 — dokumenty PDF imprezy (`/app/backend/event_pdfs.py`)
+- Liberation Sans registered (pełne polskie znaki), paleta V2.0 forest green + gold (spójna z ofertą).
+- `GET /api/events/{id}/pdf/confirmation` (admin) — **Potwierdzenie imprezy** dla klienta:
+  status, szczegóły (data PL słownie, godziny, goście, kategoria, zestaw), menu obiadowe (nazwy+porcje),
+  dodatki, płatności (cena, rabat/kod, zaliczka, pozostało do zapłaty), stopka.
+- `GET /api/events/{id}/pdf/staff-card` (admin/partner) — **Karta dla obsługi** (wewnętrzna):
+  info podstawowe, zespół (imię/rola/godziny/notatka — BEZ stawek), organizacja (org.*),
+  najnowsze info od klienta, informacje dla obsługi (⚠ WAŻNE w czerwonej ramce), checklista ☐/☑.
+  ZERO danych finansowych i kontaktu klienta (weryfikowane testem na tekście PDF).
+- Frontend: event/[id].tsx sekcja "Dokumenty PDF" (testIDs pdf-confirmation-btn, pdf-staffcard-btn),
+  pobieranie przez openBlobPdf (web: nowa karta, native: share sheet).
+- Elegancka oferta sprzedażowa istniała już wcześniej (offer_email.build_offer_pdf + /offers/preview-pdf).
+### Etap 2 — AI szkice odpowiedzi na maile klientów
+- `POST /api/client-reply-suggestions/{id}/draft-reply` — GPT-5.6-Terra generuje polski szkic
+  odpowiedzi (system prompt: potwierdź informacje, nie wymyślaj cen/ustaleń, podpis zespołu);
+  szkic zapisywany na sugestii (reply_draft). Zwraca {draft, subject "Re: Do zobaczenia…", to_email}.
+- `POST /api/client-reply-suggestions/{id}/send-reply` {text, subject?, to_email?} — wysyłka SMTP
+  po akceptacji właściciela; zapis reply_sent_at/by/to/text + log w ai_email_logs + audit.
+- Frontend (panel 📩 NOWA ODPOWIEDŹ KLIENTA): przycisk "✨ WYGENERUJ ODPOWIEDŹ AI" → edytowalny
+  temat+treść → "WYŚLIJ ODPOWIEDŹ (adres)" → banner "✓ Odpowiedź wysłana".
+- Tests: /app/backend/tests/test_pdf_and_reply_e2e.py — 23/23 (bez realnych wysyłek e-mail).
+
+## Iteration (Jun 2026) — Reorganizacja UX karty imprezy (event/[id].tsx)
+- CZYSTO UI/UX — zero zmian w logice, endpointach i danych (skrypt przestawiał bloki JSX 1:1).
+- Nowy komponent `Collapse` (rozwijane sekcje) + kompaktowe podsumowanie na górze
+  (testID event-compact-summary): pigułki kategoria+status, data·godziny, liczba osób,
+  klient·telefon, KPI: CENA / DO ZAPŁATY / ZYSK PRZEW. / MARŻA.
+- Kolejność sekcji (testIDs sec-*): 1. Dane imprezy i klienta (dane + Klient),
+  2. Status imprezy, 3. Finanse (Cena i wpłaty + kody rabatowe + Wpłaty klienta +
+  Kalkulator przychodu i kosztów + ciemna karta zysku z marżą), 4. Pracownicy na zmianie,
+  5. Organizacja — widoczna dla obsługi (org + info od klienta + info dla obsługi +
+  info od zespołu + Menu/Catering (oferta obiadowa przeniesiona z Finansów) + link Zadania),
+  6. Komunikacja i automatyzacje (mail przed imprezą/regulamin/mapa + podziękowanie),
+  7. Dodatkowe (pogoda, notatki, zdjęcie, Dokumenty PDF, Zapisz jako szablon).
+- Sekcje 1–4 domyślnie rozwinięte, 5–7 zwinięte. Alerty 📩 odpowiedzi klienta zawsze na górze.
+- Widok pracownika bez zmian (moja-impreza/[id].tsx — nadal bez finansów, filtrowane backendem).
+- Zweryfikowane screenshotami (wszystkie 7 sekcji + zapis imprezy działa bez błędu).

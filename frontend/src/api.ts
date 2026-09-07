@@ -244,6 +244,14 @@ export const api = {
     request(`/client-reply-suggestions/${sug_id}/approve`, { method: "POST", body: JSON.stringify({ text: text || null }) }),
   rejectClientReply: (sug_id: string) =>
     request(`/client-reply-suggestions/${sug_id}/reject`, { method: "POST" }),
+  // Etap 2 — AI draft replies to client emails
+  draftClientReply: (sug_id: string) =>
+    request(`/client-reply-suggestions/${sug_id}/draft-reply`, { method: "POST" }),
+  sendClientReply: (sug_id: string, data: { text: string; subject?: string; to_email?: string }) =>
+    request(`/client-reply-suggestions/${sug_id}/send-reply`, { method: "POST", body: JSON.stringify(data) }),
+  // Etap 3 — event PDFs
+  eventConfirmationPdf: (event_id: string) => requestBlob(`/events/${event_id}/pdf/confirmation`),
+  eventStaffCardPdf: (event_id: string) => requestBlob(`/events/${event_id}/pdf/staff-card`),
   // Cost import (BPL 2026)
   costImportSummary: () => request("/cost-import/summary"),
   costImportPending: () => request("/cost-import/pending"),
