@@ -4,7 +4,7 @@ import {
   KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView, Alert, StatusBar,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN, initials } from "@/src/theme";
 import { v2 } from "@/src/designTokensV2";
@@ -60,6 +60,7 @@ type SortDir = "asc" | "desc";
 
 export default function Pracownicy() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { logout, user, deleteAccount } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -446,6 +447,22 @@ export default function Pracownicy() {
             >
               <Feather name="dollar-sign" size={14} color={mode === "wages" ? "#FFFFFF" : theme.color.onSurface} />
               <Text style={[s.modeBtnText, mode === "wages" && { color: "#FFFFFF" }]}>Wypłaty</Text>
+            </Pressable>
+          </View>
+
+          {/* Szybkie linki zespołu: grafik, czas pracy, dostępność */}
+          <View style={s.quickLinksRow}>
+            <Pressable testID="team-link-grafik" onPress={() => router.push("/grafik-pracownikow" as any)} style={s.quickLink}>
+              <Feather name="calendar" size={15} color={theme.color.brand} />
+              <Text style={s.quickLinkText}>Grafik</Text>
+            </Pressable>
+            <Pressable testID="team-link-czas" onPress={() => router.push("/czas-zespolu" as any)} style={s.quickLink}>
+              <Feather name="clock" size={15} color={theme.color.brand} />
+              <Text style={s.quickLinkText}>Czas pracy</Text>
+            </Pressable>
+            <Pressable testID="team-link-dostepnosc" onPress={() => router.push("/dostepnosc-zespolu" as any)} style={s.quickLink}>
+              <Feather name="user-check" size={15} color={theme.color.brand} />
+              <Text style={s.quickLinkText}>Dostępność</Text>
             </Pressable>
           </View>
 
@@ -1102,6 +1119,13 @@ const s = StyleSheet.create({
   brand: { color: v2.color.moss, letterSpacing: 3, fontSize: 10, fontWeight: "800", marginBottom: 4 },
   title: { color: v2.color.onDark, fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
   // ---- Mode toggle ----
+  quickLinksRow: { flexDirection: "row", gap: 8, paddingHorizontal: 20, marginBottom: 10 },
+  quickLink: {
+    flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+    paddingVertical: 10, borderRadius: 10, borderWidth: 1,
+    borderColor: theme.color.border, backgroundColor: theme.color.surface,
+  },
+  quickLinkText: { color: theme.color.onSurface, fontSize: 12, fontWeight: "700" },
   modeRow: {
     flexDirection: "row", gap: 8, paddingHorizontal: 20, paddingVertical: 8,
   },

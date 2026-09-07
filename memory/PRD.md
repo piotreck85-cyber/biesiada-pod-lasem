@@ -557,3 +557,6 @@ Polish mobile app for event organizers to manage:
 - Sekcje 1–4 domyślnie rozwinięte, 5–7 zwinięte. Alerty 📩 odpowiedzi klienta zawsze na górze.
 - Widok pracownika bez zmian (moja-impreza/[id].tsx — nadal bez finansów, filtrowane backendem).
 - Zweryfikowane screenshotami (wszystkie 7 sekcji + zapis imprezy działa bez błędu).
+- Nawigacja zespołu: szybkie linki Grafik / Czas pracy / Dostępność przeniesione do zakładki
+  ZESPÓŁ (testIDs team-link-grafik/czas/dostepnosc w (tabs)/pracownicy.tsx); usunięte z Więcej
+  (razem z duplikatem "Zarządzaj kontami pracowników" — to sama zakładka Zespół).

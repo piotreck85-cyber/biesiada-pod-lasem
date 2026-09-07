@@ -434,3 +434,9 @@ agent_communication:
         sec-dodatkowe (weather, notes moved from Informacje, image, PDFs, save-as-template).
         Sections 1-4 defaultOpen. Client reply suggestions stay on top. Staff view untouched.
         Verified via screenshots: all sections render, expand/collapse works, event save OK (no errors).
+    - agent: "main"
+      message: |
+        Iteration 24b — Staff features moved to ZESPÓŁ tab: quick links Grafik / Czas pracy / Dostępność
+        added to (tabs)/pracownicy.tsx (testIDs team-link-grafik, team-link-czas, team-link-dostepnosc);
+        removed from wiecej.tsx: Zarządzaj kontami pracowników, Grafik pracowników, Czas pracy zespołu,
+        Dostępność zespołu. Screenshot-verified: links render + navigate, Więcej clean.
