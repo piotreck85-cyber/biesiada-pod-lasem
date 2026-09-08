@@ -294,6 +294,11 @@ export const api = {
     return request(`/availability/team${p.toString() ? `?${p.toString()}` : ""}`);
   },
   availabilityForDate: (date: string) => request(`/availability/for-date?date=${encodeURIComponent(date)}`),
+  // Indywidualne uprawnienia + audyt
+  staffGetPermissions: (staff_id: string) => request(`/staff/${staff_id}/permissions`),
+  staffSetPermissions: (staff_id: string, permissions: Record<string, boolean>) =>
+    request(`/staff/${staff_id}/permissions`, { method: "PUT", body: JSON.stringify({ permissions }) }),
+  eventAudit: (event_id: string) => request(`/events/${event_id}/audit`),
   timeStart: (data?: { event_id?: string; note?: string }) =>
     request("/time-entries/start", { method: "POST", body: JSON.stringify(data || {}) }),
   timeStop: (data?: { entry_id?: string; note?: string }) =>

@@ -371,6 +371,79 @@ async def log_change(user: dict, action: str, entity_type: str, entity_id: str, 
 def hash_pw(pw: str) -> str:
     return bcrypt.hashpw(pw.encode(), bcrypt.gensalt()).decode()
 
+
+# ---------- Audyt pól: "kto, kiedy, pole, stara wartość, nowa wartość" ----------
+AUDIT_EVENT_FIELDS = [
+    ("name", "Nazwa"), ("date", "Data"), ("time_start", "Godzina od"), ("time_end", "Godzina do"),
+    ("people", "Liczba osób"), ("category", "Kategoria"), ("status", "Status"),
+    ("valid_until", "Ważne do"), ("venue", "Miejsce"),
+    ("price_total", "Cena imprezy"), ("price_after_discount", "Cena po rabacie"),
+    ("discount_pct", "Rabat %"), ("revenue", "Przychód"),
+    ("deposit_paid", "Zaliczka wpłacona"), ("deposit_amount", "Kwota zaliczki"), ("deposit_date", "Data zaliczki"),
+    ("client_name", "Klient"), ("client_phone", "Telefon klienta"), ("client_email", "E-mail klienta"),
+    ("notes", "Notatki"), ("client_notes", "Notatki o kliencie"), ("package_set", "Zestaw"),
+    ("client_update_text", "Info od klienta"),
+]
+AUDIT_PRICE_FIELD_KEYS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"}
+AUDIT_FINANCE_FIELD_KEYS = {"revenue", "deposit_paid", "deposit_amount", "deposit_date", "costs", "dinner_cost"}
+
+
+def _audit_fmt(v) -> str:
+    if v is None or v == "":
+        return "—"
+    if isinstance(v, bool):
+        return "TAK" if v else "NIE"
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    s = str(v)
+    return s if len(s) <= 200 else s[:200] + "…"
+
+
+async def log_field_diffs(user: dict, entity_type: str, entity_id: str, entity_label: str,
+                          old: dict, new: dict):
+    """Field-level audit entries (kind='field'). Only fields PRESENT in `new` are compared."""
+    entries = []
+
+    def add(field_key, field_label, ov, nv):
+        entries.append({
+            "id": str(uuid.uuid4()), "owner_id": ws(user),
+            "user_id": user.get("id"), "user_name": user.get("name") or user.get("email", ""),
+            "action": "update", "entity_type": entity_type, "entity_id": entity_id,
+            "entity_label": entity_label, "kind": "field",
+            "field": field_key, "field_label": field_label,
+            "old": _audit_fmt(ov), "new": _audit_fmt(nv),
+            "at": now_utc().isoformat(),
+        })
+
+    for key, label in AUDIT_EVENT_FIELDS:
+        if key not in new:
+            continue
+        ov, nv = (old or {}).get(key), new.get(key)
+        if _audit_fmt(ov) != _audit_fmt(nv):
+            add(key, label, ov, nv)
+    if "org" in new:
+        o_old, o_new = (old or {}).get("org") or {}, new.get("org") or {}
+        for k in set(o_old) | set(o_new):
+            if _audit_fmt(o_old.get(k)) != _audit_fmt(o_new.get(k)):
+                add(f"org.{k}", f"Organizacja · {k}", o_old.get(k), o_new.get(k))
+    if "costs" in new:
+        def cost_sig(c):
+            arr = c or []
+            return f"{len(arr)} poz. / {sum(float(x.get('amount') or 0) for x in arr):.0f} zł"
+        if cost_sig((old or {}).get("costs")) != cost_sig(new.get("costs")):
+            add("costs", "Koszty", cost_sig((old or {}).get("costs")), cost_sig(new.get("costs")))
+    if "applied_discount" in new:
+        def disc_sig(d):
+            return f"{d.get('code','')} (−{float(d.get('amount_zl') or 0):.0f} zł)" if d else ""
+        if disc_sig((old or {}).get("applied_discount")) != disc_sig(new.get("applied_discount")):
+            add("applied_discount", "Zastosowany rabat",
+                disc_sig((old or {}).get("applied_discount")), disc_sig(new.get("applied_discount")))
+    if entries:
+        try:
+            await db.audit_log.insert_many(entries)
+        except Exception:
+            pass
+
 def verify_pw(pw: str, hashed: str) -> bool:
     try:
         return bcrypt.checkpw(pw.encode(), hashed.encode())
@@ -922,6 +995,16 @@ async def preview_offer_pdf(body: SendOfferIn, user=Depends(current_user)):
 @api.get("/staff")
 async def list_staff(user=Depends(current_user)):
     items = await db.staff.find({"owner_id": ws(user)}, {"_id": 0}).sort("name", 1).to_list(500)
+    # Admin: dołącz uprawnienia z powiązanych kont logowania (users)
+    if is_admin(user) and items:
+        perms_by_staff = {}
+        async for u in db.users.find({"workspace_id": ws(user), "role": "staff"},
+                                     {"_id": 0, "staff_id": 1, "permissions": 1}):
+            if u.get("staff_id"):
+                perms_by_staff[u["staff_id"]] = {**DEFAULT_STAFF_PERMISSIONS, **(u.get("permissions") or {})}
+        for it in items:
+            if it["id"] in perms_by_staff:
+                it["permissions"] = perms_by_staff[it["id"]]
     return items
 
 @api.post("/staff")
@@ -974,7 +1057,129 @@ DEFAULT_STAFF_PERMISSIONS = {
     "checklist":  True,   # Checklisty imprezy
     "shopping":   True,   # Zakupy
     "stock":      True,   # Magazyn
+    # --- Moduły rozszerzone (indywidualne, domyślnie WYŁĄCZONE) ---
+    "calendar_view":  False,  # wgląd do pełnego kalendarza imprez
+    "event_status":   False,  # zmiana statusu imprezy
+    "event_create":   False,  # dodawanie nowych imprez
+    "event_org_edit": False,  # edycja danych organizacyjnych
+    "send_thanks":    False,  # wysyłanie podziękowań
+    "discounts":      False,  # nadawanie/stosowanie rabatów
+    # --- Dane wrażliwe: ZAWSZE osobne uprawnienia, domyślnie OFF ---
+    "offer_prices":   False,  # CENY OFERT: pakiety, cena imprezy, cennik
+    "finances":       False,  # FINANSE: koszty, zysk, marża, wpłaty, stawki
 }
+
+MODULE_PERMISSION_KEYS = ["calendar_view", "event_status", "event_create", "event_org_edit",
+                          "send_thanks", "discounts", "offer_prices", "finances"]
+PERMISSION_LABELS = {
+    "schedule": "Mój grafik", "attendance": "Obecność", "checklist": "Checklisty",
+    "shopping": "Zakupy", "stock": "Magazyn",
+    "calendar_view": "Wgląd do kalendarza", "event_status": "Zmiana statusu imprezy",
+    "event_create": "Dodawanie imprez", "event_org_edit": "Edycja organizacji",
+    "send_thanks": "Wysyłanie podziękowań", "discounts": "Nadawanie rabatów",
+    "offer_prices": "Ceny ofert", "finances": "Finanse",
+}
+
+# Grupy pól imprezy chronione osobnymi uprawnieniami
+EVENT_PRICE_FIELDS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"}
+EVENT_FINANCE_FIELDS = {"revenue", "costs", "deposit_paid", "deposit_amount", "deposit_date", "dinner_cost"}
+EVENT_PRIVATE_FIELDS = {"notes", "client_notes"}
+
+
+async def staff_module_permissions(user: dict) -> dict:
+    """Effective module permissions. Admin/owner and partners (wspólnicy) → all True."""
+    if is_admin(user) or await _is_partner(user):
+        return {k: True for k in MODULE_PERMISSION_KEYS}
+    p = user.get("permissions") or {}
+    return {k: bool(p.get(k)) for k in MODULE_PERMISSION_KEYS}
+
+
+async def require_module_perm(user: dict, key: str) -> dict:
+    perms = await staff_module_permissions(user)
+    if not perms.get(key):
+        raise HTTPException(403, f"Brak uprawnienia: {PERMISSION_LABELS.get(key, key)}")
+    return perms
+
+
+def event_for_permitted_staff(ev: dict, perms: dict, sid: Optional[str] = None) -> dict:
+    """Event as visible to an employee with module permissions.
+    Private owner notes ALWAYS hidden; offer prices only with 'offer_prices';
+    costs/profit/deposits only with 'finances'. Enforced on backend."""
+    out = {k: v for k, v in ev.items() if k not in EVENT_PRIVATE_FIELDS}
+    if not perms.get("finances"):
+        for k in EVENT_FINANCE_FIELDS:
+            out.pop(k, None)
+    if not perms.get("offer_prices"):
+        for k in EVENT_PRICE_FIELDS:
+            out.pop(k, None)
+    if sid:
+        out["my_shift"] = next((sh for sh in (ev.get("shifts") or []) if sh.get("staff_id") == sid), None)
+    return out
+
+
+def _staff_allowed_event_fields(perms: dict) -> set:
+    """Which EventIn fields an employee may modify, based on granted modules."""
+    allowed: set = set()
+    if perms.get("event_org_edit"):
+        allowed |= {"org"}
+    if perms.get("event_status"):
+        allowed |= {"status", "valid_until"}
+    if perms.get("offer_prices"):
+        allowed |= set(EVENT_PRICE_FIELDS)
+    if perms.get("finances"):
+        allowed |= set(EVENT_FINANCE_FIELDS)
+    if perms.get("event_create"):
+        allowed |= {"name", "date", "time_start", "time_end", "time", "people", "category",
+                    "venue", "image_url", "client_name", "client_phone", "client_email",
+                    "dinner_items", "extras_qty", "package_set"}
+    return allowed
+
+
+class ModulePermissionsIn(BaseModel):
+    permissions: Dict[str, bool]
+
+
+@api.get("/staff/{staff_id}/permissions")
+async def get_staff_module_permissions(staff_id: str, user=Depends(require_admin)):
+    u = await db.users.find_one({"staff_id": staff_id, "workspace_id": ws(user), "role": "staff"},
+                                {"_id": 0, "permissions": 1, "email": 1})
+    if not u:
+        raise HTTPException(404, "Pracownik nie ma konta logowania")
+    return {"permissions": {**DEFAULT_STAFF_PERMISSIONS, **(u.get("permissions") or {})}, "email": u.get("email")}
+
+
+@api.put("/staff/{staff_id}/permissions")
+async def set_staff_module_permissions(staff_id: str, body: ModulePermissionsIn, user=Depends(require_admin)):
+    """Owner/admin grants individual permissions. Every change lands in audit_log."""
+    st = await db.staff.find_one({"id": staff_id, "owner_id": ws(user)}, {"_id": 0, "name": 1})
+    if not st:
+        raise HTTPException(404, "Pracownik nie znaleziony")
+    u = await db.users.find_one({"staff_id": staff_id, "workspace_id": ws(user), "role": "staff"},
+                                {"_id": 0, "id": 1, "permissions": 1})
+    if not u:
+        raise HTTPException(409, "Pracownik nie ma jeszcze konta logowania — najpierw utwórz login lub wyślij zaproszenie")
+    old = {**DEFAULT_STAFF_PERMISSIONS, **(u.get("permissions") or {})}
+    incoming = {k: bool(v) for k, v in (body.permissions or {}).items() if k in DEFAULT_STAFF_PERMISSIONS}
+    new = {**old, **incoming}
+    await db.users.update_one({"id": u["id"]}, {"$set": {"permissions": new, "updated_at": now_utc().isoformat()}})
+    changed = [k for k in new if bool(old.get(k)) != bool(new.get(k))]
+    for k in changed:
+        try:
+            await db.audit_log.insert_one({
+                "id": str(uuid.uuid4()), "owner_id": ws(user),
+                "user_id": user.get("id"), "user_name": user.get("name") or user.get("email", ""),
+                "action": "update", "entity_type": "staff", "entity_id": staff_id,
+                "entity_label": st.get("name", ""), "kind": "field",
+                "field": f"perm.{k}", "field_label": f"Uprawnienie · {PERMISSION_LABELS.get(k, k)}",
+                "old": "TAK" if old.get(k) else "NIE", "new": "TAK" if new.get(k) else "NIE",
+                "at": now_utc().isoformat(),
+            })
+        except Exception:
+            pass
+    if changed:
+        await log_change(user, "update", "staff", staff_id,
+                         f"Zmieniono uprawnienia {st.get('name','')}: " + ", ".join(PERMISSION_LABELS.get(k, k) for k in changed))
+    return {"ok": True, "permissions": new}
 
 
 class StaffLoginIn(BaseModel):
@@ -2114,9 +2319,13 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
     if year and month:
         prefix = f"{year:04d}-{month:02d}"
         q["date"] = {"$regex": f"^{prefix}"}
-    # Staff sees only events they're assigned to (via shifts)
+    # Staff sees only events they're assigned to (via shifts) — unless granted calendar_view
     if is_staff(user):
         sid = user.get("staff_id")
+        perms = await staff_module_permissions(user)
+        if perms.get("calendar_view"):
+            items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
+            return [event_for_permitted_staff(ev, perms, sid) for ev in items]
         if not sid:
             return []
         q["shifts.staff_id"] = sid
@@ -2134,8 +2343,23 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
     return enriched
 
 @api.post("/events")
-async def create_event(body: EventIn, user=Depends(require_admin)):
+async def create_event(body: EventIn, user=Depends(current_user)):
     doc = body.dict()
+    staff_perms = None
+    if is_staff(user):
+        staff_perms = await require_module_perm(user, "event_create")
+        # Pola chronione: pracownik bez odpowiednich uprawnień nie ustawia cen/finansów/statusu
+        if not staff_perms.get("offer_prices"):
+            for k in EVENT_PRICE_FIELDS:
+                doc[k] = None if k == "applied_discount" else (0 if k != "discount_pct" else 0)
+            doc["price_total"] = 0; doc["price_after_discount"] = 0; doc["discount_pct"] = 0; doc["applied_discount"] = None
+        if not staff_perms.get("finances"):
+            doc["revenue"] = 0; doc["costs"] = []; doc["deposit_paid"] = False
+            doc["deposit_amount"] = 0; doc["deposit_date"] = ""; doc["dinner_cost"] = 0
+        if not staff_perms.get("event_status"):
+            doc["status"] = ""
+        doc["notes"] = ""; doc["client_notes"] = ""  # prywatne notatki tylko dla właściciela
+        doc["shifts"] = []  # przypisywanie zespołu pozostaje po stronie managera
     # BLOKADA: nie można przypisać pracownika, który zgłosił brak dostępności
     conflicts = await _availability_conflicts(
         ws(user), doc.get("date") or "", doc.get("shifts") or [],
@@ -2160,6 +2384,8 @@ async def create_event(body: EventIn, user=Depends(require_admin)):
         await _sync_event_for_workspace(ws(user), doc["id"], "create")
     except Exception:
         pass
+    if staff_perms is not None:
+        return event_for_permitted_staff(doc, staff_perms, user.get("staff_id"))
     return await compute_event_summary(doc)
 
 @api.get("/events/{event_id}")
@@ -2169,6 +2395,9 @@ async def get_event(event_id: str, user=Depends(current_user)):
         raise HTTPException(404, "Impreza nie znaleziona")
     if is_staff(user):
         sid = user.get("staff_id")
+        perms = await staff_module_permissions(user)
+        if perms.get("calendar_view") or any(perms.get(k) for k in ("event_status", "event_org_edit", "event_create")):
+            return event_for_permitted_staff(ev, perms, sid)
         if not sid or not any(sh.get("staff_id") == sid for sh in (ev.get("shifts") or [])):
             raise HTTPException(403, "Brak dostępu do tej imprezy")
         return staff_safe_event(ev, sid)
@@ -2682,12 +2911,24 @@ async def pre_event_email_resend(event_id: str, user=Depends(require_admin)):
         raise HTTPException(502, f"Nie udało się wysłać wiadomości: {str(exc)[:300]}")
 
 @api.put("/events/{event_id}")
-async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)):
+async def update_event(event_id: str, body: EventIn, user=Depends(current_user)):
     # Detect status transitions to clear/reset alerts appropriately
     prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
-    prev_status = (prev or {}).get("status") or ""
-    new_status = (body.status or "")
+    if not prev:
+        raise HTTPException(404, "Impreza nie znaleziona")
     updates = body.dict()
+    staff_perms = None
+    if is_staff(user):
+        # Pracownik edytuje TYLKO pola objęte nadanymi uprawnieniami; reszta zostaje bez zmian
+        staff_perms = await staff_module_permissions(user)
+        allowed = _staff_allowed_event_fields(staff_perms)
+        if not allowed:
+            raise HTTPException(403, "Brak uprawnień do edycji imprezy")
+        updates = {k: v for k, v in updates.items() if k in allowed}
+        if not updates:
+            raise HTTPException(403, "Brak uprawnień do zmienianych pól")
+    prev_status = prev.get("status") or ""
+    new_status = updates.get("status", prev_status) or ""
     # BLOKADA dostępności: sprawdzamy tylko NOWO dodanych pracowników (albo wszystkich,
     # gdy zmieniono datę). Istniejące przypisania zostają — pracownik może zmienić
     # deklarację w każdej chwili, ale to nie zrywa wcześniejszych przypisań.
@@ -2723,10 +2964,14 @@ async def update_event(event_id: str, body: EventIn, user=Depends(require_admin)
     ev = await db.events.find_one({"id": event_id}, {"_id": 0})
     ev = await pre_email.reconcile_event(db, ev)
     await log_change(user, "update", "event", event_id, f"Edytowano imprezę: {ev.get('name','')} ({ev.get('date','')})")
+    # Audyt polowy: kto, kiedy, pole, stara → nowa wartość
+    await log_field_diffs(user, "event", event_id, prev.get("name") or ev.get("name", ""), prev, updates)
     try:
         await _sync_event_for_workspace(ws(user), event_id, "update")
     except Exception:
         pass
+    if staff_perms is not None:
+        return event_for_permitted_staff(ev, staff_perms, user.get("staff_id"))
     return await compute_event_summary(ev)
 
 @api.delete("/events/{event_id}")
@@ -2746,6 +2991,33 @@ async def delete_event(event_id: str, user=Depends(require_admin)):
         except Exception:
             pass
     return {"ok": True}
+
+
+@api.get("/events/{event_id}/audit")
+async def event_audit(event_id: str, user=Depends(current_user)):
+    """Historia zmian imprezy: kto, kiedy, pole, stara → nowa wartość.
+    Pracownik widzi wpisy przefiltrowane wg swoich uprawnień (ceny/finanse/notatki ukryte)."""
+    ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "id": 1})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
+    rows = await db.audit_log.find(
+        {"owner_id": ws(user), "entity_type": "event", "entity_id": event_id},
+        {"_id": 0}
+    ).sort("at", -1).to_list(300)
+    if is_staff(user):
+        perms = await staff_module_permissions(user)
+
+        def visible(r):
+            f = r.get("field") or ""
+            if f in ("notes", "client_notes"):
+                return False
+            if not perms.get("finances") and f in AUDIT_FINANCE_FIELD_KEYS:
+                return False
+            if not perms.get("offer_prices") and f in AUDIT_PRICE_FIELD_KEYS:
+                return False
+            return True
+        rows = [r for r in rows if visible(r)]
+    return rows
 
 
 # ---------- Catering email ----------
@@ -7336,11 +7608,12 @@ class CompleteEventIn(BaseModel):
 
 
 @api.post("/events/{event_id}/complete")
-async def complete_event(event_id: str, body: CompleteEventIn, user=Depends(require_admin)):
+async def complete_event(event_id: str, body: CompleteEventIn, user=Depends(current_user)):
     """Mark event as 'zakonczona' AND optionally send the thank-you email + create a discount code.
-
-    Idempotent — a second call for the same event will NOT send a second email or generate a second code.
-    """
+    Admin lub pracownik z uprawnieniem 'Wysyłanie podziękowań'."""
+    if is_staff(user):
+        await require_module_perm(user, "send_thanks")
+    # Idempotent — a second call for the same event will NOT send a second email or generate a second code.
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
@@ -7480,8 +7753,10 @@ async def complete_event(event_id: str, body: CompleteEventIn, user=Depends(requ
 
 
 @api.post("/events/{event_id}/resend-thanks")
-async def resend_thanks(event_id: str, user=Depends(require_admin)):
+async def resend_thanks(event_id: str, user=Depends(current_user)):
     """Resend the same thank-you email using existing code. Does NOT create a new code."""
+    if is_staff(user):
+        await require_module_perm(user, "send_thanks")
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
@@ -7550,8 +7825,10 @@ class ApplyDiscountIn(BaseModel):
 
 
 @api.post("/events/{event_id}/apply-discount")
-async def apply_discount_to_event(event_id: str, body: ApplyDiscountIn, user=Depends(require_admin)):
+async def apply_discount_to_event(event_id: str, body: ApplyDiscountIn, user=Depends(current_user)):
     """Apply a discount code to a NEW event (must not be the source event)."""
+    if is_staff(user):
+        await require_module_perm(user, "discounts")
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
@@ -7605,13 +7882,17 @@ async def apply_discount_to_event(event_id: str, body: ApplyDiscountIn, user=Dep
         pass
     await db.events.update_one({"id": event_id, "owner_id": ws(user)}, {"$set": ev_updates})
     await log_change(user, "update", "event", event_id, f"Zastosowano rabat {doc['code']} (-{amount:.2f} zł, {pct}%)")
+    # Audyt polowy: zmiana ceny + rabat (kto, kiedy, stara/nowa)
+    await log_field_diffs(user, "event", event_id, ev.get("name", ""), ev, ev_updates)
 
     return {"ok": True, "applied_amount": amount, "code": doc["code"], "package_price": package_price}
 
 
 @api.post("/events/{event_id}/remove-discount")
-async def remove_discount_from_event(event_id: str, user=Depends(require_admin)):
+async def remove_discount_from_event(event_id: str, user=Depends(current_user)):
     """Revert a discount application (restore code to active, refund price_total)."""
+    if is_staff(user):
+        await require_module_perm(user, "discounts")
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
@@ -7660,12 +7941,13 @@ class ManualDiscountIn(BaseModel):
 
 
 @api.post("/discounts/manual")
-async def create_manual_discount(body: ManualDiscountIn, user=Depends(require_admin)):
+async def create_manual_discount(body: ManualDiscountIn, user=Depends(current_user)):
     """Manually generate a discount code for a client (no event required).
-
-    Uses global thank-you-email settings for defaults. If send_email=True and
-    client_email is present, also sends the thank-you template with this code.
-    """
+    Admin lub pracownik z uprawnieniem 'Nadawanie rabatów'."""
+    if is_staff(user):
+        await require_module_perm(user, "discounts")
+    # Uses global thank-you-email settings for defaults. If send_email=True and
+    # client_email is present, also sends the thank-you template with this code.
     client_name = (body.client_name or "").strip()
     if not client_name:
         raise HTTPException(400, "Podaj imię/nazwę klienta.")

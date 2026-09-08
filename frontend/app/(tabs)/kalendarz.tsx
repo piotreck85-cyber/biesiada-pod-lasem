@@ -254,6 +254,7 @@ export default function Kalendarz() {
                 <Text style={s.kpiLabel}>Gości (plan)</Text>
                 <Text style={s.kpiValue}>{loading ? "…" : (upcoming.reduce((sum, e) => sum + (Number(e.guests) || 0), 0) || "Brak")}</Text>
               </Pressable>
+              {(user?.role !== "staff" || (user?.permissions as any)?.finances) ? (<>
               <Pressable style={s.kpi} onPress={() => router.push("/(tabs)/finanse" as any)}>
                 <Feather name="trending-up" size={16} color={v2.color.success} />
                 <Text style={s.kpiLabel}>Przychód (plan.)</Text>
@@ -268,6 +269,7 @@ export default function Kalendarz() {
                   {loading ? "…" : (kpi ? formatPLN(kpi.profit_real) : "Brak")}
                 </Text>
               </Pressable>
+              </>) : null}
             </View>
 
             {/* AI TIPS TOP-3 */}
@@ -510,18 +512,22 @@ export default function Kalendarz() {
             <View style={{ padding: 16 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
                 <Text style={s.agendaTitle}>{new Date(selected + "T00:00:00").toLocaleDateString("pl-PL", { weekday: "long", day: "numeric", month: "long" })}</Text>
+                {(user?.role !== "staff" || (user?.permissions as any)?.event_create) ? (
                 <Pressable onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } } as any)}>
                   <Text style={s.sectionLink}>+ Dodaj</Text>
                 </Pressable>
+                ) : null}
               </View>
               {dayEvents.length === 0 ? (
                 <View style={s.emptyBox}>
                   <Feather name="calendar" size={26} color={v2.color.textSubtle} />
                   <Text style={s.emptyText}>Brak imprez tego dnia</Text>
+                  {(user?.role !== "staff" || (user?.permissions as any)?.event_create) ? (
                   <Pressable style={s.emptyBtn} onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new", date: selected } } as any)}>
                     <Feather name="plus" size={13} color={v2.color.forest} />
                     <Text style={s.emptyBtnText}>Dodaj imprezę</Text>
                   </Pressable>
+                  ) : null}
                 </View>
               ) : (
                 <View style={{ gap: 8 }}>

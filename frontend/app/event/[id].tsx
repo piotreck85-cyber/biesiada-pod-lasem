@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatPLN, initials } from "@/src/theme";
 import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
+import { useAuth } from "@/src/auth";
+import EventAuditList from "@/src/components/EventAuditList";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
 import { ADULT_SETS, ADULT_EXTRAS, findAdultSet, extrasFor } from "@/src/offers";
@@ -110,6 +112,11 @@ export default function EventDetail() {
   const [replySuggestions, setReplySuggestions] = useState<any[]>([]);
   const [sugEdit, setSugEdit] = useState<Record<string, string>>({});
   const [sugBusy, setSugBusy] = useState(false);
+
+  // ---- Uprawnienia (pracownik z modułami vs admin) ----
+  const { user: authUser } = useAuth();
+  const isEmp = authUser?.role === "staff";
+  const eperm = (k: string) => !isEmp || !!(authUser?.permissions as any)?.[k];
 
   // ---- Dostępność pracowników dla daty imprezy (staff_id -> deklaracja) ----
   const [availByStaff, setAvailByStaff] = useState<Record<string, any>>({});
@@ -875,17 +882,17 @@ export default function EventDetail() {
           <Text style={s.headerTitle} numberOfLines={1}>{isNew ? "Utwórz nową" : (name || "Edytuj imprezę")}</Text>
         </View>
         <View style={{ flexDirection: "row", gap: 4 }}>
-          {!isNew ? (
+          {!isNew && !isEmp ? (
             <Pressable testID="event-send-summary-btn" onPress={openSummaryModal} hitSlop={12} style={s.backBtn}>
               <Feather name="file-text" size={17} color="#fff" />
             </Pressable>
           ) : null}
-          {(isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
+          {!isEmp && (isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
               <Feather name="mail" size={18} color="#fff" />
             </Pressable>
           ) : null}
-          {!isNew ? (
+          {!isNew && !isEmp ? (
             <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={[s.backBtn, { backgroundColor: "rgba(220,38,38,0.35)" }]}>
               <Feather name="trash-2" size={18} color="#fff" />
             </Pressable>
@@ -919,11 +926,15 @@ export default function EventDetail() {
                 <Text style={s.compactText} numberOfLines={1}>{clientName || "—"}{clientPhone ? `  ·  ${clientPhone}` : ""}</Text>
               </View>
             ) : null}
+            {(eperm("offer_prices") || eperm("finances")) ? (
             <View style={s.compactKpiRow}>
+              {eperm("offer_prices") ? (
               <View style={s.compactKpi}>
                 <Text style={s.compactKpiLabel}>CENA</Text>
                 <Text style={s.compactKpiVal}>{priceForKpi > 0 ? `${priceForKpi.toFixed(0)} zł` : "—"}</Text>
               </View>
+              ) : null}
+              {eperm("finances") ? (<>
               <View style={s.compactKpi}>
                 <Text style={s.compactKpiLabel}>DO ZAPŁATY</Text>
                 <Text style={[s.compactKpiVal, { color: priceForKpi > 0 && kpiRemaining > 0 ? v2.color.warning : v2.color.success }]}>{priceForKpi > 0 ? `${kpiRemaining.toFixed(0)} zł` : "—"}</Text>
@@ -936,7 +947,9 @@ export default function EventDetail() {
                 <Text style={s.compactKpiLabel}>MARŻA</Text>
                 <Text style={s.compactKpiVal}>{discountedValue > 0 ? `${((plannedProfit / discountedValue) * 100).toFixed(0)}%` : "—"}</Text>
               </View>
+              </>) : null}
             </View>
+            ) : null}
           </View>
 
           {/* Finance import banner */}
@@ -1173,7 +1186,13 @@ export default function EventDetail() {
                   <Pressable
                     key={st.k}
                     testID={`status-${st.k}`}
-                    onPress={() => setStatus(active ? "" : st.k)}
+                    onPress={() => {
+                      if (!eperm("event_status")) {
+                        Alert.alert("Brak uprawnień", "Nie masz uprawnienia do zmiany statusu imprezy.");
+                        return;
+                      }
+                      setStatus(active ? "" : st.k);
+                    }}
                     style={{
                       flexDirection: "row", alignItems: "center", gap: 6,
                       paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
@@ -1207,6 +1226,7 @@ export default function EventDetail() {
 
           </Collapse>
 
+          {(eperm("offer_prices") || eperm("finances")) ? (
           <Collapse title="Finanse" icon="dollar-sign" defaultOpen testID="sec-finanse">
           {/* Payment */}
           <Section title="Cena i wpłaty">
@@ -1490,6 +1510,7 @@ export default function EventDetail() {
 
           </Section>
 
+          {eperm("finances") ? (<>
           {/* Wpłaty klienta (Faza 2 v2.0) — historia wpłat */}
           {!isNew && (
             <Section title="Wpłaty klienta">
@@ -1662,7 +1683,9 @@ export default function EventDetail() {
             ) : null}
           </View>
 
+          </>) : null}
           </Collapse>
+          ) : null}
 
           <Collapse title="Pracownicy na zmianie" icon="users" defaultOpen testID="sec-pracownicy">
           {/* Staff */}
@@ -1676,12 +1699,14 @@ export default function EventDetail() {
                     <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.shiftName}>{s2?.name || "?"}</Text>
-                      <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text>
+                      {eperm("finances") ? <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text> : null}
                     </View>
                     <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
+                    {!isEmp ? (
                     <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
                       <Feather name="x" size={16} color={v2.color.textMuted} />
                     </Pressable>
+                    ) : null}
                   </View>
                   {availByStaff[sh.staff_id]?.status === "unavailable" ? (
                     <View style={s.availWarn}>
@@ -1767,7 +1792,7 @@ export default function EventDetail() {
                 </View>
               );
             })}
-            {availStaff.length > 0 ? (
+            {!isEmp && availStaff.length > 0 ? (
               <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
                 <Feather name="plus" size={16} color={v2.color.forest} />
                 <Text style={s.addRowText}>Dodaj pracownika</Text>
@@ -1823,6 +1848,7 @@ export default function EventDetail() {
                   testID={`org-${k}`}
                   value={org[k] || ""}
                   onChangeText={t => setOrgField(k, t)}
+                  editable={eperm("event_org_edit")}
                   placeholder={ph || "…"}
                   placeholderTextColor={v2.color.textMuted}
                   style={[s.input, { minHeight: 44 }]}
@@ -2148,6 +2174,7 @@ export default function EventDetail() {
 
           </Collapse>
 
+          {(!isEmp || eperm("send_thanks")) ? (
           <Collapse title="Komunikacja i automatyzacje" icon="mail" testID="sec-komunikacja">
           {!isNew && preEventEmail && (
             <Section title="Wiadomość przed imprezą">
@@ -2295,6 +2322,7 @@ export default function EventDetail() {
               </View>
             )}
           </Collapse>
+          ) : null}
 
           <Collapse title="Dodatkowe" icon="more-horizontal" testID="sec-dodatkowe">
           {/* Weather */}
@@ -2369,11 +2397,13 @@ export default function EventDetail() {
             )}
           </Section>
 
+          {!isEmp ? (
           <Section title="">
             <Field label="Notatki">
               <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
             </Field>
           </Section>
+          ) : null}
 
           {/* Image */}
           <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
@@ -2404,7 +2434,7 @@ export default function EventDetail() {
           </Pressable>
 
           {/* Etap 3 — dokumenty PDF */}
-          {!isNew && (
+          {!isNew && !isEmp && (
             <Section title="Dokumenty PDF">
               <Pressable testID="pdf-confirmation-btn" onPress={() => downloadEventPdf("conf")} disabled={pdfBusy !== null} style={s.pdfRow}>
                 <View style={s.checklistIconBox}><Feather name="file-text" size={20} color={v2.color.forest} /></View>
@@ -2425,11 +2455,20 @@ export default function EventDetail() {
             </Section>
           )}
 
+          {!isEmp ? (
           <Pressable testID="save-as-template-btn" onPress={saveAsTemplate} disabled={!name.trim()} style={[s.tplSaveBtn, !name.trim() && { opacity: 0.5 }]}>
             <Feather name="bookmark" size={16} color={v2.color.forest} />
             <Text style={s.tplLoadText}>Zapisz jako szablon</Text>
-          </Pressable>          </Collapse>
+          </Pressable>
+          ) : null}
+          </Collapse>
 
+          {/* Historia zmian (audit log) */}
+          {!isNew ? (
+            <Collapse title="Historia zmian" icon="clock" testID="sec-historia">
+              <EventAuditList eventId={id as string} />
+            </Collapse>
+          ) : null}
 
         </ScrollView>
       </KeyboardAvoidingView>

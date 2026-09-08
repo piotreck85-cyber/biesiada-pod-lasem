@@ -10,7 +10,7 @@ type User = {
   picture?: string;
   role?: "admin" | "staff" | string;
   staff_id?: string;
-  permissions?: Partial<Record<"schedule" | "attendance" | "checklist" | "shopping" | "stock", boolean>>;
+  permissions?: Partial<Record<string, boolean>>;
 };
 type AuthContextValue = {
   user: User | null;

@@ -231,13 +231,17 @@ export default function Pracownicy() {
   const openNew = () => {
     setEditing(null); setName(""); setRole(""); setRate("");
     setLoginEmail(""); setLoginPassword("");
-    setLoginPerms({ schedule: true, attendance: true, checklist: true, shopping: true, stock: true });
+    setLoginPerms({
+      schedule: true, attendance: true, checklist: true, shopping: true, stock: true,
+      calendar_view: false, event_status: false, event_create: false, event_org_edit: false,
+      send_thanks: false, discounts: false, offer_prices: false, finances: false,
+    });
     setModalOpen(true);
   };
   const openEdit = useCallback((it: any) => {
     setEditing(it); setName(it.name); setRole(it.role || ""); setRate(String(it.hourly_rate || ""));
     setLoginEmail(it.login_email || ""); setLoginPassword("");
-    // Merge existing permissions with defaults
+    // Merge existing permissions with defaults (base: ON, modules & sensitive: OFF)
     const p = it.permissions || {};
     setLoginPerms({
       schedule:   p.schedule   !== false,
@@ -245,6 +249,14 @@ export default function Pracownicy() {
       checklist:  p.checklist  !== false,
       shopping:   p.shopping   !== false,
       stock:      p.stock      !== false,
+      calendar_view:  p.calendar_view  === true,
+      event_status:   p.event_status   === true,
+      event_create:   p.event_create   === true,
+      event_org_edit: p.event_org_edit === true,
+      send_thanks:    p.send_thanks    === true,
+      discounts:      p.discounts      === true,
+      offer_prices:   p.offer_prices   === true,
+      finances:       p.finances       === true,
     });
     setModalOpen(true);
   }, []);
@@ -779,7 +791,22 @@ export default function Pracownicy() {
                       ["checklist",  "Checklisty",       "Odhacza zadania na imprezie"],
                       ["shopping",   "Zakupy",           "Widzi listę zakupów"],
                       ["stock",      "Magazyn",          "Widzi stan magazynu"],
-                    ] as const).map(([k, label, desc]) => (
+                      ["__sep1", "MODUŁY DODATKOWE (domyślnie wyłączone)", ""],
+                      ["calendar_view",  "Wgląd do kalendarza",     "Widzi pełny kalendarz imprez (bez cen i finansów)"],
+                      ["event_status",   "Zmiana statusu imprezy",  "Może zmieniać status i ważność zapytania"],
+                      ["event_create",   "Dodawanie imprez",        "Może dodawać nowe imprezy i edytować dane podstawowe"],
+                      ["event_org_edit", "Edycja organizacji",      "Może edytować dane organizacyjne imprezy"],
+                      ["send_thanks",    "Wysyłanie podziękowań",   "Może wysłać e-mail z podziękowaniem po imprezie"],
+                      ["discounts",      "Nadawanie rabatów",       "Może generować i stosować kody rabatowe"],
+                      ["__sep2", "DANE WRAŻLIWE — zawsze osobno, domyślnie OFF", ""],
+                      ["offer_prices",   "Ceny ofert 🔒",           "Widzi i zmienia ceny pakietów, ofert i cenę imprezy"],
+                      ["finances",       "Finanse 🔒",              "Koszty, zysk, marża, wpłaty, stawki — pełny wgląd"],
+                    ] as const).map(([k, label, desc]) =>
+                      k.startsWith("__sep") ? (
+                        <Text key={k} style={{ color: k === "__sep2" ? theme.color.error : theme.color.onSurfaceSecondary, fontSize: 10, fontWeight: "800", letterSpacing: 0.5, marginTop: 8 }}>
+                          {label}
+                        </Text>
+                      ) : (
                       <Pressable
                         key={k}
                         onPress={() => setLoginPerms({ ...loginPerms, [k]: !loginPerms[k] })}

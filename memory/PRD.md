@@ -560,3 +560,35 @@ Polish mobile app for event organizers to manage:
 - Nawigacja zespołu: szybkie linki Grafik / Czas pracy / Dostępność przeniesione do zakładki
   ZESPÓŁ (testIDs team-link-grafik/czas/dostepnosc w (tabs)/pracownicy.tsx); usunięte z Więcej
   (razem z duplikatem "Zarządzaj kontami pracowników" — to sama zakładka Zespół).
+
+## Iteration (Jun 2026) — Import TT ZIP 2026 + Indywidualne uprawnienia + Audit log
+### Import (konto piotreck85@gmail.com, od 2026-08-01, ZIP z przypisaniami)
+- Skrypt /app/backend/scripts/import_tt2026.py (--dry-run / --apply), idempotencja przez
+  kolekcję import_tt2026_log (record_id). Dopasowanie po dacie+nazwie (nie było duplikacji —
+  user miał już imprezy Aug/Sep). Wynik: 26 imprez zaktualizowanych (source_uid/tt_event_id),
+  22 zyski → PRZYCHÓD (tylko puste; 3 konflikty zostawione wg aplikacji), 92 koszty → event.costs,
+  39 kosztów ogólnych → db.expenses (batch TT_ZIP_2026_08; 28 duplikatów z BPL pominięto).
+  Wymuszone dopasowanie: 08.08 "Urodzinki"→"Standard" bez przychodu (3350 zawiera obie imprezy).
+### Indywidualne uprawnienia pracowników (users.permissions, rozszerzone klucze)
+- DEFAULT_STAFF_PERMISSIONS + moduły: calendar_view, event_status, event_create, event_org_edit,
+  send_thanks, discounts + OSOBNE wrażliwe: offer_prices (Ceny ofert), finances (koszty/zysk/
+  marża/wpłaty/stawki). Żadne inne uprawnienie NIE daje dostępu do cen/finansów (testy).
+- Backend enforcement: GET /events[+/{id}] (calendar_view → pełna lista sanityzowana przez
+  event_for_permitted_staff: bez notes/client_notes zawsze; ceny tylko z offer_prices; finanse
+  tylko z finances). POST /events (event_create; ceny/finanse/status zerowane bez uprawnień).
+  PUT /events/{id} — pracownik zmienia TYLKO pola z nadanych modułów (_staff_allowed_event_fields),
+  reszta nietknięta. complete/resend-thanks → send_thanks; apply/remove-discount, discounts/manual
+  → discounts. PUT/GET /staff/{id}/permissions (admin; wymaga konta logowania, 409 gdy brak).
+- Audit log polowy (kolekcja audit_log, kind="field"): user, data-godzina, obiekt, pole,
+  stara → nowa wartość. log_field_diffs w update_event (+org.*, koszty jako sygnatura,
+  applied_discount), apply-discount, zmiany uprawnień (perm.*). GET /events/{id}/audit —
+  pracownik dostaje wpisy przefiltrowane wg uprawnień.
+- Frontend: edytor uprawnień w modalu pracownika (grupy: podstawowe / MODUŁY DODATKOWE /
+  DANE WRAŻLIWE 🔒), zapis przez istniejący "Aktualizuj login + uprawnienia".
+  Karta imprezy: sekcja "Historia zmian" (Collapse sec-historia, src/components/EventAuditList.tsx).
+  Gating UI: KPI (cena→offer_prices, do zapłaty/zysk/marża→finances), Collapse Finanse warunkowy,
+  Wpłaty/Kalkulator/podsumowanie→finances, status chips z alertem bez uprawnienia, org editable
+  tylko z event_org_edit, stawki przy zmianach→finances, usuwanie/przypisywanie zespołu/notatki/
+  PDF-y/szablony/mail-e ukryte dla pracownika. Tabs: pracownik z calendar_view dostaje zakładkę
+  Kalendarz; w kalendarzu KPI finansowe i "+ Dodaj" wg uprawnień.
+- Testy: /app/backend/tests/test_permissions_e2e.py — 29/29 PASSED.

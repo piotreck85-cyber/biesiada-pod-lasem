@@ -440,3 +440,17 @@ agent_communication:
         added to (tabs)/pracownicy.tsx (testIDs team-link-grafik, team-link-czas, team-link-dostepnosc);
         removed from wiecej.tsx: Zarządzaj kontami pracowników, Grafik pracowników, Czas pracy zespołu,
         Dostępność zespołu. Screenshot-verified: links render + navigate, Więcej clean.
+    - agent: "main"
+      message: |
+        Iteration 25 — (a) TT ZIP 2026 import applied for piotreck85@gmail.com (from 2026-08-01):
+        26 events updated by date+name matching (no duplicates), 22 profits→revenue (only empty; 3 conflicts kept),
+        92 cost allocations→event.costs, 39 general costs→db.expenses (TT_ZIP_2026_08). Idempotent via import_tt2026_log.
+        (b) Individual staff permissions: users.permissions extended with calendar_view/event_status/event_create/
+        event_org_edit/send_thanks/discounts + SEPARATE offer_prices & finances (default OFF, never implied).
+        Backend-enforced on GET/POST/PUT /events (field-level allow-list for staff), thanks & discount endpoints,
+        PUT+GET /staff/{id}/permissions. Field-level audit_log (kind=field: user/at/entity/field/old/new) wired into
+        update_event, apply-discount, permission changes; GET /events/{id}/audit filtered per staff permissions.
+        Frontend: permission editor in staff modal (pracownicy.tsx), "Historia zmian" collapse on event card
+        (sec-historia, EventAuditList), UI gating in event/[id].tsx + kalendarz.tsx + tabs layout (Kalendarz tab
+        for staff with calendar_view). Backend E2E: tests/test_permissions_e2e.py — 29/29 PASSED.
+        Screenshots verified: permission editor groups, Historia zmian entries render.

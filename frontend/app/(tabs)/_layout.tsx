@@ -82,8 +82,14 @@ export default function TabLayout() {
             href: canShopping ? "/zakupy" : null,
           }}
         />
+        <Tabs.Screen
+          name="kalendarz"
+          options={{
+            title: "Kalendarz", tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} />,
+            href: perms.calendar_view ? "/kalendarz" : null,
+          }}
+        />
         {/* Hide admin-only tabs entirely from staff */}
-        <Tabs.Screen name="kalendarz" options={{ href: null }} />
         <Tabs.Screen name="imprezy" options={{ href: null }} />
         <Tabs.Screen name="oferta" options={{ href: null }} />
         <Tabs.Screen name="koszty" options={{ href: null }} />
