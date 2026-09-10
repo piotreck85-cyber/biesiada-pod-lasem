@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Modal, ActivityIndicator, StatusBar,
+  View, Text, StyleSheet, ScrollView, Pressable, RefreshControl, Modal, ActivityIndicator, StatusBar, Alert, Platform,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -80,6 +80,11 @@ export default function Kalendarz() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [alertsModalOpen, setAlertsModalOpen] = useState(false);
   const [dayPickerOpen, setDayPickerOpen] = useState(false);
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+
+  const canChangeStatus = user?.role !== "staff" || !!(user?.permissions as any)?.event_status;
 
   const load = useCallback(async () => {
     try {
@@ -127,9 +132,38 @@ export default function Kalendarz() {
 
   const openEvent = (eventId: string) => router.push(`/event/${eventId}` as any);
   const handleDayPress = (iso: string, dayItems: any[]) => {
+    if (bulkMode) {
+      setSelectedDays(current => current.includes(iso) ? current.filter(day => day !== iso) : [...current, iso]);
+      return;
+    }
     setSelected(iso);
     if (dayItems.length === 1) openEvent(dayItems[0].id);
     else if (dayItems.length > 1) setDayPickerOpen(true);
+  };
+
+  const selectedEventIds = useMemo(() => events
+    .filter(event => selectedDays.includes(event.date))
+    .map(event => event.id), [events, selectedDays]);
+
+  const applyBulkStatus = (status: string, label: string) => {
+    if (!canChangeStatus || !selectedEventIds.length || bulkBusy) return;
+    const change = async () => {
+      setBulkBusy(true);
+      try {
+        const result: any = await api.bulkUpdateEventStatus(selectedEventIds, status);
+        await load(); setSelectedDays([]); setBulkMode(false);
+        const message = `Zmieniono status ${result.updated} imprez.`;
+        if (Platform.OS === "web") window.alert(message); else Alert.alert("Gotowe", message);
+      } catch (error: any) {
+        const message = error?.message || "Nie udało się zmienić statusu";
+        if (Platform.OS === "web") window.alert(message); else Alert.alert("Błąd", message);
+      } finally { setBulkBusy(false); }
+    };
+    const message = `${label}: ${selectedEventIds.length} imprez. Zmiana zostanie zapisana od razu.`;
+    if (Platform.OS === "web") { if (window.confirm(message)) void change(); return; }
+    Alert.alert("Zmienić status imprez?", message, [
+      { text: "Anuluj", style: "cancel" }, { text: "Zmień status", onPress: change },
+    ]);
   };
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear(year - 1); } else setMonth(month - 1); };
@@ -441,6 +475,42 @@ export default function Kalendarz() {
               ))}
             </View>
 
+            {canChangeStatus && (
+              <View style={s.bulkPanel} testID="calendar-bulk-status-panel">
+                <View style={s.bulkHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.bulkTitle}>{bulkMode ? "Zaznacz dni w kalendarzu" : "Masowa zmiana statusu"}</Text>
+                    <Text style={s.bulkSub}>
+                      {bulkMode ? `Wybrano ${selectedDays.length} dni · ${selectedEventIds.length} imprez` : "Zmień status kilku imprez jednocześnie"}
+                    </Text>
+                  </View>
+                  <Pressable
+                    testID="calendar-bulk-toggle"
+                    onPress={() => { setBulkMode(value => !value); setSelectedDays([]); }}
+                    style={[s.bulkToggle, bulkMode && s.bulkToggleActive]}
+                  >
+                    <Feather name={bulkMode ? "x" : "check-square"} size={15} color={bulkMode ? "#fff" : v2.color.forest} />
+                    <Text style={[s.bulkToggleText, bulkMode && { color: "#fff" }]}>{bulkMode ? "Anuluj" : "Zaznacz dni"}</Text>
+                  </Pressable>
+                </View>
+                {bulkMode && selectedEventIds.length > 0 && (
+                  <View style={s.bulkStatuses}>
+                    {Object.entries(EVENT_STATUS_COLORS).map(([key, item]) => (
+                      <Pressable
+                        key={key}
+                        testID={`calendar-bulk-status-${key}`}
+                        disabled={bulkBusy}
+                        onPress={() => applyBulkStatus(key, item.label)}
+                        style={[s.bulkStatusButton, { backgroundColor: item.background }, bulkBusy && { opacity: 0.5 }]}
+                      >
+                        <Text style={[s.bulkStatusText, { color: item.text }]}>{item.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Weekday header */}
             <View style={s.dowRow}>{DOW.map(d => <Text key={d} style={s.dowText}>{d}</Text>)}</View>
 
@@ -453,12 +523,13 @@ export default function Kalendarz() {
                 const iso = fmt(year, month, day);
                 const isToday = iso === today.toISOString().slice(0, 10);
                 const isSelected = iso === selected;
+                const isBulkSelected = selectedDays.includes(iso);
                 const evs = eventsByDate[iso] || [];
                 const visibleEvents = evs.slice(0, 2);
                 const hiddenCount = Math.max(0, evs.length - visibleEvents.length);
                 return (
                   <Pressable key={`day-${idx}`} onPress={() => handleDayPress(iso, evs)} testID={`cal-day-${day}`}
-                    style={[s.cell, isSelected && s.cellSelected, isToday && !isSelected && s.cellToday]}>
+                    style={[s.cell, !bulkMode && isSelected && s.cellSelected, isBulkSelected && s.cellBulkSelected, isToday && !isSelected && !isBulkSelected && s.cellToday]}>
                     <Pressable
                       testID={`cal-day-number-${day}`}
                       onPress={pressEvent => {
@@ -467,7 +538,7 @@ export default function Kalendarz() {
                       }}
                       style={s.dayButton}
                     >
-                      <Text style={[s.day, isSelected && { color: "#fff" }, isToday && !isSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
+                      <Text style={[s.day, ((!bulkMode && isSelected) || isBulkSelected) && { color: "#fff" }, isToday && !isSelected && !isBulkSelected && { color: v2.color.forest, fontWeight: "800" }]}>{day}</Text>
                     </Pressable>
                     <View style={s.cellEvents}>
                       {visibleEvents.map(ev => {
@@ -671,6 +742,17 @@ const s = StyleSheet.create({
   segText: { color: "#fff", fontSize: 13, fontWeight: "700" },
   segTextActive: { color: v2.color.forest },
 
+  bulkPanel: { marginHorizontal: 12, marginTop: 10, padding: 12, borderRadius: v2.radius.lg, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border },
+  bulkHead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  bulkTitle: { color: v2.color.text, fontSize: 14, fontWeight: "800" },
+  bulkSub: { color: v2.color.textMuted, fontSize: 11, marginTop: 2 },
+  bulkToggle: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999, backgroundColor: v2.color.sage, borderWidth: 1, borderColor: v2.color.forest },
+  bulkToggleActive: { backgroundColor: v2.color.forest },
+  bulkToggleText: { color: v2.color.forest, fontSize: 12, fontWeight: "800" },
+  bulkStatuses: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 12 },
+  bulkStatusButton: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 999 },
+  bulkStatusText: { fontSize: 11, fontWeight: "800" },
+
   kpiGrid: { marginTop: -12, marginHorizontal: 16, padding: 4, borderRadius: v2.radius.xl, backgroundColor: v2.color.card, flexDirection: "row", flexWrap: "wrap", ...v2.shadow.md },
   kpi: { flexBasis: "50%", padding: 14 },
   kpiLabel: { color: v2.color.textSubtle, fontSize: 10, fontWeight: "700", letterSpacing: 0.4, textTransform: "uppercase", marginTop: 6 },
@@ -736,6 +818,7 @@ const s = StyleSheet.create({
   cell: { width: `${100/7}%`, height: 74, alignItems: "stretch", justifyContent: "flex-start", paddingHorizontal: 2, paddingTop: 4 },
   cellToday: { backgroundColor: v2.color.mint, borderRadius: v2.radius.md },
   cellSelected: { backgroundColor: v2.color.forest, borderRadius: v2.radius.md },
+  cellBulkSelected: { backgroundColor: v2.color.forest, borderRadius: v2.radius.md, borderWidth: 2, borderColor: v2.color.gold },
   dayButton: { minHeight: 18, alignItems: "center", justifyContent: "center" },
   day: { color: v2.color.text, fontSize: 12, lineHeight: 15, fontWeight: "700", textAlign: "center" },
   cellEvents: { marginTop: 3, gap: 2 },

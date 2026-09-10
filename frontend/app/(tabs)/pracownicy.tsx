@@ -233,7 +233,7 @@ export default function Pracownicy() {
     setLoginEmail(""); setLoginPassword("");
     setLoginPerms({
       schedule: true, attendance: true, checklist: true, shopping: true, stock: true,
-      calendar_view: false, event_status: false, event_create: false, event_org_edit: false,
+      calendar_view: false, event_status: false, event_create: false, event_edit: false, event_delete: false, event_org_edit: false,
       send_thanks: false, discounts: false, offer_prices: false, finances: false,
     });
     setModalOpen(true);
@@ -252,6 +252,8 @@ export default function Pracownicy() {
       calendar_view:  p.calendar_view  === true,
       event_status:   p.event_status   === true,
       event_create:   p.event_create   === true,
+      event_edit:     p.event_edit     === true,
+      event_delete:   p.event_delete   === true,
       event_org_edit: p.event_org_edit === true,
       send_thanks:    p.send_thanks    === true,
       discounts:      p.discounts      === true,
@@ -322,11 +324,14 @@ export default function Pracownicy() {
     setSaving(true);
     try {
       const body = { name: name.trim(), role: role.trim(), hourly_rate: parseFloat(rate.replace(",", ".")) || 0 };
-      if (editing) await api.updateStaff(editing.id, body);
+      if (editing) {
+        await api.updateStaff(editing.id, body);
+        if (editing.user_id || editing.login_email) await api.staffSetPermissions(editing.id, loginPerms);
+      }
       else await api.createStaff(body);
       setModalOpen(false);
       await load();
-    } catch {} finally { setSaving(false); }
+    } catch (e: any) { Alert.alert("Nie zapisano zmian", e?.message || "Spróbuj ponownie."); } finally { setSaving(false); }
   };
 
   const remove = useCallback(async (id: string) => {
@@ -794,7 +799,9 @@ export default function Pracownicy() {
                       ["__sep1", "MODUŁY DODATKOWE (domyślnie wyłączone)", ""],
                       ["calendar_view",  "Wgląd do kalendarza",     "Widzi pełny kalendarz imprez (bez cen i finansów)"],
                       ["event_status",   "Zmiana statusu imprezy",  "Może zmieniać status i ważność zapytania"],
-                      ["event_create",   "Dodawanie imprez",        "Może dodawać nowe imprezy i edytować dane podstawowe"],
+                      ["event_create",   "Dodawanie imprez",        "Dodaje imprezy i edytuje dane podstawowe bez zatwierdzania przez właściciela"],
+                      ["event_edit", "Edycja imprez", "Zmienia termin, godziny i dane imprezy bez zatwierdzania przez właściciela"],
+                      ["event_delete", "Usuwanie imprez", "Usuwa wydarzenia bez zatwierdzania przez właściciela"],
                       ["event_org_edit", "Edycja organizacji",      "Może edytować dane organizacyjne imprezy"],
                       ["send_thanks",    "Wysyłanie podziękowań",   "Może wysłać e-mail z podziękowaniem po imprezie"],
                       ["discounts",      "Nadawanie rabatów",       "Może generować i stosować kody rabatowe"],

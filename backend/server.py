@@ -12,6 +12,11 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 import pre_event_email as pre_email
+import activity_log as activity
+import event_finance
+import timetree_sync as timetree
+from timetree_api import routes as timetree_routes
+from pymongo.errors import DuplicateKeyError
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -252,6 +257,10 @@ class EventIn(BaseModel):
     dinner_profit: Optional[float] = 0.0
     dinner_margin_pct: Optional[float] = 0.0
 
+class BulkEventStatusIn(BaseModel):
+    event_ids: List[str]
+    status: str
+
 class TemplateIn(BaseModel):
     name: str
     venue: Optional[str] = ""
@@ -351,6 +360,31 @@ def require_admin(user=Depends(current_user)):
         raise HTTPException(403, "Ta operacja jest dostępna tylko dla administratora")
     return user
 
+async def record_activity(user, action, section="", entity_id=""):
+    try:
+        await activity.record(db, user, action, section, entity_id)
+    except Exception:
+        logging.getLogger(__name__).warning("Activity record could not be saved")
+
+class ActivityVisitIn(BaseModel):
+    section: str = Field(min_length=1, max_length=60)
+
+@api.post("/activity/visit")
+async def activity_visit(body: ActivityVisitIn, user=Depends(current_user)):
+    if body.section not in activity.SECTIONS:
+        raise HTTPException(400, "Nieznana sekcja")
+    await record_activity(user, "visit", body.section)
+    return {"ok": True}
+
+@api.get("/activity")
+async def activity_history(days: int = 7, user_id: str = "", kind: str = "all", user=Depends(current_user)):
+    try:
+        return await activity.read_activity(db, user, days, user_id, kind)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc))
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
 async def log_change(user: dict, action: str, entity_type: str, entity_id: str, summary: str = ""):
     """Append an audit-log entry for the current workspace."""
     try:
@@ -382,9 +416,12 @@ AUDIT_EVENT_FIELDS = [
     ("deposit_paid", "Zaliczka wpłacona"), ("deposit_amount", "Kwota zaliczki"), ("deposit_date", "Data zaliczki"),
     ("client_name", "Klient"), ("client_phone", "Telefon klienta"), ("client_email", "E-mail klienta"),
     ("notes", "Notatki"), ("client_notes", "Notatki o kliencie"), ("package_set", "Zestaw"),
+    ("price_per_person", "Cena za osobę"), ("paying_people", "Liczba osób płatnych"),
+    ("free_carers", "Opiekunowie gratis"), ("vat_rate", "VAT %"), ("vat_amount", "VAT kwota"),
+    ("revenue_net", "Netto"), ("pricing_mode", "Sposób rozliczenia"),
     ("client_update_text", "Info od klienta"),
 ]
-AUDIT_PRICE_FIELD_KEYS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"}
+AUDIT_PRICE_FIELD_KEYS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"} | event_finance.PRICE_FIELDS
 AUDIT_FINANCE_FIELD_KEYS = {"revenue", "deposit_paid", "deposit_amount", "deposit_date", "costs", "dinner_cost"}
 
 
@@ -529,9 +566,11 @@ async def login(body: LoginIn):
         )
     if u.get("active") is False:
         raise HTTPException(403, "Konto jest zablokowane. Skontaktuj się z administratorem.")
+    await record_activity(u, "login")
     token = make_token(u["id"])
     return {"access_token": token, "user": {
         "id": u["id"], "email": u["email"], "name": u.get("name", ""),
+        "workspace_id": ws(u),
         "role": u.get("role", "admin"),
         "staff_id": u.get("staff_id"),
         "permissions": u.get("permissions") or {},
@@ -610,6 +649,7 @@ async def auth_session(body: SessionExchangeIn):
         "created_at": now_utc(),
     })
 
+    await record_activity(user, "login")
     # Never leak Mongo _id
     user.pop("_id", None)
     return {"session_token": session_token, "user": user}
@@ -1061,6 +1101,8 @@ DEFAULT_STAFF_PERMISSIONS = {
     "calendar_view":  False,  # wgląd do pełnego kalendarza imprez
     "event_status":   False,  # zmiana statusu imprezy
     "event_create":   False,  # dodawanie nowych imprez
+    "event_edit": False,  # edycja danych podstawowych bez zatwierdzania
+    "event_delete": False,  # usuwanie bez zatwierdzania
     "event_org_edit": False,  # edycja danych organizacyjnych
     "send_thanks":    False,  # wysyłanie podziękowań
     "discounts":      False,  # nadawanie/stosowanie rabatów
@@ -1069,19 +1111,19 @@ DEFAULT_STAFF_PERMISSIONS = {
     "finances":       False,  # FINANSE: koszty, zysk, marża, wpłaty, stawki
 }
 
-MODULE_PERMISSION_KEYS = ["calendar_view", "event_status", "event_create", "event_org_edit",
+MODULE_PERMISSION_KEYS = ["calendar_view", "event_status", "event_create", "event_edit", "event_delete", "event_org_edit",
                           "send_thanks", "discounts", "offer_prices", "finances"]
 PERMISSION_LABELS = {
     "schedule": "Mój grafik", "attendance": "Obecność", "checklist": "Checklisty",
     "shopping": "Zakupy", "stock": "Magazyn",
     "calendar_view": "Wgląd do kalendarza", "event_status": "Zmiana statusu imprezy",
-    "event_create": "Dodawanie imprez", "event_org_edit": "Edycja organizacji",
+    "event_create": "Dodawanie imprez", "event_edit": "Edycja imprez", "event_delete": "Usuwanie imprez", "event_org_edit": "Edycja organizacji",
     "send_thanks": "Wysyłanie podziękowań", "discounts": "Nadawanie rabatów",
     "offer_prices": "Ceny ofert", "finances": "Finanse",
 }
 
 # Grupy pól imprezy chronione osobnymi uprawnieniami
-EVENT_PRICE_FIELDS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"}
+EVENT_PRICE_FIELDS = {"price_total", "price_after_discount", "discount_pct", "applied_discount"} | event_finance.PRICE_FIELDS
 EVENT_FINANCE_FIELDS = {"revenue", "costs", "deposit_paid", "deposit_amount", "deposit_date", "dinner_cost"}
 EVENT_PRIVATE_FIELDS = {"notes", "client_notes"}
 
@@ -1105,7 +1147,8 @@ def event_for_permitted_staff(ev: dict, perms: dict, sid: Optional[str] = None) 
     """Event as visible to an employee with module permissions.
     Private owner notes ALWAYS hidden; offer prices only with 'offer_prices';
     costs/profit/deposits only with 'finances'. Enforced on backend."""
-    out = {k: v for k, v in ev.items() if k not in EVENT_PRIVATE_FIELDS}
+    out = {k: v for k, v in ev.items() if k not in EVENT_PRIVATE_FIELDS and not k.startswith("timetree_")}
+    out["timetree_revision"] = ev.get("timetree_revision", 0)
     if not perms.get("finances"):
         for k in EVENT_FINANCE_FIELDS:
             out.pop(k, None)
@@ -1120,7 +1163,7 @@ def event_for_permitted_staff(ev: dict, perms: dict, sid: Optional[str] = None) 
 def _staff_allowed_event_fields(perms: dict) -> set:
     """Which EventIn fields an employee may modify, based on granted modules."""
     allowed: set = set()
-    if perms.get("event_org_edit"):
+    if perms.get("event_org_edit") or perms.get("event_edit") or perms.get("event_create"):
         allowed |= {"org"}
     if perms.get("event_status"):
         allowed |= {"status", "valid_until"}
@@ -1128,7 +1171,7 @@ def _staff_allowed_event_fields(perms: dict) -> set:
         allowed |= set(EVENT_PRICE_FIELDS)
     if perms.get("finances"):
         allowed |= set(EVENT_FINANCE_FIELDS)
-    if perms.get("event_create"):
+    if perms.get("event_create") or perms.get("event_edit"):
         allowed |= {"name", "date", "time_start", "time_end", "time", "people", "category",
                     "venue", "image_url", "client_name", "client_phone", "client_email",
                     "dinner_items", "extras_qty", "package_set"}
@@ -2323,7 +2366,7 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
     if is_staff(user):
         sid = user.get("staff_id")
         perms = await staff_module_permissions(user)
-        if perms.get("calendar_view"):
+        if any(perms.get(k) for k in ("calendar_view", "event_create", "event_edit", "event_delete", "event_status", "event_org_edit")):
             items = await db.events.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
             return [event_for_permitted_staff(ev, perms, sid) for ev in items]
         if not sid:
@@ -2344,7 +2387,7 @@ async def list_events(user=Depends(current_user), year: Optional[int] = None, mo
 
 @api.post("/events")
 async def create_event(body: EventIn, user=Depends(current_user)):
-    doc = body.dict()
+    doc = timetree.sanitize_manual(body.dict())
     staff_perms = None
     if is_staff(user):
         staff_perms = await require_module_perm(user, "event_create")
@@ -2360,6 +2403,10 @@ async def create_event(body: EventIn, user=Depends(current_user)):
             doc["status"] = ""
         doc["notes"] = ""; doc["client_notes"] = ""  # prywatne notatki tylko dla właściciela
         doc["shifts"] = []  # przypisywanie zespołu pozostaje po stronie managera
+    try:
+        doc = event_finance.apply(doc)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
     # BLOKADA: nie można przypisać pracownika, który zgłosił brak dostępności
     conflicts = await _availability_conflicts(
         ws(user), doc.get("date") or "", doc.get("shifts") or [],
@@ -2396,10 +2443,12 @@ async def get_event(event_id: str, user=Depends(current_user)):
     if is_staff(user):
         sid = user.get("staff_id")
         perms = await staff_module_permissions(user)
-        if perms.get("calendar_view") or any(perms.get(k) for k in ("event_status", "event_org_edit", "event_create")):
+        if perms.get("calendar_view") or any(perms.get(k) for k in ("event_status", "event_org_edit", "event_create", "event_edit", "event_delete", "offer_prices", "finances")):
+            await record_activity(user, "view_event", "event", event_id)
             return event_for_permitted_staff(ev, perms, sid)
         if not sid or not any(sh.get("staff_id") == sid for sh in (ev.get("shifts") or [])):
             raise HTTPException(403, "Brak dostępu do tej imprezy")
+        await record_activity(user, "view_event", "event", event_id)
         return staff_safe_event(ev, sid)
     return await compute_event_summary(ev)
 
@@ -2455,6 +2504,7 @@ async def my_event_card(event_id: str, user=Depends(current_user)):
         out["my_comments"] = await db.event_comments.find(
             {"owner_id": ws(user), "event_id": event_id, "author_staff_id": sid}, {"_id": 0}
         ).sort("created_at", -1).to_list(50)
+    await record_activity(user, "view_event", "moja-impreza", event_id)
     return out
 
 
@@ -2500,6 +2550,54 @@ async def add_staff_comment(event_id: str, body: StaffCommentIn, user=Depends(cu
         pass
     await log_change(user, "create", "event_comment", event_id, f"Informacja od pracownika: {text[:80]}")
     return doc
+
+@api.patch("/events/bulk-status")
+async def bulk_update_event_status(body: BulkEventStatusIn, user=Depends(current_user)):
+    """Set one status on several events from the current workspace."""
+    allowed_statuses = {"", "wstepne", "rezerwacja", "potwierdzona", "zakonczona", "anulowana"}
+    status = (body.status or "").strip().lower()
+    if status not in allowed_statuses:
+        raise HTTPException(400, "Nieprawidłowy status imprezy")
+    event_ids = list(dict.fromkeys(x for x in body.event_ids if x))
+    if not event_ids:
+        raise HTTPException(400, "Nie wybrano żadnej imprezy")
+    if len(event_ids) > 500:
+        raise HTTPException(400, "Jednorazowo można zmienić maksymalnie 500 imprez")
+    if is_staff(user):
+        await require_module_perm(user, "event_status")
+
+    selected = await db.events.find(
+        {"id": {"$in": event_ids}, "owner_id": ws(user)},
+        {"_id": 0, "id": 1, "name": 1, "date": 1, "status": 1},
+    ).to_list(500)
+    updated = 0
+    now = now_utc().isoformat()
+    for ev in selected:
+        previous = ev.get("status") or ""
+        if previous == status:
+            continue
+        changes = {"status": status, "updated_at": now}
+        if previous in _TRACKED_STATUSES and status not in _TRACKED_STATUSES:
+            changes["alert_sent"] = False
+            await db.alerts.update_many(
+                {"event_id": ev["id"], "owner_id": ws(user), "dismissed": {"$ne": True}},
+                {"$set": {"dismissed": True, "dismissed_at": now, "auto_dismissed": True}},
+            )
+        elif status in _TRACKED_STATUSES and previous not in _TRACKED_STATUSES:
+            changes["alert_sent"] = False
+        await db.events.update_one(
+            {"id": ev["id"], "owner_id": ws(user)}, {"$set": changes, "$inc": {"timetree_revision": 1}}
+        )
+        await log_change(
+            user, "update", "event", ev["id"],
+            f"Zmieniono status zbiorczo: {ev.get('name','')} ({ev.get('date','')}) → {_status_label(status)}",
+        )
+        try:
+            await _sync_event_for_workspace(ws(user), ev["id"], "update")
+        except Exception:
+            pass
+        updated += 1
+    return {"ok": True, "selected": len(selected), "updated": updated, "status": status}
 
 
 @api.get("/events/{event_id}/comments")
@@ -2916,7 +3014,11 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
     prev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
     if not prev:
         raise HTTPException(404, "Impreza nie znaleziona")
-    updates = body.dict()
+    submitted = body.dict()
+    if ('timetree_expected_revision' in submitted
+            and submitted['timetree_expected_revision'] != prev.get('timetree_revision', 0)):
+        raise HTTPException(409, "Wydarzenie zmieniło się od otwarcia formularza. Otwórz je ponownie przed zapisem.")
+    updates = timetree.sanitize_manual(submitted)
     staff_perms = None
     if is_staff(user):
         # Pracownik edytuje TYLKO pola objęte nadanymi uprawnieniami; reszta zostaje bez zmian
@@ -2927,20 +3029,25 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
         updates = {k: v for k, v in updates.items() if k in allowed}
         if not updates:
             raise HTTPException(403, "Brak uprawnień do zmienianych pól")
+    try:
+        updates = event_finance.apply(updates, prev)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+    updates = timetree.manual_patch(prev, updates)
     prev_status = prev.get("status") or ""
     new_status = updates.get("status", prev_status) or ""
     # BLOKADA dostępności: sprawdzamy tylko NOWO dodanych pracowników (albo wszystkich,
     # gdy zmieniono datę). Istniejące przypisania zostają — pracownik może zmienić
     # deklarację w każdej chwili, ale to nie zrywa wcześniejszych przypisań.
     if prev:
-        new_shifts = updates.get("shifts") or []
+        new_shifts = updates.get("shifts", prev.get("shifts")) or []
         prev_ids = {sh.get("staff_id") for sh in (prev.get("shifts") or [])}
-        date_changed = (prev.get("date") or "") != (updates.get("date") or "")
+        date_changed = (prev.get("date") or "") != (updates.get("date", prev.get("date")) or "")
         only = None if date_changed else ({sh.get("staff_id") for sh in new_shifts} - prev_ids)
         if only is None or only:
             conflicts = await _availability_conflicts(
-                ws(user), updates.get("date") or "", new_shifts,
-                updates.get("time_start") or "", updates.get("time_end") or "",
+                ws(user), updates.get("date", prev.get("date")) or "", new_shifts,
+                updates.get("time_start", prev.get("time_start")) or "", updates.get("time_end", prev.get("time_end")) or "",
                 only_staff_ids=only,
             )
             if conflicts:
@@ -2956,11 +3063,11 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
     elif new_status in _TRACKED_STATUSES and prev_status not in _TRACKED_STATUSES:
         updates["alert_sent"] = False
     res = await db.events.update_one(
-        {"id": event_id, "owner_id": ws(user)},
-        {"$set": updates},
+        {"id": event_id, "owner_id": ws(user), **timetree.revision_filter(prev)},
+        {"$set": updates, "$inc": {"timetree_revision": 1}},
     )
     if res.matched_count == 0:
-        raise HTTPException(404, "Impreza nie znaleziona")
+        raise HTTPException(409, "Wydarzenie zmieniło się podczas zapisu. Otwórz je ponownie i sprawdź zmiany.")
     ev = await db.events.find_one({"id": event_id}, {"_id": 0})
     ev = await pre_email.reconcile_event(db, ev)
     await log_change(user, "update", "event", event_id, f"Edytowano imprezę: {ev.get('name','')} ({ev.get('date','')})")
@@ -2975,8 +3082,12 @@ async def update_event(event_id: str, body: EventIn, user=Depends(current_user))
     return await compute_event_summary(ev)
 
 @api.delete("/events/{event_id}")
-async def delete_event(event_id: str, user=Depends(require_admin)):
+async def delete_event(event_id: str, user=Depends(current_user)):
+    if is_staff(user):
+        await require_module_perm(user, "event_delete")
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0})
+    if not ev:
+        raise HTTPException(404, "Impreza nie znaleziona")
     # sync BEFORE delete so we still have google_event_ids
     try:
         if ev:
@@ -3000,6 +3111,7 @@ async def event_audit(event_id: str, user=Depends(current_user)):
     ev = await db.events.find_one({"id": event_id, "owner_id": ws(user)}, {"_id": 0, "id": 1})
     if not ev:
         raise HTTPException(404, "Impreza nie znaleziona")
+    await timetree.flush_audit(db, ws(user))
     rows = await db.audit_log.find(
         {"owner_id": ws(user), "entity_type": "event", "entity_id": event_id},
         {"_id": 0}
@@ -3354,6 +3466,7 @@ async def import_whatsapp(body: ImportWhatsAppIn, user=Depends(current_user)):
 # ---------- Backup Export / Import ----------
 class BackupIn(BaseModel):
     staff: List[dict] = []
+    staff_invitations: List[dict] = []
     events: List[dict] = []
     templates: List[dict] = []
     mode: str = "merge"  # "merge" or "replace"
@@ -3361,6 +3474,7 @@ class BackupIn(BaseModel):
 @api.get("/export/backup")
 async def export_backup(user=Depends(require_admin)):
     staff = await db.staff.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
+    staff_invitations = await db.staff_invitations.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
     events = await db.events.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(10000)
     templates = await db.templates.find({"owner_id": ws(user)}, {"_id": 0, "owner_id": 0}).to_list(5000)
     return {
@@ -3368,15 +3482,17 @@ async def export_backup(user=Depends(require_admin)):
         "version": 1,
         "exported_at": now_utc().isoformat(),
         "staff": staff,
+        "staff_invitations": staff_invitations,
         "events": events,
         "templates": templates,
     }
 
 @api.post("/import/backup")
 async def import_backup(body: BackupIn, user=Depends(current_user)):
-    imported = {"staff": 0, "events": 0, "templates": 0}
+    imported = {"staff": 0, "staff_invitations": 0, "events": 0, "templates": 0}
     if body.mode == "replace":
         await db.staff.delete_many({"owner_id": ws(user)})
+        await db.staff_invitations.delete_many({"owner_id": ws(user)})
         await db.events.delete_many({"owner_id": ws(user)})
         await db.templates.delete_many({"owner_id": ws(user)})
 
@@ -3390,6 +3506,22 @@ async def import_backup(body: BackupIn, user=Depends(current_user)):
             {"$set": doc}, upsert=True,
         )
         imported["staff"] += 1
+
+    for inv in body.staff_invitations:
+        doc = {k: v for k, v in inv.items() if k != "_id"}
+        doc["owner_id"] = ws(user)
+        if "id" not in doc:
+            doc["id"] = str(uuid.uuid4())
+        if "invited_at" not in doc:
+            doc["invited_at"] = now_utc().isoformat()
+        if "status" not in doc:
+            doc["status"] = "pending"
+        await db.staff_invitations.update_one(
+            {"id": doc["id"], "owner_id": ws(user)},
+            {"$set": doc}, upsert=True,
+        )
+        imported["staff_invitations"] += 1
+
     for ev in body.events:
         doc = {k: v for k, v in ev.items() if k not in ("_id", "labor_cost", "material_cost", "total_cost", "profit")}
         doc["owner_id"] = ws(user); doc["created_by_id"] = user["id"]; doc["created_by_name"] = user.get("name") or user.get("email", "")
@@ -3705,7 +3837,7 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
 
     # Preload existing (date, name-lowercased) pairs for the workspace for O(1) fallback dedup
     existing_docs = await db.events.find(
-        {"owner_id": ws(user)}, {"_id": 0, "id": 1, "date": 1, "name": 1, "imported_uid": 1, "notes": 1, "venue": 1}
+        {"owner_id": ws(user)}, {"_id": 0, "id": 1, "date": 1, "name": 1, "imported_uid": 1, "external_source": 1, "notes": 1, "venue": 1}
     ).to_list(20000)
     # Build lookups
     uid_to_doc = {d.get("imported_uid"): d for d in existing_docs if d.get("imported_uid")}
@@ -3715,6 +3847,8 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
 
     async def _try_enrich(target_doc: dict, new_notes: str, new_venue: str):
         """If target's notes are empty and new_notes is non-empty, patch it. Same for venue."""
+        if target_doc.get("external_source") == "timetree":
+            return False
         updates = {}
         if new_notes and not (target_doc.get("notes") or "").strip():
             updates["notes"] = new_notes
@@ -3789,8 +3923,11 @@ async def import_ics(body: ImportIcsIn, user=Depends(current_user)):
             existing_uids.add(uid)
         existing_date_name.add(dedup_key)
 
-        await db.events.insert_one(doc)
-        imported += 1
+        try:
+            await db.events.insert_one(doc)
+            imported += 1
+        except DuplicateKeyError:
+            skipped_dup_uid += 1
 
     return {
         "ok": True,
@@ -5015,6 +5152,8 @@ _scheduler = None
 
 @app.on_event("startup")
 async def _startup():
+    await db.activity_log.create_index([("owner_id", 1), ("at", -1)])
+    await db.activity_log.create_index([("owner_id", 1), ("user_id", 1), ("at", -1)])
     await db.users.create_index("email", unique=True)
     await db.events.create_index([("owner_id", 1), ("date", -1)])
     await db.events.create_index([("pre_event_email_status", 1), ("pre_event_email_scheduled_at", 1)])
@@ -5032,6 +5171,11 @@ async def _startup():
     await db.oauth_states.create_index("state", unique=True)
     await db.oauth_states.create_index("expires_at", expireAfterSeconds=0)
     await db.google_calendar_connections.create_index("user_id", unique=True)
+
+    try:
+        await timetree.ensure_indexes(db)
+    except Exception:
+        logger.warning("TimeTree indexes not ready; check migration 005 before syncing")
 
     # Start APScheduler for 2-day stale-status alerts
     global _scheduler
@@ -5069,6 +5213,12 @@ async def _startup():
             max_instances=1,
             coalesce=True,
         )
+        if not timetree.use_worker() and os.getenv("TIMETREE_SCHEDULER_ENABLED", "true").lower() == "true":
+            _scheduler.add_job(
+                timetree.scheduled_sync, IntervalTrigger(hours=1), args=[db],
+                id="timetree_sync", next_run_time=datetime.now(timezone.utc) + timedelta(seconds=45),
+                replace_existing=True, max_instances=1, coalesce=True,
+            )
         _scheduler.start()
         logger.info("APScheduler started: alerts_scan every 2h, pre_event_email_scan every 1m")
     except Exception as e:
@@ -8217,6 +8367,7 @@ async def gmail_message_detail(msg_id: str, user=Depends(current_user)):
     return _gmail.full_message(raw)
 
 
+api.include_router(timetree_routes(db, current_user, lambda: _scheduler))
 app.include_router(api)
 
 
@@ -8230,4 +8381,3 @@ async def _shutdown():
     except Exception:
         pass
     client.close()
-

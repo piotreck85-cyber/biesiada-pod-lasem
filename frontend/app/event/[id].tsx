@@ -13,6 +13,8 @@ import { formatPLN, initials } from "@/src/theme";
 import { v2 } from "@/src/designTokensV2";
 import { api } from "@/src/api";
 import { useAuth } from "@/src/auth";
+import { calculateEventFinance } from "@/src/eventFinance";
+import TimeTreeEventInfo from "@/src/components/TimeTreeEventInfo";
 import EventAuditList from "@/src/components/EventAuditList";
 import { CATEGORY_GROUPS, categoryLabel } from "@/src/categories";
 import { computePricing } from "@/src/pricing";
@@ -54,6 +56,14 @@ export default function EventDetail() {
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [timeTreeEvent, setTimeTreeEvent] = useState<any>(null);
+  const [perPersonMode, setPerPersonMode] = useState(isNew);
+  const [pricePerPerson, setPricePerPerson] = useState("");
+  const [payingPeople, setPayingPeople] = useState("");
+  const [freeCarers, setFreeCarers] = useState("");
+  const [costInput, setCostInput] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
+  const [venue, setVenue] = useState("Biesiada pod lasem");
   const [name, setName] = useState(initName || "");
   const [date, setDate] = useState(initDate || todayIso());
   const [timeStart, setTimeStart] = useState("");
@@ -63,7 +73,7 @@ export default function EventDetail() {
   const [people, setPeople] = useState("");
   const [packageSet, setPackageSet] = useState<string>("");
   const [revenueNet, setRevenueNet] = useState("");
-  const [autoPrice, setAutoPrice] = useState(true);
+  const [autoPrice, setAutoPrice] = useState(false);
   const [extras, setExtras] = useState<Record<string, number>>({}); // extra_id -> qty (or amount for 'kwota')
   const [dinnerQty, setDinnerQty] = useState<Record<string, number>>({}); // dinner_item_id -> qty
   const [dinnerCost, setDinnerCost] = useState<string>(""); // user-entered wholesale cost for margin calc
@@ -93,6 +103,7 @@ export default function EventDetail() {
   const [clientEmail, setClientEmail] = useState<string>("");
   const [clientNotes, setClientNotes] = useState<string>("");
   const [priceTotal, setPriceTotal] = useState<string>("");
+  const [vatRate, setVatRate] = useState(23);
   const [discountPct, setDiscountPct] = useState<string>("");
   const [depositPaid, setDepositPaid] = useState<boolean>(false);
   const [depositAmount, setDepositAmount] = useState<string>("");
@@ -117,6 +128,7 @@ export default function EventDetail() {
   const { user: authUser } = useAuth();
   const isEmp = authUser?.role === "staff";
   const eperm = (k: string) => !isEmp || !!(authUser?.permissions as any)?.[k];
+  const canSaveEvent = isNew ? eperm("event_create") : ["event_create", "event_edit", "event_org_edit", "event_status", "offer_prices", "finances"].some(eperm);
 
   // ---- Dostępność pracowników dla daty imprezy (staff_id -> deklaracja) ----
   const [availByStaff, setAvailByStaff] = useState<Record<string, any>>({});
@@ -192,6 +204,13 @@ export default function EventDetail() {
       if (!isNew) {
         try {
           const ev: any = await api.getEvent(id as string);
+          setTimeTreeEvent(ev); setVenue(ev.venue || "");
+          setPerPersonMode(ev.pricing_mode === "per_person_v1");
+          const paid = ev.paying_people ?? Math.max(0, (ev.people || 0) - (ev.free_carers || 0));
+          setPayingPeople(String(paid || ""));
+          setFreeCarers(String(ev.free_carers || ""));
+          setPricePerPerson(ev.price_per_person != null ? String(ev.price_per_person) : paid ? ((ev.price_total || ev.revenue || 0) / paid).toFixed(2) : "");
+          setCostInput(ev.costs?.length === 1 ? String(ev.costs[0].amount) : "");
           setName(ev.name); setDate(ev.date);
           setTimeStart(ev.time_start || ev.time || "");
           setTimeEnd(ev.time_end || "");
@@ -216,6 +235,7 @@ export default function EventDetail() {
           setClientEmail(ev.client_email || "");
           setClientNotes(ev.client_notes || "");
           setPriceTotal(ev.price_total ? String(ev.price_total) : "");
+          setVatRate(ev.vat_rate === 23 ? 23 : 0);
           setDiscountPct(ev.discount_pct ? String(ev.discount_pct) : "");
           setDepositPaid(!!ev.deposit_paid);
           setDepositAmount(ev.deposit_amount ? String(ev.deposit_amount) : "");
@@ -267,7 +287,11 @@ export default function EventDetail() {
   const revenueNum = parseFloat(revenue.replace(",", ".")) || 0;
   const profit = revenueNum - laborCost - materialCost;
 
-  const peopleNum = parseInt(people, 10) || 0;
+  const peopleNum = perPersonMode
+    ? (parseInt(payingPeople, 10) || 0) + (parseInt(freeCarers, 10) || 0)
+    : org.kids_count != null || org.adults_count != null
+      ? (Number(org.kids_count) || 0) + (Number(org.adults_count) || 0)
+      : parseInt(people, 10) || 0;
   const isAdult = category.startsWith("dorosli");
   const isBirthday = category.startsWith("dzieci/urodzinki");
   const isParentTrip = category === "dzieci/wycieczki_rodzice";
@@ -322,12 +346,12 @@ export default function EventDetail() {
 
   // Auto-price when computable and user hasn't manually overridden
   useEffect(() => {
-    if (autoPrice && (pricing || extrasTotal > 0)) {
+    if (!perPersonMode && autoPrice && (pricing || extrasTotal > 0)) {
       setRevenue(String(combinedTotal));
       // Also propose it as the "Całkowita cena imprezy" if empty
       setPriceTotal(prev => (!prev || prev === "0" || prev === String(revenueNum)) ? String(combinedTotal) : prev);
     }
-  }, [combinedTotal, autoPrice]);
+  }, [combinedTotal, autoPrice, perPersonMode]);
 
   // ---- Check discounts for known client email (only on NEW event) ----
   useEffect(() => {
@@ -344,11 +368,32 @@ export default function EventDetail() {
     return () => { cancelled = true; clearTimeout(t); };
   }, [clientEmail, isNew]);
 
+  const financial = useMemo(() => {
+    try {
+      if (costs.length <= 1) calculateEventFinance(0, 0, 0, costInput, 0);
+      const values = calculateEventFinance(pricePerPerson, payingPeople, discountPct,
+        Math.round((materialCost + laborCost) * 100) / 100, freeCarers);
+      return { values, error: "" };
+    } catch (e: any) { return { values: null, error: e.message || "Sprawdź dane finansowe." }; }
+  }, [pricePerPerson, payingPeople, discountPct, materialCost, laborCost, freeCarers, costInput, costs.length]);
+  const legacyGross = parseAmt(priceTotal);
+  const financeValues = perPersonMode ? financial.values : {
+    subtotal: parseAmt(priceTotal), discount: 0, gross: legacyGross,
+    net: timeTreeEvent?.revenue_net || (vatRate === 23 ? Math.round(legacyGross / 1.23 * 100) / 100 : legacyGross),
+    vat: vatRate === 23 ? Math.round((legacyGross - legacyGross / 1.23) * 100) / 100 : 0,
+    costs: materialCost + laborCost,
+    profit: revenueNum - materialCost - laborCost,
+  };
+  const setUnitPrice = (value: string) => { setPricePerPerson(value); setPerPersonMode(true); setAutoPrice(false); };
+  const setPaidCount = (value: string) => { setPayingPeople(value); if (isNew || timeTreeEvent?.pricing_mode === "per_person_v1") setPerPersonMode(true); };
+
   const save = async () => {
+    if (!canSaveEvent) { Alert.alert("Brak uprawnień", "Nie masz uprawnienia do zapisu tej imprezy."); return; }
     if (!name.trim() || !date) return;
+    if (perPersonMode && financial.error) { Alert.alert("Sprawdź finanse", financial.error); return; }
     // Detect transition to "zakonczona" for EXISTING events → show thanks confirm
     const isTransitionToCompleted = !isNew && status === "zakonczona" && prevStatus !== "zakonczona";
-    if (isTransitionToCompleted) {
+    if (isTransitionToCompleted && eperm("send_thanks")) {
       const hasEmail = !!clientEmail.trim() && clientEmail.includes("@");
       const alreadySent = !!(thanksStatus?.sent);
       if (alreadySent) {
@@ -409,7 +454,8 @@ export default function EventDetail() {
     const body = {
       name: name.trim(), date,
       time_start: timeStart, time_end: timeEnd, time: timeStart,
-      venue: "Biesiada pod lasem",
+      venue,
+      ...(!isNew && timeTreeEvent && { timetree_expected_revision: timeTreeEvent.timetree_revision || 0 }),
       notes, category,
       org,
       people: peopleNum,
@@ -433,6 +479,7 @@ export default function EventDetail() {
       client_notes: clientNotes.trim(),
       // ---- Payment ----
       price_total: parseAmt(priceTotal),
+      vat_rate: vatRate,
       discount_pct: parseAmt(discountPct),
       price_after_discount: (function(){
         const t = parseAmt(priceTotal); const d = parseAmt(discountPct);
@@ -441,7 +488,7 @@ export default function EventDetail() {
       deposit_paid: !!depositPaid,
       deposit_amount: parseAmt(depositAmount),
       deposit_date: depositDate || "",
-      costs: costs.map(c => ({ label: c.label, amount: Number(c.amount) || 0 })),
+      costs: costs.map(c => ({ ...c, amount: Number(c.amount) || 0 })),
       shifts: shifts.map(sh => ({
         staff_id: sh.staff_id,
         hours: Number(sh.hours) || 0,
@@ -452,9 +499,18 @@ export default function EventDetail() {
       })),
       image_url: imageUrl,
     };
+    const pricedBody = perPersonMode && financial.values ? {
+      ...body, pricing_mode: "per_person_v1", price_per_person: parseAmt(pricePerPerson),
+      paying_people: financial.values.paidPeople, free_carers: financial.values.freeCarers,
+      people: financial.values.attendees, vat_rate: 23,
+      pricing_subtotal: financial.values.subtotal, pricing_discount_amount: financial.values.discount,
+      price_total: financial.values.gross, price_after_discount: financial.values.gross,
+      revenue: financial.values.gross, revenue_net: financial.values.net, vat_amount: financial.values.vat,
+    } : { ...body, free_carers: parseInt(freeCarers, 10) || 0,
+      price_after_discount: timeTreeEvent?.price_after_discount ?? body.price_after_discount };
     try {
-      if (isNew) await api.createEvent(body);
-      else await api.updateEvent(id as string, body);
+      if (isNew) await api.createEvent(pricedBody);
+      else { const saved: any = await api.updateEvent(id as string, pricedBody); setTimeTreeEvent(saved); }
       if (!opts.skipReturn) router.back();
     } catch (e: any) {
       if (opts.skipReturn) throw e;
@@ -569,26 +625,18 @@ export default function EventDetail() {
   };
 
   const remove = async () => {
-    if (isNew) return;
-    Alert.alert(
-      "Usunąć imprezę?",
-      `Ta operacja jest nieodwracalna.\n\n${name || "Impreza"}${date ? "\n" + date : ""}\n\nCzy na pewno chcesz usunąć?`,
-      [
-        { text: "Anuluj", style: "cancel" },
-        {
-          text: "Usuń",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.deleteEvent(id as string);
-              router.back();
-            } catch (e: any) {
-              Alert.alert("Błąd", e?.message || "Nie udało się usunąć imprezy.");
-            }
-          },
-        },
-      ],
-    );
+    if (isNew || !eperm("event_delete")) return;
+    const doDelete = async () => {
+      try { await api.deleteEvent(id as string); router.back(); }
+      catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się usunąć imprezy."); }
+    };
+    const message = `Usunąć imprezę „${name}” (${date})? Tej operacji nie można cofnąć.`;
+    // This is the acting user's confirmation, never a request to the owner.
+    if (Platform.OS === "web") { if (window.confirm(message)) await doDelete(); return; }
+    Alert.alert("Usunąć imprezę?", message, [
+      { text: "Anuluj", style: "cancel" },
+      { text: "Usuń", style: "destructive", onPress: doDelete },
+    ]);
   };
 
   const addStaff = (staffId: string) => {
@@ -736,7 +784,10 @@ export default function EventDetail() {
     custom_note: offerNote || undefined,
     custom_greeting: offerGreeting || undefined,
     event_id: id === "new" ? undefined : (id as string),
-    event_type: "okolicznosciowe" as const,
+    event_type: (category.startsWith("dorosli/firmowe") ? "firmowe"
+      : category.startsWith("dzieci/urodzinki") ? "urodziny"
+      : category.startsWith("dzieci/wycieczki") || category.startsWith("warsztaty") ? "warsztaty"
+      : "okolicznosciowe") as "firmowe" | "urodziny" | "warsztaty" | "okolicznosciowe",
   });
 
   const previewOfferPdf = async () => {
@@ -830,7 +881,7 @@ export default function EventDetail() {
       else if (category.startsWith("dorosli/okolicznosciowe")) eventType = "okolicznosciowe";
       else if (category.startsWith("dorosli")) eventType = "okolicznosciowe";
       else if (category.startsWith("dzieci/urodzinki")) eventType = "urodziny";
-      else if (category.startsWith("dzieci/wycieczki")) eventType = "warsztaty";
+      else if (category.startsWith("dzieci/wycieczki") || category.startsWith("warsztaty")) eventType = "warsztaty";
       await api.sendOfferEmail({
         to_email: offerTo.trim(),
         client_name: offerClient.trim() || undefined,
@@ -887,12 +938,12 @@ export default function EventDetail() {
               <Feather name="file-text" size={17} color="#fff" />
             </Pressable>
           ) : null}
-          {!isEmp && (isAdult || category.startsWith("dzieci/urodzinki") || category.startsWith("dzieci/wycieczki") || category === "dzieci/wycieczki_rodzice") ? (
+          {!isEmp ? (
             <Pressable testID="event-send-offer-btn" onPress={openOfferModal} hitSlop={12} style={s.backBtn}>
               <Feather name="mail" size={18} color="#fff" />
             </Pressable>
           ) : null}
-          {!isNew && !isEmp ? (
+          {!isNew && eperm("event_delete") ? (
             <Pressable testID="event-delete-btn" onPress={remove} hitSlop={12} style={[s.backBtn, { backgroundColor: "rgba(220,38,38,0.35)" }]}>
               <Feather name="trash-2" size={18} color="#fff" />
             </Pressable>
@@ -902,72 +953,518 @@ export default function EventDetail() {
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
         <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
-          {/* Kompaktowe podsumowanie */}
-          <View style={s.compactCard} testID="event-compact-summary">
+          <Section title="Kategoria">
+            <Pressable testID="event-category-btn" accessibilityRole="button" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
+              <Text style={{ color: category ? v2.color.text : v2.color.textMuted, fontSize: 16 }}>{category ? categoryLabel(category) : "Wybierz kategorię"}</Text>
+              <Feather name="chevron-down" size={18} color={v2.color.textMuted} />
+            </Pressable>
+          </Section>
+          <Collapse title="STATUS" icon="flag" defaultOpen testID="sec-status">
+          {/* Status */}
+          <Section title="">
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              <View style={[s.compactPill, { backgroundColor: v2.color.mint }]}>
-                <Text style={[s.compactPillText, { color: v2.color.forest }]}>{category ? categoryLabel(category) : "Bez kategorii"}</Text>
-              </View>
-              {statusMeta[status] ? (
-                <View style={[s.compactPill, { backgroundColor: statusMeta[status].color + "22", borderWidth: 1, borderColor: statusMeta[status].color }]}>
-                  <Text style={[s.compactPillText, { color: statusMeta[status].color }]}>{statusMeta[status].label}</Text>
+              {([
+                { k: "wstepne",     label: "Wstępne zapytanie", color: "#F59E0B" },
+                { k: "rezerwacja",  label: "Rezerwacja",        color: "#F97316" },
+                { k: "potwierdzona",label: "Potwierdzona",      color: "#10B981" },
+                { k: "zakonczona",  label: "Zakończona",        color: "#3B82F6" },
+                { k: "anulowana",   label: "Anulowana",         color: "#EF4444" },
+              ] as const).map(st => {
+                const active = status === st.k;
+                return (
+                  <Pressable
+                    key={st.k}
+                    testID={`status-${st.k}`}
+                    onPress={() => {
+                      if (!eperm("event_status")) {
+                        Alert.alert("Brak uprawnień", "Nie masz uprawnienia do zmiany statusu imprezy.");
+                        return;
+                      }
+                      setStatus(active ? "" : st.k);
+                    }}
+                    style={{
+                      flexDirection: "row", alignItems: "center", gap: 6,
+                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
+                      backgroundColor: active ? st.color : v2.color.cardMuted,
+                      borderWidth: 1, borderColor: active ? st.color : v2.color.border,
+                    }}
+                  >
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
+                    <Text style={{ color: active ? "#0A0A0A" : v2.color.text, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {status === "wstepne" && (
+              <Field label="Ważne do (data ważności zapytania)">
+                <TextInput
+                  testID="event-valid-until"
+                  value={validUntil}
+                  onChangeText={setValidUntil}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor={v2.color.textMuted}
+                  style={s.input}
+                />
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
+                  💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
+                </Text>
+              </Field>
+            )}
+
+          </Section>
+
+          </Collapse>
+          <Collapse title="WYDARZENIE" icon="calendar" defaultOpen testID="sec-dane">
+            <Field label="Nazwa wydarzenia">
+              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="np. Wycieczka klasy 3A" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Termin wycieczki">
+              <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="RRRR-MM-DD" placeholderTextColor={v2.color.textMuted} style={s.input} autoCapitalize="none" />
+            </Field>
+            <Field label="Godzina rozpoczęcia">
+              <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="09:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Godzina zakończenia">
+              <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="14:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Szkoła / przedszkole – nazwa i numer">
+              <TextInput testID="event-school" value={org.institution_name ?? ([org.school_name, org.preschool_name].filter(Boolean).join(" / "))} onChangeText={v => setOrgField("institution_name", v)} placeholder="np. Szkoła Podstawowa nr 2" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Rodzaj warsztatów">
+              <TextInput testID="event-workshop" value={org.workshop_type || ""} onChangeText={v => setOrgField("workshop_type", v)} placeholder="np. Warsztaty przyrodnicze" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Liczba dzieci">
+              <TextInput testID="event-kids-count" value={org.kids_count != null ? String(org.kids_count) : ""} onChangeText={v => { const clean = v.replace(/\D/g, ""); setOrgField("kids_count", clean === "" ? null : Number(clean)); setPaidCount(clean); }} keyboardType="number-pad" placeholder="0" placeholderTextColor={v2.color.textMuted} style={s.input} />
+            </Field>
+            <Field label="Opiekunowie gratis – liczba">
+              <TextInput testID="event-free-carers" value={freeCarers} onChangeText={v => setFreeCarers(v.replace(/\D/g, ""))} keyboardType="number-pad" placeholder="0" placeholderTextColor={v2.color.textMuted} style={s.input} />
+              <Text style={s.maskHint}>Opiekunowie są uwzględnieni organizacyjnie, ale nie zwiększają liczby płatnych osób.</Text>
+            </Field>
+            <Pressable accessibilityRole="button" accessibilityState={{ expanded: showDetails }} onPress={() => setShowDetails(!showDetails)}><Text style={s.maskLink}>{showDetails ? "Ukryj dodatkowe ustalenia" : "Dodatkowe ustalenia, zespół i menu"}</Text></Pressable>
+            {showDetails && <>
+              <Field label="Lokalizacja"><TextInput value={venue} onChangeText={setVenue} style={s.input} /></Field>
+              {!isEmp && <Field label="Opis / notatka"><TextInput value={notes} onChangeText={setNotes} multiline style={[s.input, { minHeight: 90 }]} /></Field>}
+          <Collapse title="Organizacja — widoczna dla obsługi" icon="clipboard" testID="sec-organizacja">
+          <Section title="Pracownicy na zmianie">
+          {/* Staff */}
+          <Section title="">
+            {shifts.length === 0 && <Text style={s.hint}>Brak przypisanych pracowników</Text>}
+            {shifts.map((sh, i) => {
+              const s2 = staffMap[sh.staff_id];
+              return (
+                <View key={sh.staff_id} style={s.shiftBlock}>
+                  <View style={s.shiftRow}>
+                    <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.shiftName}>{s2?.name || "?"}</Text>
+                      {eperm("finances") ? <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text> : null}
+                    </View>
+                    <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
+                    {!isEmp ? (
+                    <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
+                      <Feather name="x" size={16} color={v2.color.textMuted} />
+                    </Pressable>
+                    ) : null}
+                  </View>
+                  {availByStaff[sh.staff_id]?.status === "unavailable" ? (
+                    <View style={s.availWarn}>
+                      <Feather name="alert-triangle" size={13} color={v2.color.error} />
+                      <Text style={s.availWarnText}>
+                        Zgłoszony brak dostępności {availByStaff[sh.staff_id].all_day === false
+                          ? `w godz. ${availByStaff[sh.staff_id].time_from}–${availByStaff[sh.staff_id].time_to}`
+                          : "(cały dzień)"}
+                        {availByStaff[sh.staff_id].note ? ` · „${availByStaff[sh.staff_id].note}”` : ""}
+                      </Text>
+                    </View>
+                  ) : null}
+                  <View style={s.shiftTimeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Od</Text>
+                      <TextInput
+                        testID={`shift-start-${i}`}
+                        value={sh.time_start || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_start: v };
+                          const h = hoursBetween(v, next.time_end);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="18:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Do</Text>
+                      <TextInput
+                        testID={`shift-end-${i}`}
+                        value={sh.time_end || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
+                          if (ix !== i) return x;
+                          const next = { ...x, time_end: v };
+                          const h = hoursBetween(next.time_start, v);
+                          return { ...next, hours: h || x.hours };
+                        }))}
+                        placeholder="22:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Godziny (ręcznie)</Text>
+                      <TextInput
+                        testID={`shift-hours-${i}`}
+                        value={String(sh.hours || "")}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
+                        placeholder="4"
+                        placeholderTextColor={v2.color.textMuted}
+                        keyboardType="decimal-pad"
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Rola na imprezie</Text>
+                      <TextInput
+                        testID={`shift-role-${i}`}
+                        value={sh.role || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, role: v } : x))}
+                        placeholder="np. przygotowanie / obsługa"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.miniLabel}>Notatka (opcjonalna)</Text>
+                      <TextInput
+                        testID={`shift-note-${i}`}
+                        value={sh.note || ""}
+                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, note: v } : x))}
+                        placeholder="np. dekoracje od 9:00"
+                        placeholderTextColor={v2.color.textMuted}
+                        style={s.timeInput}
+                      />
+                    </View>
+                  </View>
                 </View>
-              ) : null}
-            </View>
-            <View style={s.compactRow}>
-              <Feather name="calendar" size={13} color={v2.color.textMuted} />
-              <Text style={s.compactText}>{date || "—"}{timeStart ? `  ·  ${timeStart}${timeEnd ? `–${timeEnd}` : ""}` : ""}</Text>
-              <Feather name="users" size={13} color={v2.color.textMuted} style={{ marginLeft: 10 }} />
-              <Text style={s.compactText}>{peopleNum || 0} os.</Text>
-            </View>
-            {(clientName || clientPhone) ? (
-              <View style={s.compactRow}>
-                <Feather name="user" size={13} color={v2.color.textMuted} />
-                <Text style={s.compactText} numberOfLines={1}>{clientName || "—"}{clientPhone ? `  ·  ${clientPhone}` : ""}</Text>
-              </View>
+              );
+            })}
+            {!isEmp && availStaff.length > 0 ? (
+              <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
+                <Feather name="plus" size={16} color={v2.color.forest} />
+                <Text style={s.addRowText}>Dodaj pracownika</Text>
+              </Pressable>
+            ) : staffAll.length === 0 ? (
+              <Text style={s.hint}>Najpierw dodaj pracowników w zakładce Pracownicy</Text>
             ) : null}
-            {(eperm("offer_prices") || eperm("finances")) ? (
-            <View style={s.compactKpiRow}>
-              {eperm("offer_prices") ? (
-              <View style={s.compactKpi}>
-                <Text style={s.compactKpiLabel}>CENA</Text>
-                <Text style={s.compactKpiVal}>{priceForKpi > 0 ? `${priceForKpi.toFixed(0)} zł` : "—"}</Text>
-              </View>
-              ) : null}
-              {eperm("finances") ? (<>
-              <View style={s.compactKpi}>
-                <Text style={s.compactKpiLabel}>DO ZAPŁATY</Text>
-                <Text style={[s.compactKpiVal, { color: priceForKpi > 0 && kpiRemaining > 0 ? v2.color.warning : v2.color.success }]}>{priceForKpi > 0 ? `${kpiRemaining.toFixed(0)} zł` : "—"}</Text>
-              </View>
-              <View style={s.compactKpi}>
-                <Text style={s.compactKpiLabel}>ZYSK PRZEW.</Text>
-                <Text style={[s.compactKpiVal, { color: plannedProfit >= 0 ? v2.color.forest : v2.color.error }]}>{plannedProfit.toFixed(0)} zł</Text>
-              </View>
-              <View style={s.compactKpi}>
-                <Text style={s.compactKpiLabel}>MARŻA</Text>
-                <Text style={s.compactKpiVal}>{discountedValue > 0 ? `${((plannedProfit / discountedValue) * 100).toFixed(0)}%` : "—"}</Text>
-              </View>
-              </>) : null}
-            </View>
-            ) : null}
-          </View>
+          </Section>
 
-          {/* Finance import banner */}
-          {financeMeta?.import_batch_id ? (
-            <View style={s.financeBanner}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <Feather name="info" size={14} color={v2.color.warning} />
-                <Text style={s.financeBannerTitle}>Dane finansowe zaimportowane</Text>
-                {(financeMeta.is_revenue_estimated || financeMeta.is_cost_estimated) ? (
-                  <View style={s.estPill}><Text style={s.estPillText}>SZACUNEK</Text></View>
-                ) : null}
+          </Section>
+          {/* Organizacja — widoczne dla obsługi */}
+          <Section title="">
+            {([
+              ["tables_setup", "Ustawienie stołów", "np. 4 stoły po 8 osób, podkowa"],
+              ["tables_plan", "Plan / układ stołów", "opis układu, jeśli ustalony"],
+              ["menu_details", "Menu (szczegóły dla obsługi)", "co i o której wydajemy"],
+              ["grill", "Grill / ognisko", "np. kiełbaski o 18:00, ognisko 19:30"],
+              ["drinks", "Napoje", "np. cola, soki, woda z cytryną"],
+              ["cakes", "Ciasta i przekąski", "np. tort klienta + 2 ciasta"],
+              ["client_provisions", "Dodatkowy prowiant klienta", "co klient przywozi"],
+              ["decorations", "Dekoracje", "np. balony, girlandy — kto i kiedy"],
+              ["attractions", "Atrakcje", "np. alpaki 16:00, animacje 17:00"],
+              ["extra_orders", "Dodatkowe zamówienia", ""],
+              ["org_notes", "Informacje organizacyjne", ""],
+              ["special_requests", "Specjalne wymagania klienta", ""],
+              ["allergies", "Alergie / wymagania żywieniowe", "np. 1 os. bez glutenu"],
+              ["setup_info", "Przygotowanie miejsca", "np. wiata + leżaki, parasole"],
+            ] as const).map(([k, label, ph]) => (
+              <Field key={k} label={label}>
+                <TextInput
+                  testID={`org-${k}`}
+                  value={org[k] || ""}
+                  onChangeText={t => setOrgField(k, t)}
+                  editable={eperm("event_org_edit")}
+                  placeholder={ph || "…"}
+                  placeholderTextColor={v2.color.textMuted}
+                  style={[s.input, { minHeight: 44 }]}
+                  multiline
+                />
+              </Field>
+            ))}
+            <View style={{ flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
+              <Pressable
+                testID="org-own-decorations-toggle"
+                onPress={() => setOrgField("client_own_decorations", !org.client_own_decorations)}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
+                  borderRadius: 10, borderWidth: 1.5,
+                  borderColor: org.client_own_decorations ? v2.color.forest : v2.color.border,
+                  backgroundColor: org.client_own_decorations ? v2.color.mint : v2.color.card,
+                }}
+              >
+                <Feather name={org.client_own_decorations ? "check-square" : "square"} size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient robi własne dekoracje</Text>
+              </Pressable>
+              <Pressable
+                testID="org-early-arrival-toggle"
+                onPress={() => setOrgField("early_arrival", !org.early_arrival)}
+                style={{
+                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
+                  borderRadius: 10, borderWidth: 1.5,
+                  borderColor: org.early_arrival ? v2.color.forest : v2.color.border,
+                  backgroundColor: org.early_arrival ? v2.color.mint : v2.color.card,
+                }}
+              >
+                <Feather name={org.early_arrival ? "check-square" : "square"} size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient przyjedzie wcześniej</Text>
+              </Pressable>
+            </View>
+            {!!org.early_arrival && (
+              <Field label="Godzina wcześniejszego przyjazdu">
+                <TextInput
+                  testID="org-early-arrival-time"
+                  value={org.early_arrival_time || ""}
+                  onChangeText={t => setOrgField("early_arrival_time", t)}
+                  placeholder="15:30" placeholderTextColor={v2.color.textMuted} style={s.input}
+                />
+              </Field>
+            )}
+            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6 }}>
+              Te pola zobaczy obsługa przypisana do imprezy (Moja praca). Zapisują się przyciskiem „Zapisz” na dole.
+            </Text>
+          </Section>
+
+          </Collapse>
+
+          <Section title="Menu / Catering — oferta obiadowa">
+            {(
+              <>
+            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8, marginTop: 10 }}>
+              Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
+            </Text>
+
+            {/* Catering presets — quick fill */}
+            <View style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <Feather name="zap" size={12} color={v2.color.forest} />
+                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" }}>Szybki wybór</Text>
+                <Text style={{ color: v2.color.textMuted, fontSize: 11 }}>· na {parseAmt(people) || 0} osób</Text>
               </View>
-              {!!financeMeta.notes && (
-                <Text style={s.financeBannerNotes}>{financeMeta.notes}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
+                {CATERING_PRESET_TEMPLATES.map(tpl => (
+                  <Pressable
+                    key={tpl.id}
+                    testID={`catering-preset-${tpl.id}`}
+                    onPress={() => {
+                      const p = parseAmt(people) || 0;
+                      if (p <= 0) {
+                        Alert.alert("Wpisz liczbę osób", "Ustaw ilu jest gości, żeby zastosować preset.");
+                        return;
+                      }
+                      const nextQty = buildPresetQty(tpl.id, p);
+                      setDinnerQty(prev => ({ ...prev, ...nextQty }));
+                      setAutoPrice(true);
+                    }}
+                    style={{
+                      minWidth: 180, maxWidth: 240,
+                      padding: 10, borderRadius: 12,
+                      backgroundColor: v2.color.mint,
+                      borderWidth: 1, borderColor: v2.color.forest + "44",
+                    }}
+                  >
+                    <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>{tpl.label}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }} numberOfLines={2}>{tpl.description}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 6, fontStyle: "italic" }}>
+                Preset dodaje porcje × liczba osób. Możesz potem edytować ręcznie.
+              </Text>
+            </View>
+
+            {DINNER_SECTIONS.map(sec => {
+              const items = DINNER_MENU.filter(m => m.section === sec.id);
+              return (
+                <View key={sec.id} style={{ marginBottom: 8 }}>
+                  <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" }}>{sec.title}</Text>
+                  {items.map(it => {
+                    const q = dinnerQty[it.id] || 0;
+                    const price = discountedPrice(it.base_price);
+                    const line = q * price;
+                    return (
+                      <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 8 }}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontSize: 13, color: v2.color.text }}>{it.name}</Text>
+                          <Text style={{ fontSize: 10, color: v2.color.textMuted }}>{price} zł / {it.unit}</Text>
+                        </View>
+                        <TextInput
+                          testID={`dinner-qty-${it.id}`}
+                          value={q ? String(q) : ""}
+                          onChangeText={(v) => {
+                            const n = parseAmt(v);
+                            setDinnerQty(prev => ({ ...prev, [it.id]: n }));
+                            setAutoPrice(true);
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={v2.color.textMuted}
+                          keyboardType="decimal-pad"
+                          style={s.extraQtyInput}
+                        />
+                        <Text style={{ minWidth: 60, textAlign: "right", fontWeight: "700", color: line ? v2.color.forest : v2.color.textMuted, fontSize: 12 }}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              );
+            })}
+              </>
+            )}
+            {dinnerRevenue > 0 && (
+              <View style={{ marginTop: 12, backgroundColor: v2.color.forest + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: v2.color.forest + "44" }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
+                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
+                  <Text style={{ color: v2.color.forest, fontSize: 16, fontWeight: "800" }}>{dinnerRevenue.toFixed(0)} zł</Text>
+                </View>
+                <Text style={[s.label, { marginTop: 8 }]}>Koszt zakupu (opcjonalne nadpisanie — puste = auto)</Text>
+                <TextInput
+                  testID="dinner-cost-input"
+                  value={dinnerCost}
+                  onChangeText={setDinnerCost}
+                  placeholder={`Auto: ${dinnerAutoCostVal.toFixed(2)} zł`}
+                  placeholderTextColor={v2.color.textMuted}
+                  keyboardType="decimal-pad"
+                  style={s.input}
+                />
+                <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
+                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Zysk</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerProfit >= 0 ? v2.color.forest : v2.color.error }}>
+                      {dinnerProfit.toFixed(0)} zł
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
+                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Marża</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerMargin >= 0 ? v2.color.forest : v2.color.error }}>
+                      {dinnerMargin.toFixed(1)}%
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            )}
+            {/* Wyślij do cateringu (Yubari) */}
+            {Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
+              <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest + "18", borderWidth: 1, borderColor: v2.color.forest }}>
+                <Feather name="send" size={16} color={v2.color.forest} />
+                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
+              </Pressable>
+            ) : null}
+          </Section>
+
+          {/* Najnowsze informacje od klienta */}
+          {!isNew && (
+            <Section title="Najnowsze informacje od klienta">
+              <TextInput
+                testID="client-update-input"
+                value={clientUpdateText}
+                onChangeText={setClientUpdateText}
+                placeholder="np. Będzie nas 34 osoby. Przywieziemy tort i dwa ciasta…"
+                placeholderTextColor={v2.color.textMuted}
+                style={[s.input, { height: 100, textAlignVertical: "top" }]}
+                multiline
+              />
+              {!!clientUpdateAt && (
+                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>Zaktualizowano: {fmtStamp(clientUpdateAt)}</Text>
               )}
-            </View>
-          ) : null}
+              <Pressable
+                testID="client-update-save"
+                onPress={saveClientUpdate}
+                disabled={clientUpdateSaving}
+                style={{ marginTop: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center", opacity: clientUpdateSaving ? 0.5 : 1 }}
+              >
+                {clientUpdateSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Zapisz — pokaż obsłudze</Text>}
+              </Pressable>
+            </Section>
+          )}
 
+          {/* Informacja dla obsługi */}
+          {!isNew && (
+            <Section title="Informacja dla obsługi">
+              {serviceInfos.length === 0 && (
+                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 6 }}>Brak informacji. Dodaj np. „Klient przyjedzie o 15:45 z tortem.”</Text>
+              )}
+              {serviceInfos.map(info => (
+                <View key={info.id} style={{
+                  flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 10, marginBottom: 6,
+                  backgroundColor: info.important ? "#FEF3C7" : v2.color.bg,
+                  borderWidth: 1, borderColor: info.important ? "#F59E0B" : v2.color.border,
+                }}>
+                  <View style={{ flex: 1 }}>
+                    {!!info.important && <Text style={{ color: "#92400E", fontSize: 10, fontWeight: "900", marginBottom: 2 }}>⚠ WAŻNE DLA OBSŁUGI</Text>}
+                    <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19 }}>{info.text}</Text>
+                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }}>{info.author_name} · {fmtStamp(info.created_at)}</Text>
+                  </View>
+                  <Pressable testID={`service-info-delete-${info.id}`} onPress={() => removeServiceInfo(info.id)} hitSlop={8}>
+                    <Feather name="trash-2" size={15} color={v2.color.error || "#EF4444"} />
+                  </Pressable>
+                </View>
+              ))}
+              <TextInput
+                testID="service-info-input"
+                value={newInfoText}
+                onChangeText={setNewInfoText}
+                placeholder="np. Kiełbaski wydajemy o 18:00…"
+                placeholderTextColor={v2.color.textMuted}
+                style={[s.input, { minHeight: 60, textAlignVertical: "top" }]}
+                multiline
+              />
+              <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>
+                <Pressable
+                  testID="service-info-important-toggle"
+                  onPress={() => setNewInfoImportant(v => !v)}
+                  style={{
+                    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 10,
+                    borderRadius: 10, borderWidth: 1.5,
+                    borderColor: newInfoImportant ? "#F59E0B" : v2.color.border,
+                    backgroundColor: newInfoImportant ? "#FEF3C7" : v2.color.card,
+                  }}
+                >
+                  <Feather name={newInfoImportant ? "check-square" : "square"} size={15} color="#B45309" />
+                  <Text style={{ color: "#92400E", fontSize: 12, fontWeight: "800" }}>⚠ WAŻNE</Text>
+                </Pressable>
+                <Pressable
+                  testID="service-info-add"
+                  onPress={addServiceInfo}
+                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center" }}
+                >
+                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Dodaj informację</Text>
+                </Pressable>
+              </View>
+            </Section>
+          )}
+
+          {/* Informacje od zespołu */}
+          {!isNew && (
+            <Section title="Informacje od zespołu">
+              {teamComments.length === 0 ? (
+                <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Brak informacji od pracowników.</Text>
+              ) : teamComments.map(c => (
+                <View key={c.id} style={{ padding: 10, borderRadius: 10, backgroundColor: v2.color.bg, borderWidth: 1, borderColor: v2.color.border, marginBottom: 6 }} testID={`team-comment-${c.id}`}>
+                  <Text style={{ color: v2.color.forest, fontSize: 12, fontWeight: "800" }}>
+                    {c.author_name} <Text style={{ color: v2.color.textMuted, fontWeight: "400" }}>• {fmtStamp(c.created_at)}</Text>
+                  </Text>
+                  <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19, marginTop: 2 }}>„{c.text}”</Text>
+                </View>
+              ))}
+            </Section>
+          )}
+
+            </>}
+          </Collapse>
+          <Collapse title="OSOBA KONTAKTOWA" icon="user" defaultOpen testID="sec-contact">
+            <Field label="Imię i nazwisko"><TextInput testID="event-client-name" value={clientName} onChangeText={setClientName} style={s.input} /></Field>
+            <Field label="Telefon kontaktowy"><TextInput testID="event-client-phone" value={clientPhone} onChangeText={setClientPhone} keyboardType="phone-pad" style={s.input} /></Field>
+            <Field label="Adres e-mail"><TextInput testID="event-client-email" value={clientEmail} onChangeText={setClientEmail} keyboardType="email-address" autoCapitalize="none" style={s.input} /></Field>
           {/* NOWA ODPPOWIEDŹ KLIENTA — AI suggestions from Gmail replies */}
           {!isNew && replySuggestions.map(sug => (
             <View key={sug.id} style={{
@@ -1093,1388 +1590,63 @@ export default function EventDetail() {
             </Pressable>
           )}
 
-          <Collapse title="Dane imprezy i klienta" icon="info" defaultOpen testID="sec-dane">
-          {/* Info */}
-          <Section title="">
-            <Field label="Nazwa">
-              <TextInput testID="event-name-input" value={name} onChangeText={setName} placeholder="Wesele Kowalscy" placeholderTextColor={v2.color.textMuted} style={s.input} />
-            </Field>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Data (RRRR-MM-DD)">
-                  <TextInput testID="event-date-input" value={date} onChangeText={setDate} placeholder="2026-05-15" placeholderTextColor={v2.color.textMuted} style={s.input} autoCapitalize="none" />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Godzina od">
-                  <TextInput testID="event-time-start-input" value={timeStart} onChangeText={setTimeStart} placeholder="18:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Godzina do">
-                  <TextInput testID="event-time-end-input" value={timeEnd} onChangeText={setTimeEnd} placeholder="22:00" placeholderTextColor={v2.color.textMuted} style={s.input} />
-                </Field>
-              </View>
-            </View>
-            <Field label="Kategoria">
-              <Pressable testID="event-category-btn" onPress={() => setCatPickerOpen(true)} style={[s.input, { flexDirection: "row", alignItems: "center", justifyContent: "space-between" }]}>
-                <Text style={{ color: category ? v2.color.text : v2.color.textMuted, fontSize: 15 }}>
-                  {category ? categoryLabel(category) : "Wybierz kategorię"}
-                </Text>
-                <Feather name="chevron-down" size={18} color={v2.color.textMuted} />
-              </Pressable>
-            </Field>
-          </Section>
 
-          {/* Client */}
-          <Section title="Klient">
-            <Field label="Imię i nazwisko / nazwa firmy">
-              <TextInput testID="client-name" value={clientName} onChangeText={setClientName}
-                placeholder="Jan Kowalski / XYZ Sp. z o.o." placeholderTextColor={v2.color.textMuted} style={s.input} />
-            </Field>
-            <Field label="Telefon">
-              <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
-                <TextInput testID="client-phone" value={clientPhone} onChangeText={setClientPhone}
-                  placeholder="+48 123 456 789" placeholderTextColor={v2.color.textMuted}
-                  keyboardType="phone-pad" style={[s.input, { flex: 1 }]} />
-                <Pressable
-                  testID="client-call"
-                  disabled={!clientPhone.trim()}
-                  onPress={() => Linking.openURL(`tel:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
-                >
-                  <Feather name="phone" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
-                </Pressable>
-                <Pressable
-                  testID="client-sms"
-                  disabled={!clientPhone.trim()}
-                  onPress={() => Linking.openURL(`sms:${clientPhone.replace(/\s/g, "")}`)}
-                  style={{ padding: 12, borderRadius: 10, backgroundColor: clientPhone.trim() ? v2.color.forest : v2.color.cardMuted }}
-                >
-                  <Feather name="message-circle" size={18} color={clientPhone.trim() ? '#fff' : v2.color.textMuted} />
-                </Pressable>
-              </View>
-            </Field>
-            <Field label="E-mail">
-              <TextInput testID="client-email" value={clientEmail} onChangeText={setClientEmail}
-                placeholder="klient@example.com" placeholderTextColor={v2.color.textMuted}
-                keyboardType="email-address" autoCapitalize="none" style={s.input} />
-            </Field>
 
-            <Field label="Notatki o kliencie">
-              <TextInput testID="client-notes" value={clientNotes} onChangeText={setClientNotes}
-                placeholder="Preferencje, historia współpracy..." placeholderTextColor={v2.color.textMuted}
-                style={[s.input, { height: 60, textAlignVertical: "top" }]} multiline />
-            </Field>
-          </Section>
+
 
           </Collapse>
-
-          <Collapse title="Status imprezy" icon="flag" defaultOpen testID="sec-status">
-          {/* Status */}
-          <Section title="">
-            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-              {([
-                { k: "wstepne",     label: "Wstępne zapytanie", color: "#F59E0B" },
-                { k: "rezerwacja",  label: "Rezerwacja",        color: "#F97316" },
-                { k: "potwierdzona",label: "Potwierdzona",      color: "#10B981" },
-                { k: "zakonczona",  label: "Zakończona",        color: "#3B82F6" },
-                { k: "anulowana",   label: "Anulowana",         color: "#EF4444" },
-              ] as const).map(st => {
-                const active = status === st.k;
-                return (
-                  <Pressable
-                    key={st.k}
-                    testID={`status-${st.k}`}
-                    onPress={() => {
-                      if (!eperm("event_status")) {
-                        Alert.alert("Brak uprawnień", "Nie masz uprawnienia do zmiany statusu imprezy.");
-                        return;
-                      }
-                      setStatus(active ? "" : st.k);
-                    }}
-                    style={{
-                      flexDirection: "row", alignItems: "center", gap: 6,
-                      paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999,
-                      backgroundColor: active ? st.color : v2.color.cardMuted,
-                      borderWidth: 1, borderColor: active ? st.color : v2.color.border,
-                    }}
-                  >
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: st.color }} />
-                    <Text style={{ color: active ? "#0A0A0A" : v2.color.text, fontSize: 12, fontWeight: "700" }}>{st.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {status === "wstepne" && (
-              <Field label="Ważne do (data ważności zapytania)">
-                <TextInput
-                  testID="event-valid-until"
-                  value={validUntil}
-                  onChangeText={setValidUntil}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={v2.color.textMuted}
-                  style={s.input}
-                />
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6, fontStyle: "italic" }}>
-                  💡 Wstępne zapytania blokują termin — po tej dacie aplikacja przypomni Ci o kontakcie z klientem.
-                </Text>
-              </Field>
-            )}
-
-          </Section>
-
+          {(eperm("offer_prices") || eperm("finances")) && <Collapse title="FINANSE" icon="dollar-sign" defaultOpen testID="sec-finanse">
+            {!perPersonMode && <View style={s.maskNotice}>
+              <Text style={s.maskHint}>Ta impreza ma wcześniejsze rozliczenie. Pozostanie zachowane, dopóki nie włączysz nowego kalkulatora.</Text>
+              {eperm("offer_prices") && <Pressable accessibilityRole="button" onPress={() => { setPerPersonMode(true); setAutoPrice(false); }}><Text style={s.maskLink}>Włącz kalkulator cena × osoby</Text></Pressable>}
+            </View>}
+            {eperm("offer_prices") && <>
+              <Field label="Cena za osobę (brutto)"><TextInput testID="event-unit-price" value={pricePerPerson} onChangeText={setUnitPrice} keyboardType="decimal-pad" placeholder="np. 90" placeholderTextColor={v2.color.textMuted} style={s.input} /></Field>
+              <Field label="Liczba osób (płatnych)"><TextInput testID="event-paying-people" value={payingPeople} onChangeText={setPaidCount} keyboardType="number-pad" placeholder="np. 35" placeholderTextColor={v2.color.textMuted} style={s.input} /></Field>
+              <Field label="Rabat %"><TextInput testID="event-discount-pct" value={discountPct} onChangeText={v => { setDiscountPct(v); setPerPersonMode(true); setAutoPrice(false); }} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={v2.color.textMuted} style={s.input} /></Field>
+            </>}
+            {perPersonMode && !!financial.error && <Text accessibilityRole="alert" style={s.maskError}>{financial.error}</Text>}
+            {financeValues && <View style={s.maskTotals}>
+              {perPersonMode && <SummaryRow label="Cena × liczba płatnych osób" value={financeValues.subtotal} />}
+              {perPersonMode && <SummaryRow label="Rabat (kwota)" value={financeValues.discount} />}
+              <SummaryRow label={perPersonMode || vatRate === 23 ? "VAT 23%" : "VAT — zapisane rozliczenie"} value={financeValues.vat} />
+              <SummaryRow label="Netto (informacyjnie)" value={financeValues.net} />
+              <SummaryRow label="Brutto" value={financeValues.gross} />
+              <SummaryRow label="Suma do zapłaty (brutto)" value={financeValues.gross} bold />
+              <Text style={s.maskHint}>Cała należność po rabacie. Wpłaty i pozostałą kwotę pokazuje rozliczenie wpłat poniżej.</Text>
+            </View>}
+            {eperm("finances") && <>
+              {costs.length <= 1 ? <Field label="Koszty wydarzenia (brutto)">
+                <TextInput testID="event-total-cost-input" value={costInput} onChangeText={v => { setCostInput(v); setCosts([{ ...(costs[0] || { label: "Koszty wydarzenia" }), amount: parseAmt(v) }]); }} keyboardType="decimal-pad" placeholder="np. 900" placeholderTextColor={v2.color.textMuted} style={s.input} />
+                {laborCost > 0 && <Text style={s.maskHint}>Do tej kwoty doliczana jest praca zespołu: {formatPLN(laborCost)}.</Text>}
+              </Field> : <Section title="Koszty wydarzenia (brutto)">{costs.map((c, i) => <Field key={i} label={c.label}><TextInput value={String(c.amount)} onChangeText={v => setCosts(costs.map((entry, index) => index === i ? { ...entry, amount: parseAmt(v) } : entry))} keyboardType="decimal-pad" style={s.input} /></Field>)}</Section>}
+              {financeValues && <>
+                <SummaryRow label="Koszty wydarzenia łącznie (brutto)" value={financeValues.costs} bold />
+                <SummaryRow label="Zysk" value={financeValues.profit} bold />
+                <Text style={s.maskHint}>{perPersonMode ? "Zysk = suma brutto po rabacie − koszty brutto." : "Zysk zgodnie z dotychczasowym rozliczeniem."}</Text>
+              </>}
+              {!isNew && <Section title="Wpłaty klienta"><EventPayments eventId={String(id)} priceTotalOverride={financeValues?.gross} /></Section>}
+            </>}
+          </Collapse>}
+          <Collapse title="AUTOMATYZACJE" icon="mail" defaultOpen testID="sec-automations">
+            <Text style={s.maskHint}>Podziękowanie / wiadomości po wydarzeniu</Text>
+            <Text style={s.compactText}>{thanksStatus?.sent ? "Podziękowanie zostało wysłane." : "Przy oznaczeniu imprezy jako zakończonej wybierzesz, czy wysłać podziękowanie."}</Text>
+            {!isEmp && <>
+              <Pressable onPress={() => router.push("/ustawienia/podziekowanie" as any)} style={s.tplLoadBtn}><Text style={s.tplLoadText}>Ustawienia podziękowań</Text></Pressable>
+              <Pressable onPress={openOfferModal} style={s.tplLoadBtn} testID="event-offer-action"><Text style={s.tplLoadText}>Wiadomość / oferta do klienta</Text></Pressable>
+              {!isNew && <Pressable onPress={openSummaryModal} style={s.tplLoadBtn} testID="event-summary-action"><Text style={s.tplLoadText}>Wyślij podsumowanie</Text></Pressable>}
+            </>}
           </Collapse>
-
-          {(eperm("offer_prices") || eperm("finances")) ? (
-          <Collapse title="Finanse" icon="dollar-sign" defaultOpen testID="sec-finanse">
-          {/* Payment */}
-          <Section title="Cena i wpłaty">
-            {/* Auto forecast — Przewidywane rozliczenie */}
-            <View style={{
-              marginBottom: 14, padding: 14, borderRadius: 14,
-              borderWidth: 1, borderColor: v2.color.forest + "55",
-              backgroundColor: v2.color.forest + "0A",
-            }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Feather name="target" size={13} color={v2.color.forest} />
-                <Text style={{ color: v2.color.forest, fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>
-                  PRZEWIDYWANE ROZLICZENIE
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 12 }}>Wartość / rezerwacja</Text>
-                <Text style={{ color: v2.color.success, fontSize: 12, fontWeight: "700" }}>
-                  +{discountedValue.toFixed(0)} zł
-                </Text>
-              </View>
-              {cateringCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Koszt cateringu (auto)</Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{cateringCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {grillCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
-                    Koszt grilla ({grillCostPerPerson} zł × {peopleNum || 0})
-                  </Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{grillCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {beveragesCost > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>
-                    Napoje (8 zł × {peopleNum || 0})
-                  </Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{beveragesCost.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              {otherPlannedCosts > 0 && (
-                <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 12 }}>Pozostałe koszty</Text>
-                  <Text style={{ color: v2.color.error, fontSize: 12, fontWeight: "700" }}>
-                    −{otherPlannedCosts.toFixed(0)} zł
-                  </Text>
-                </View>
-              )}
-              <View style={{ height: 1, backgroundColor: v2.color.forest + "44", marginVertical: 6 }} />
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Łączny koszt</Text>
-                <Text style={{ color: v2.color.error, fontSize: 13, fontWeight: "800" }}>
-                  −{totalPlannedCost.toFixed(0)} zł
-                </Text>
-              </View>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 }}>
-                <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>Przewidywany zysk</Text>
-                <Text style={{
-                  color: plannedProfit >= 0 ? v2.color.forest : v2.color.error,
-                  fontSize: 18, fontWeight: "800",
-                }}>
-                  {plannedProfit >= 0 ? "+" : ""}{plannedProfit.toFixed(0)} zł
-                </Text>
-              </View>
-              {discountedValue > 0 && (
-                <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 4 }}>
-                  Marża: {((plannedProfit / discountedValue) * 100).toFixed(1)}%
-                </Text>
-              )}
-            </View>
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 2 }}>
-                <Field label="Całkowita cena imprezy">
-                  <TextInput testID="price-total" value={priceTotal} onChangeText={setPriceTotal}
-                    placeholder="0" placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad" style={s.input} />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Rabat %">
-                  <TextInput testID="discount-pct" value={discountPct} onChangeText={setDiscountPct}
-                    placeholder="0" placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad" style={s.input} />
-                </Field>
-              </View>
-            </View>
-            {(() => {
-              const total = parseAmt(priceTotal);
-              const disc = parseAmt(discountPct);
-              if (total > 0 && disc > 0) {
-                const discAmt = total * (disc / 100);
-                const afterDisc = total - discAmt;
-                return (
-                  <View style={{ marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: v2.color.forest + "10", borderWidth: 1, borderColor: v2.color.forest + "44" }}>
-                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                      <Text style={{ fontSize: 11, color: v2.color.textMuted, letterSpacing: 0.5 }}>
-                        RABAT −{disc.toFixed(0)}% ({discAmt.toFixed(2)} zł)
-                      </Text>
-                      <Text style={{ fontSize: 16, fontWeight: "800", color: v2.color.forest }}>
-                        {afterDisc.toFixed(2)} zł
-                      </Text>
-                    </View>
-                  </View>
-                );
-              }
-              return null;
-            })()}
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
-              {[{v: true, lbl: "Zaliczka wpłacona"}, {v: false, lbl: "Brak zaliczki"}].map(o => {
-                const active = depositPaid === o.v;
-                return (
-                  <Pressable
-                    key={String(o.v)}
-                    testID={`deposit-${o.v}`}
-                    onPress={() => setDepositPaid(o.v)}
-                    style={{
-                      flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center",
-                      backgroundColor: active ? (o.v ? v2.color.success : v2.color.cardMuted) : v2.color.cardMuted,
-                      borderWidth: 1, borderColor: active ? (o.v ? v2.color.success : v2.color.borderStrong) : v2.color.border,
-                    }}
-                  >
-                    <Text style={{ color: active && o.v ? "#022C22" : v2.color.text, fontWeight: "700", fontSize: 13 }}>{o.lbl}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {depositPaid && (
-              <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Kwota zaliczki">
-                    <TextInput testID="deposit-amount" value={depositAmount} onChangeText={setDepositAmount}
-                      placeholder="0" placeholderTextColor={v2.color.textMuted}
-                      keyboardType="decimal-pad" style={s.input} />
-                  </Field>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Field label="Data wpłaty">
-                    <TextInput testID="deposit-date" value={depositDate} onChangeText={setDepositDate}
-                      placeholder="YYYY-MM-DD" placeholderTextColor={v2.color.textMuted}
-                      style={s.input} />
-                  </Field>
-                </View>
-              </View>
-            )}
-            {parseAmt(priceTotal) > 0 && (
-              <View style={{
-                marginTop: 14, padding: 14, borderRadius: 12,
-                backgroundColor: v2.color.cardMuted,
-                borderWidth: 1, borderColor: v2.color.forest,
-              }}>
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, letterSpacing: 1 }}>POZOSTAŁO DO ZAPŁATY</Text>
-                {(() => {
-                  const total = parseAmt(priceTotal);
-                  const disc = parseAmt(discountPct);
-                  const afterDisc = disc > 0 ? total * (1 - disc / 100) : total;
-                  const remaining = afterDisc - (depositPaid ? parseAmt(depositAmount) : 0);
-                  return (
-                    <Text style={{
-                      color: remaining > 0 ? v2.color.forest : v2.color.success,
-                      fontSize: 24, fontWeight: "800", marginTop: 4,
-                    }}>
-                      {remaining.toFixed(2)} zł
-                    </Text>
-                  );
-                })()}
-              </View>
-            )}
-
-            {/* Kody rabatowe klienta */}
-            {/* Manual discount code generator — always available if client info is filled */}
-            {!!(clientName.trim() || clientEmail.trim()) && clientDiscounts.length === 0 && !appliedDiscount && (
-              <Pressable
-                testID="manual-discount-btn"
-                onPress={() => setManualCodeOpen(true)}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.forest + "55", marginTop: 6 }}
-              >
-                <Feather name="gift" size={13} color={v2.color.forest} />
-                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 12 }}>Wygeneruj kod rabatowy dla klienta</Text>
-              </Pressable>
-            )}
-
-            {/* Active discount banner — for NEW event when client has an active code */}
-            {isNew && clientDiscounts.length > 0 && !appliedDiscount && (
-              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.mint, borderWidth: 1, borderColor: v2.color.forest + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="tag" size={16} color={v2.color.forest} />
-                  <Text style={{ flex: 1, color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>
-                    Klient posiada aktywny rabat {clientDiscounts[0].amount_pct || 10}%
-                  </Text>
-                </View>
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>
-                  Kod {clientDiscounts[0].code} · ważny do {clientDiscounts[0].expires_at_date}
-                </Text>
-                <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 2, fontStyle: "italic" }}>
-                  💡 Aby zastosować, zapisz najpierw imprezę — potem otwórz ponownie i użyj przycisku „Zastosuj rabat".
-                </Text>
-              </View>
-            )}
-            {/* Apply discount button — only for EXISTING event (need event_id) when client has active discount */}
-            {!isNew && clientDiscounts.length > 0 && !appliedDiscount && (
-              <Pressable
-                testID="apply-discount-btn"
-                onPress={() => {
-                  const d = clientDiscounts[0];
-                  Alert.alert(
-                    "Zastosować rabat?",
-                    `Kod: ${d.code}\nRabat: ${d.amount_pct}% od ceny pakietu\nWażny do: ${d.expires_at_date}\n\nRabat zostanie zapisany w tej imprezie i naliczony od ceny podstawowego pakietu.`,
-                    [
-                      { text: "Anuluj", style: "cancel" },
-                      { text: "Zastosuj", onPress: async () => {
-                        try {
-                          const r: any = await api.applyDiscount(id as string, d.code);
-                          setAppliedDiscount({ code: r.code, amount_zl: r.applied_amount, amount_pct: d.amount_pct });
-                          if (r.applied_amount > 0 && priceTotal) {
-                            const newTotal = Math.max(0, parseAmt(priceTotal) - r.applied_amount);
-                            setPriceTotal(String(newTotal));
-                          }
-                          setClientDiscounts([]);
-                          Alert.alert("Zastosowano", `Rabat ${r.code}: -${r.applied_amount.toFixed(2)} zł`);
-                        } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                      }},
-                    ]
-                  );
-                }}
-                style={{ marginTop: 6, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest }}
-              >
-                <Feather name="tag" size={14} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "800", fontSize: 13 }}>
-                  Zastosuj rabat {clientDiscounts[0].code} (-{clientDiscounts[0].amount_pct}%)
-                </Text>
-              </Pressable>
-            )}
-            {/* Applied discount info */}
-            {appliedDiscount && (
-              <View style={{ marginTop: 6, padding: 12, borderRadius: 12, backgroundColor: v2.color.successBg, borderWidth: 1, borderColor: v2.color.success + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                  <Feather name="check-circle" size={14} color={v2.color.success} />
-                  <Text style={{ flex: 1, color: v2.color.text, fontWeight: "800", fontSize: 13 }}>
-                    Zastosowano rabat {appliedDiscount.code}
-                  </Text>
-                  {!isNew && (
-                    <Pressable
-                      testID="remove-discount-btn"
-                      onPress={() => {
-                        Alert.alert("Cofnąć rabat?", "Kod wróci na listę dostępnych, cena zostanie przywrócona.", [
-                          { text: "Anuluj", style: "cancel" },
-                          { text: "Cofnij", style: "destructive", onPress: async () => {
-                            try {
-                              await api.removeDiscount(id as string);
-                              if (appliedDiscount.amount_zl && priceTotal) {
-                                setPriceTotal(String(parseAmt(priceTotal) + appliedDiscount.amount_zl));
-                              }
-                              setAppliedDiscount(null);
-                              // Refresh discounts
-                              const r: any = await api.discountsForClient(clientEmail);
-                              setClientDiscounts(r?.active || []);
-                            } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                          }},
-                        ]);
-                      }}
-                      hitSlop={10}
-                    >
-                      <Feather name="x" size={16} color={v2.color.textMuted} />
-                    </Pressable>
-                  )}
-                </View>
-                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 4 }}>
-                  Wartość: -{Number(appliedDiscount.amount_zl || 0).toFixed(2)} zł ({appliedDiscount.amount_pct}% od ceny pakietu)
-                </Text>
-              </View>
-            )}
-
-          </Section>
-
-          {eperm("finances") ? (<>
-          {/* Wpłaty klienta (Faza 2 v2.0) — historia wpłat */}
-          {!isNew && (
-            <Section title="Wpłaty klienta">
-              <EventPayments eventId={String(id)} priceTotalOverride={parseAmt(priceTotal)} />
-              <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 8, fontStyle: "italic" }}>
-                💡 Pole „Zaliczka wpłacona" powyżej pozostaje na razie dla kompatybilności — nowe wpłaty rejestruj tutaj.
-              </Text>
-            </Section>
-          )}
-
-          {/* Financials */}
-          <Section title="Kalkulator przychodu i kosztów">
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Liczba osób">
-                  <TextInput
-                    testID="event-people-input"
-                    value={people}
-                    onChangeText={(v) => { setPeople(v); setAutoPrice(true); }}
-                    placeholder="np. 25"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="number-pad"
-                    style={s.input}
-                  />
-                </Field>
-              </View>
-              <View style={{ flex: 1.2 }}>
-                <Field label="Przychód (PLN)">
-                  <TextInput
-                    testID="event-revenue-input"
-                    value={revenue}
-                    onChangeText={(v) => { setRevenue(v); setAutoPrice(false); }}
-                    placeholder="0"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad"
-                    style={s.input}
-                  />
-                </Field>
-              </View>
-            </View>
-            {isAdult && (
-              <View style={s.zestawRow} testID="adult-sets">
-                {ADULT_SETS.map(zs => {
-                  const sel = packageSet === zs.id;
-                  return (
-                    <Pressable
-                      key={zs.id}
-                      testID={`zestaw-${zs.id}`}
-                      onPress={() => { setPackageSet(sel ? "" : zs.id); setAutoPrice(true); }}
-                      style={[s.zestawBtn, sel && s.zestawBtnActive]}
-                    >
-                      <Text style={[s.zestawName, sel && { color: '#fff' }]}>{zs.name}</Text>
-                      <Text style={[s.zestawPrice, sel && { color: '#fff' }]}>{zs.price_per_person} zł/os.</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-            {isAdult && !!packageSet && findAdultSet(packageSet) && (
-              <View style={s.zestawDetails}>
-                <Text style={s.zestawDetailsTitle}>W {findAdultSet(packageSet)!.name}:</Text>
-                {findAdultSet(packageSet)!.items.map((it, i) => (
-                  <Text key={i} style={s.zestawItem}>• {it}</Text>
-                ))}
-                <Text style={[s.zestawDetailsTitle, { marginTop: 6 }]}>Dodatki w cenie:</Text>
-                {findAdultSet(packageSet)!.addons.map((it, i) => (
-                  <Text key={i} style={s.zestawItem}>• {it}</Text>
-                ))}
-              </View>
-            )}
-            {pricing && (
-              <View style={s.pricingCard} testID="pricing-breakdown">
-                <View style={{ flex: 1 }}>
-                  <Text style={s.pricingBreakdown}>{pricing.breakdown}</Text>
-                  {extrasTotal > 0 && <Text style={s.pricingBreakdown}>+ Dodatki: {extrasTotal.toFixed(0)} zł</Text>}
-                  <Text style={s.pricingHint}>{autoPrice ? "Cena wpisana automatycznie" : "Cena ręczna — dotknij, aby użyć auto"}</Text>
-                </View>
-                <Pressable
-                  testID="pricing-apply-btn"
-                  onPress={() => { setRevenue(String(combinedTotal)); setAutoPrice(true); }}
-                  style={s.pricingApply}
-                >
-                  <Text style={s.pricingApplyText}>{formatPLN(combinedTotal)}</Text>
-                </Pressable>
-              </View>
-            )}
-
-            <View style={{ marginTop: 12, marginBottom: 4 }}>
-              <Text style={s.label}>{
-                activeExtras.length > 0
-                  ? (isAdult ? "Dodatki (napoje, ciasto, tace, sałatki)"
-                    : isParentTrip ? "Dodatki (catering, konie, animacje)"
-                    : isBirthday ? "Dodatki (catering)"
-                    : "Dodatki")
-                  : "Koszty (materiały, wynajem itp.)"
-              }</Text>
-            </View>
-            {activeExtras.map(ex => {
-              const q = extras[ex.id] || 0;
-              const line = ex.unit === "kwota" ? q : q * ex.price;
-              return (
-                <View key={ex.id} style={s.extraRow} testID={`extra-${ex.id}`}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.extraName}>{ex.name}</Text>
-                    <Text style={s.extraHint}>{ex.unit === "kwota" ? "Wpisz kwotę (zł)" : `${ex.price} zł / ${ex.unit}`}{ex.hint ? ` · ${ex.hint}` : ""}</Text>
-                  </View>
-                  <TextInput
-                    testID={`extra-qty-${ex.id}`}
-                    value={q ? String(q) : ""}
-                    onChangeText={(v) => {
-                      const n = parseAmt(v);
-                      setExtras(prev => ({ ...prev, [ex.id]: n }));
-                      setAutoPrice(true);
-                    }}
-                    placeholder="0"
-                    placeholderTextColor={v2.color.textMuted}
-                    keyboardType="decimal-pad"
-                    style={s.extraQtyInput}
-                  />
-                  <Text style={s.extraLine}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
-                </View>
-              );
-            })}
-
-            {activeExtras.length > 0 && (
-              <View style={{ marginTop: 12, marginBottom: 4 }}>
-                <Text style={s.label}>Koszty (materiały, wynajem itp.)</Text>
-              </View>
-            )}
-
-            {costs.map((c, i) => (
-              <View key={i} style={s.costRow}>
-                <TextInput
-                  testID={`cost-label-${i}`}
-                  value={c.label}
-                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, label: v } : x))}
-                  placeholder="np. Catering"
-                  placeholderTextColor={v2.color.textMuted}
-                  style={[s.input, { flex: 2 }]}
-                />
-                <TextInput
-                  testID={`cost-amount-${i}`}
-                  value={String(c.amount || "")}
-                  onChangeText={v => setCosts(costs.map((x, ix) => ix === i ? { ...x, amount: parseAmt(v) } : x))}
-                  placeholder="0"
-                  placeholderTextColor={v2.color.textMuted}
-                  keyboardType="decimal-pad"
-                  style={[s.input, { flex: 1 }]}
-                />
-                <Pressable testID={`cost-del-${i}`} onPress={() => setCosts(costs.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                  <Feather name="x" size={16} color={v2.color.textMuted} />
-                </Pressable>
-              </View>
-            ))}
-            <Pressable testID="cost-add-btn" onPress={() => setCosts([...costs, { label: "", amount: 0 }])} style={s.addRow}>
-              <Feather name="plus" size={16} color={v2.color.forest} />
-              <Text style={s.addRowText}>Dodaj koszt</Text>
-            </Pressable>
-          </Section>
-
-          {/* Summary */}
-          <View style={s.summary}>
-            <SummaryRow label="Przychód" value={revenueNum} />
-            <SummaryRow label="Koszty materiałowe" value={-materialCost} />
-            <SummaryRow label="Koszty pracy" value={-laborCost} />
-            <View style={s.sep} />
-            <SummaryRow label="Zysk" value={profit} bold />
-            {revenueNum > 0 ? (
-              <Text style={{ color: v2.color.sage, fontSize: 11, textAlign: "right", marginTop: 4 }}>Marża: {((profit / revenueNum) * 100).toFixed(1)}%</Text>
-            ) : null}
-          </View>
-
-          </>) : null}
+          <Collapse title="HISTORIA ZMIAN" icon="clock" testID="sec-history">
+            <Text style={s.maskHint}>Kto, co i kiedy zmienił</Text>
+            {isNew ? <Text style={s.compactText}>Historia będzie dostępna po zapisaniu imprezy.</Text> : <EventAuditList eventId={String(id)} />}
+            {!isEmp && <TimeTreeEventInfo event={timeTreeEvent} values={{ name, date, time_start: timeStart, time_end: timeEnd, notes, venue }} />}
           </Collapse>
-          ) : null}
-
-          <Collapse title="Pracownicy na zmianie" icon="users" defaultOpen testID="sec-pracownicy">
-          {/* Staff */}
-          <Section title="">
-            {shifts.length === 0 && <Text style={s.hint}>Brak przypisanych pracowników</Text>}
-            {shifts.map((sh, i) => {
-              const s2 = staffMap[sh.staff_id];
-              return (
-                <View key={sh.staff_id} style={s.shiftBlock}>
-                  <View style={s.shiftRow}>
-                    <View style={s.avatar}><Text style={s.avatarText}>{initials(s2?.name)}</Text></View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.shiftName}>{s2?.name || "?"}</Text>
-                      {eperm("finances") ? <Text style={s.shiftRate}>{formatPLN(s2?.hourly_rate || 0)}/godz.</Text> : null}
-                    </View>
-                    <Text style={s.shiftHoursBadge}>{(Number(sh.hours) || 0).toFixed(1)} h</Text>
-                    {!isEmp ? (
-                    <Pressable testID={`shift-del-${i}`} onPress={() => setShifts(shifts.filter((_, ix) => ix !== i))} hitSlop={8} style={s.iconBtn}>
-                      <Feather name="x" size={16} color={v2.color.textMuted} />
-                    </Pressable>
-                    ) : null}
-                  </View>
-                  {availByStaff[sh.staff_id]?.status === "unavailable" ? (
-                    <View style={s.availWarn}>
-                      <Feather name="alert-triangle" size={13} color={v2.color.error} />
-                      <Text style={s.availWarnText}>
-                        Zgłoszony brak dostępności {availByStaff[sh.staff_id].all_day === false
-                          ? `w godz. ${availByStaff[sh.staff_id].time_from}–${availByStaff[sh.staff_id].time_to}`
-                          : "(cały dzień)"}
-                        {availByStaff[sh.staff_id].note ? ` · „${availByStaff[sh.staff_id].note}”` : ""}
-                      </Text>
-                    </View>
-                  ) : null}
-                  <View style={s.shiftTimeRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Od</Text>
-                      <TextInput
-                        testID={`shift-start-${i}`}
-                        value={sh.time_start || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
-                          if (ix !== i) return x;
-                          const next = { ...x, time_start: v };
-                          const h = hoursBetween(v, next.time_end);
-                          return { ...next, hours: h || x.hours };
-                        }))}
-                        placeholder="18:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Do</Text>
-                      <TextInput
-                        testID={`shift-end-${i}`}
-                        value={sh.time_end || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => {
-                          if (ix !== i) return x;
-                          const next = { ...x, time_end: v };
-                          const h = hoursBetween(next.time_start, v);
-                          return { ...next, hours: h || x.hours };
-                        }))}
-                        placeholder="22:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Godziny (ręcznie)</Text>
-                      <TextInput
-                        testID={`shift-hours-${i}`}
-                        value={String(sh.hours || "")}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, hours: parseAmt(v) } : x))}
-                        placeholder="4"
-                        placeholderTextColor={v2.color.textMuted}
-                        keyboardType="decimal-pad"
-                        style={s.timeInput}
-                      />
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: "row", gap: 8, marginTop: 6 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Rola na imprezie</Text>
-                      <TextInput
-                        testID={`shift-role-${i}`}
-                        value={sh.role || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, role: v } : x))}
-                        placeholder="np. przygotowanie / obsługa"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={s.miniLabel}>Notatka (opcjonalna)</Text>
-                      <TextInput
-                        testID={`shift-note-${i}`}
-                        value={sh.note || ""}
-                        onChangeText={(v) => setShifts(shifts.map((x, ix) => ix === i ? { ...x, note: v } : x))}
-                        placeholder="np. dekoracje od 9:00"
-                        placeholderTextColor={v2.color.textMuted}
-                        style={s.timeInput}
-                      />
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-            {!isEmp && availStaff.length > 0 ? (
-              <Pressable testID="shift-add-btn" onPress={() => setPickerOpen(true)} style={s.addRow}>
-                <Feather name="plus" size={16} color={v2.color.forest} />
-                <Text style={s.addRowText}>Dodaj pracownika</Text>
-              </Pressable>
-            ) : staffAll.length === 0 ? (
-              <Text style={s.hint}>Najpierw dodaj pracowników w zakładce Pracownicy</Text>
-            ) : null}
-          </Section>
-
-          </Collapse>
-
-          <Collapse title="Organizacja — widoczna dla obsługi" icon="clipboard" testID="sec-organizacja">
-          {/* Organizacja — widoczne dla obsługi */}
-          <Section title="">
-            <View style={{ flexDirection: "row", gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Field label="Dzieci (liczba)">
-                  <TextInput
-                    value={org.kids_count != null ? String(org.kids_count) : ""}
-                    onChangeText={t => setOrgField("kids_count", t ? parseInt(t.replace(/\D/g, ""), 10) || 0 : null)}
-                    placeholder="np. 12" placeholderTextColor={v2.color.textMuted} style={s.input} keyboardType="numeric"
-                  />
-                </Field>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Field label="Dorośli (liczba)">
-                  <TextInput
-                    value={org.adults_count != null ? String(org.adults_count) : ""}
-                    onChangeText={t => setOrgField("adults_count", t ? parseInt(t.replace(/\D/g, ""), 10) || 0 : null)}
-                    placeholder="np. 20" placeholderTextColor={v2.color.textMuted} style={s.input} keyboardType="numeric"
-                  />
-                </Field>
-              </View>
-            </View>
-            {([
-              ["tables_setup", "Ustawienie stołów", "np. 4 stoły po 8 osób, podkowa"],
-              ["tables_plan", "Plan / układ stołów", "opis układu, jeśli ustalony"],
-              ["menu_details", "Menu (szczegóły dla obsługi)", "co i o której wydajemy"],
-              ["grill", "Grill / ognisko", "np. kiełbaski o 18:00, ognisko 19:30"],
-              ["drinks", "Napoje", "np. cola, soki, woda z cytryną"],
-              ["cakes", "Ciasta i przekąski", "np. tort klienta + 2 ciasta"],
-              ["client_provisions", "Dodatkowy prowiant klienta", "co klient przywozi"],
-              ["decorations", "Dekoracje", "np. balony, girlandy — kto i kiedy"],
-              ["attractions", "Atrakcje", "np. alpaki 16:00, animacje 17:00"],
-              ["extra_orders", "Dodatkowe zamówienia", ""],
-              ["org_notes", "Informacje organizacyjne", ""],
-              ["special_requests", "Specjalne wymagania klienta", ""],
-              ["allergies", "Alergie / wymagania żywieniowe", "np. 1 os. bez glutenu"],
-              ["setup_info", "Przygotowanie miejsca", "np. wiata + leżaki, parasole"],
-            ] as const).map(([k, label, ph]) => (
-              <Field key={k} label={label}>
-                <TextInput
-                  testID={`org-${k}`}
-                  value={org[k] || ""}
-                  onChangeText={t => setOrgField(k, t)}
-                  editable={eperm("event_org_edit")}
-                  placeholder={ph || "…"}
-                  placeholderTextColor={v2.color.textMuted}
-                  style={[s.input, { minHeight: 44 }]}
-                  multiline
-                />
-              </Field>
-            ))}
-            <View style={{ flexDirection: "row", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
-              <Pressable
-                testID="org-own-decorations-toggle"
-                onPress={() => setOrgField("client_own_decorations", !org.client_own_decorations)}
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
-                  borderRadius: 10, borderWidth: 1.5,
-                  borderColor: org.client_own_decorations ? v2.color.forest : v2.color.border,
-                  backgroundColor: org.client_own_decorations ? v2.color.mint : v2.color.card,
-                }}
-              >
-                <Feather name={org.client_own_decorations ? "check-square" : "square"} size={16} color={v2.color.forest} />
-                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient robi własne dekoracje</Text>
-              </Pressable>
-              <Pressable
-                testID="org-early-arrival-toggle"
-                onPress={() => setOrgField("early_arrival", !org.early_arrival)}
-                style={{
-                  flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 10,
-                  borderRadius: 10, borderWidth: 1.5,
-                  borderColor: org.early_arrival ? v2.color.forest : v2.color.border,
-                  backgroundColor: org.early_arrival ? v2.color.mint : v2.color.card,
-                }}
-              >
-                <Feather name={org.early_arrival ? "check-square" : "square"} size={16} color={v2.color.forest} />
-                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "700" }}>Klient przyjedzie wcześniej</Text>
-              </Pressable>
-            </View>
-            {!!org.early_arrival && (
-              <Field label="Godzina wcześniejszego przyjazdu">
-                <TextInput
-                  testID="org-early-arrival-time"
-                  value={org.early_arrival_time || ""}
-                  onChangeText={t => setOrgField("early_arrival_time", t)}
-                  placeholder="15:30" placeholderTextColor={v2.color.textMuted} style={s.input}
-                />
-              </Field>
-            )}
-            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 6 }}>
-              Te pola zobaczy obsługa przypisana do imprezy (Moja praca). Zapisują się przyciskiem „Zapisz” na dole.
-            </Text>
-          </Section>
-
-          {/* Najnowsze informacje od klienta */}
-          {!isNew && (
-            <Section title="Najnowsze informacje od klienta">
-              <TextInput
-                testID="client-update-input"
-                value={clientUpdateText}
-                onChangeText={setClientUpdateText}
-                placeholder="np. Będzie nas 34 osoby. Przywieziemy tort i dwa ciasta…"
-                placeholderTextColor={v2.color.textMuted}
-                style={[s.input, { height: 100, textAlignVertical: "top" }]}
-                multiline
-              />
-              {!!clientUpdateAt && (
-                <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 4 }}>Zaktualizowano: {fmtStamp(clientUpdateAt)}</Text>
-              )}
-              <Pressable
-                testID="client-update-save"
-                onPress={saveClientUpdate}
-                disabled={clientUpdateSaving}
-                style={{ marginTop: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center", opacity: clientUpdateSaving ? 0.5 : 1 }}
-              >
-                {clientUpdateSaving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Zapisz — pokaż obsłudze</Text>}
-              </Pressable>
-            </Section>
-          )}
-
-          {/* Informacja dla obsługi */}
-          {!isNew && (
-            <Section title="Informacja dla obsługi">
-              {serviceInfos.length === 0 && (
-                <Text style={{ color: v2.color.textMuted, fontSize: 12, marginBottom: 6 }}>Brak informacji. Dodaj np. „Klient przyjedzie o 15:45 z tortem.”</Text>
-              )}
-              {serviceInfos.map(info => (
-                <View key={info.id} style={{
-                  flexDirection: "row", alignItems: "flex-start", gap: 8, padding: 10, borderRadius: 10, marginBottom: 6,
-                  backgroundColor: info.important ? "#FEF3C7" : v2.color.bg,
-                  borderWidth: 1, borderColor: info.important ? "#F59E0B" : v2.color.border,
-                }}>
-                  <View style={{ flex: 1 }}>
-                    {!!info.important && <Text style={{ color: "#92400E", fontSize: 10, fontWeight: "900", marginBottom: 2 }}>⚠ WAŻNE DLA OBSŁUGI</Text>}
-                    <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19 }}>{info.text}</Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }}>{info.author_name} · {fmtStamp(info.created_at)}</Text>
-                  </View>
-                  <Pressable testID={`service-info-delete-${info.id}`} onPress={() => removeServiceInfo(info.id)} hitSlop={8}>
-                    <Feather name="trash-2" size={15} color={v2.color.error || "#EF4444"} />
-                  </Pressable>
-                </View>
-              ))}
-              <TextInput
-                testID="service-info-input"
-                value={newInfoText}
-                onChangeText={setNewInfoText}
-                placeholder="np. Kiełbaski wydajemy o 18:00…"
-                placeholderTextColor={v2.color.textMuted}
-                style={[s.input, { minHeight: 60, textAlignVertical: "top" }]}
-                multiline
-              />
-              <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>
-                <Pressable
-                  testID="service-info-important-toggle"
-                  onPress={() => setNewInfoImportant(v => !v)}
-                  style={{
-                    flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 10, paddingVertical: 10,
-                    borderRadius: 10, borderWidth: 1.5,
-                    borderColor: newInfoImportant ? "#F59E0B" : v2.color.border,
-                    backgroundColor: newInfoImportant ? "#FEF3C7" : v2.color.card,
-                  }}
-                >
-                  <Feather name={newInfoImportant ? "check-square" : "square"} size={15} color="#B45309" />
-                  <Text style={{ color: "#92400E", fontSize: 12, fontWeight: "800" }}>⚠ WAŻNE</Text>
-                </Pressable>
-                <Pressable
-                  testID="service-info-add"
-                  onPress={addServiceInfo}
-                  style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: v2.color.forest, alignItems: "center" }}
-                >
-                  <Text style={{ color: "#fff", fontSize: 13, fontWeight: "800" }}>Dodaj informację</Text>
-                </Pressable>
-              </View>
-            </Section>
-          )}
-
-          {/* Informacje od zespołu */}
-          {!isNew && (
-            <Section title="Informacje od zespołu">
-              {teamComments.length === 0 ? (
-                <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Brak informacji od pracowników.</Text>
-              ) : teamComments.map(c => (
-                <View key={c.id} style={{ padding: 10, borderRadius: 10, backgroundColor: v2.color.bg, borderWidth: 1, borderColor: v2.color.border, marginBottom: 6 }} testID={`team-comment-${c.id}`}>
-                  <Text style={{ color: v2.color.forest, fontSize: 12, fontWeight: "800" }}>
-                    {c.author_name} <Text style={{ color: v2.color.textMuted, fontWeight: "400" }}>• {fmtStamp(c.created_at)}</Text>
-                  </Text>
-                  <Text style={{ color: v2.color.text, fontSize: 13, lineHeight: 19, marginTop: 2 }}>„{c.text}”</Text>
-                </View>
-              ))}
-            </Section>
-          )}
-
-          <Section title="Menu / Catering — oferta obiadowa">
-            {/* Oferta obiadowa — quick picker with auto-margin (collapsible — not always needed for pricing) */}
-            {(() => {
-              const dinnerCount = Object.values(dinnerQty).reduce((sum, q) => sum + (Number(q) || 0), 0);
-              const dinnerItemsCount = Object.values(dinnerQty).filter(q => (Number(q) || 0) > 0).length;
-              return (
-                <View style={{ marginTop: 20 }}>
-                  <Pressable
-                    testID="dinner-toggle"
-                    onPress={() => setDinnerExpanded(v => !v)}
-                    style={{
-                      flexDirection: "row", alignItems: "center", gap: 10,
-                      paddingVertical: 12, paddingHorizontal: 14,
-                      backgroundColor: dinnerCount > 0 ? v2.color.mint : v2.color.cardMuted,
-                      borderRadius: 12,
-                      borderWidth: 1, borderColor: dinnerCount > 0 ? v2.color.forest + "44" : v2.color.border,
-                    }}
-                  >
-                    <Feather name="coffee" size={16} color={v2.color.forest} />
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "800" }}>
-                        Oferta obiadowa {dinnerCount > 0 ? `· ${dinnerItemsCount} poz. · ${dinnerRevenue.toFixed(0)} zł` : "(opcjonalnie)"}
-                      </Text>
-                      {!dinnerExpanded && dinnerCount === 0 && (
-                        <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>
-                          Kliknij, żeby rozwinąć menu i wybrać porcje
-                        </Text>
-                      )}
-                    </View>
-                    <Feather name={dinnerExpanded ? "chevron-up" : "chevron-down"} size={18} color={v2.color.textMuted} />
-                  </Pressable>
-                </View>
-              );
-            })()}
-            {dinnerExpanded && (
-              <>
-            <Text style={{ color: v2.color.textMuted, fontSize: 11, marginBottom: 8, marginTop: 10 }}>
-              Wpisz ilości porcji z menu obiadowego. Marża liczona automatycznie z ukrytych cen zakupu.
-            </Text>
-
-            {/* Catering presets — quick fill */}
-            <View style={{ marginBottom: 12 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 6 }}>
-                <Feather name="zap" size={12} color={v2.color.forest} />
-                <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "800", letterSpacing: 0.3, textTransform: "uppercase" }}>Szybki wybór</Text>
-                <Text style={{ color: v2.color.textMuted, fontSize: 11 }}>· na {parseAmt(people) || 0} osób</Text>
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 8 }}>
-                {CATERING_PRESET_TEMPLATES.map(tpl => (
-                  <Pressable
-                    key={tpl.id}
-                    testID={`catering-preset-${tpl.id}`}
-                    onPress={() => {
-                      const p = parseAmt(people) || 0;
-                      if (p <= 0) {
-                        Alert.alert("Wpisz liczbę osób", "Ustaw ilu jest gości, żeby zastosować preset.");
-                        return;
-                      }
-                      const nextQty = buildPresetQty(tpl.id, p);
-                      setDinnerQty(prev => ({ ...prev, ...nextQty }));
-                      setAutoPrice(true);
-                    }}
-                    style={{
-                      minWidth: 180, maxWidth: 240,
-                      padding: 10, borderRadius: 12,
-                      backgroundColor: v2.color.mint,
-                      borderWidth: 1, borderColor: v2.color.forest + "44",
-                    }}
-                  >
-                    <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>{tpl.label}</Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, marginTop: 2 }} numberOfLines={2}>{tpl.description}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-              <Text style={{ color: v2.color.textSubtle, fontSize: 10, marginTop: 6, fontStyle: "italic" }}>
-                Preset dodaje porcje × liczba osób. Możesz potem edytować ręcznie.
-              </Text>
-            </View>
-
-            {DINNER_SECTIONS.map(sec => {
-              const items = DINNER_MENU.filter(m => m.section === sec.id);
-              return (
-                <View key={sec.id} style={{ marginBottom: 8 }}>
-                  <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" }}>{sec.title}</Text>
-                  {items.map(it => {
-                    const q = dinnerQty[it.id] || 0;
-                    const price = discountedPrice(it.base_price);
-                    const line = q * price;
-                    return (
-                      <View key={it.id} style={{ flexDirection: "row", alignItems: "center", paddingVertical: 6, gap: 8 }}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={{ fontSize: 13, color: v2.color.text }}>{it.name}</Text>
-                          <Text style={{ fontSize: 10, color: v2.color.textMuted }}>{price} zł / {it.unit}</Text>
-                        </View>
-                        <TextInput
-                          testID={`dinner-qty-${it.id}`}
-                          value={q ? String(q) : ""}
-                          onChangeText={(v) => {
-                            const n = parseAmt(v);
-                            setDinnerQty(prev => ({ ...prev, [it.id]: n }));
-                            setAutoPrice(true);
-                          }}
-                          placeholder="0"
-                          placeholderTextColor={v2.color.textMuted}
-                          keyboardType="decimal-pad"
-                          style={s.extraQtyInput}
-                        />
-                        <Text style={{ minWidth: 60, textAlign: "right", fontWeight: "700", color: line ? v2.color.forest : v2.color.textMuted, fontSize: 12 }}>{line ? `${line.toFixed(0)} zł` : "—"}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              );
-            })}
-              </>
-            )}
-            {dinnerExpanded && dinnerRevenue > 0 && (
-              <View style={{ marginTop: 12, backgroundColor: v2.color.forest + "10", borderRadius: 14, padding: 14, borderWidth: 1, borderColor: v2.color.forest + "44" }}>
-                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "700" }}>Suma obiadu</Text>
-                  <Text style={{ color: v2.color.forest, fontSize: 16, fontWeight: "800" }}>{dinnerRevenue.toFixed(0)} zł</Text>
-                </View>
-                <Text style={[s.label, { marginTop: 8 }]}>Koszt zakupu (opcjonalne nadpisanie — puste = auto)</Text>
-                <TextInput
-                  testID="dinner-cost-input"
-                  value={dinnerCost}
-                  onChangeText={setDinnerCost}
-                  placeholder={`Auto: ${dinnerAutoCostVal.toFixed(2)} zł`}
-                  placeholderTextColor={v2.color.textMuted}
-                  keyboardType="decimal-pad"
-                  style={s.input}
-                />
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
-                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Zysk</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerProfit >= 0 ? v2.color.forest : v2.color.error }}>
-                      {dinnerProfit.toFixed(0)} zł
-                    </Text>
-                  </View>
-                  <View style={{ flex: 1, backgroundColor: v2.color.bg, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: v2.color.divider }}>
-                    <Text style={{ fontSize: 10, color: v2.color.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>Marża</Text>
-                    <Text style={{ fontSize: 18, fontWeight: "800", color: dinnerMargin >= 0 ? v2.color.forest : v2.color.error }}>
-                      {dinnerMargin.toFixed(1)}%
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            )}
-            {/* Wyślij do cateringu (Yubari) */}
-            {dinnerExpanded && Object.values(dinnerQty).some(q => (q || 0) > 0) && !isNew ? (
-              <Pressable onPress={openCateringModal} style={{ marginTop: 10, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 12, borderRadius: 12, backgroundColor: v2.color.forest + "18", borderWidth: 1, borderColor: v2.color.forest }}>
-                <Feather name="send" size={16} color={v2.color.forest} />
-                <Text style={{ color: v2.color.forest, fontWeight: "800", fontSize: 13 }}>Wyślij zamówienie do cateringu (Yubari)</Text>
-              </Pressable>
-            ) : null}
-          </Section>
-
-          {/* Checklist (Zadania imprezy) — only for saved events */}
-          {!isNew && (
-            <Pressable
-              onPress={() => router.push({ pathname: "/checklist/[id]", params: { id: String(id) } } as any)}
-              style={s.checklistLink}
-              testID="event-checklist-link"
-            >
-              <View style={s.checklistIconBox}>
-                <Feather name="check-square" size={20} color={v2.color.forest} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.checklistLabel}>Zadania imprezy</Text>
-                <Text style={s.checklistSub}>Checklista przygotowań · widoczna dla pracowników</Text>
-              </View>
-              <Feather name="chevron-right" size={20} color={v2.color.textMuted} />
-            </Pressable>
-          )}
-
-          </Collapse>
-
-          {(!isEmp || eperm("send_thanks")) ? (
-          <Collapse title="Komunikacja i automatyzacje" icon="mail" testID="sec-komunikacja">
-          {!isNew && preEventEmail && (
-            <Section title="Wiadomość przed imprezą">
-              <View testID="pre-event-email-card" style={s.preEmailCard}>
-                <PreEmailRow label="Rodzaj imprezy" value={categoryLabel(preEventEmail.event_category)} testID="pre-event-email-category" />
-                <PreEmailRow label="Regulamin" value={preEventEmail.regulation_label} testID="pre-event-email-regulation" />
-                <PreEmailRow
-                  label="Planowana wysyłka"
-                  value={preEventEmail.scheduled_at ? new Date(preEventEmail.scheduled_at).toLocaleString("pl-PL") : "—"}
-                  testID="pre-event-email-scheduled-at"
-                />
-                <PreEmailRow label="Adres e-mail" value={preEventEmail.address || "Brak"} testID="pre-event-email-address" />
-                <PreEmailRow
-                  label="Status"
-                  value={({ scheduled: "Oczekuje", sent: "Wysłano", failed: "Błąd", cancelled: "Anulowano", not_scheduled: "Oczekuje" } as Record<string, string>)[preEventEmail.status] || preEventEmail.status}
-                  testID="pre-event-email-status"
-                />
-                <View testID="pre-event-email-attachments" style={s.preEmailAttachments}>
-                  <Text style={s.preEmailAttachmentsTitle}>Załączniki</Text>
-                  {(preEventEmail.attachments || []).map((attachment: any) => (
-                    <View key={attachment.kind} testID={`pre-event-email-attachment-${attachment.kind}`} style={s.preEmailAttachmentRow}>
-                      <Feather name="check-circle" size={16} color={v2.color.success} />
-                      <Text style={s.preEmailAttachmentText}>{attachment.label}</Text>
-                    </View>
-                  ))}
-                </View>
-                {!!preEventEmail.notice && (
-                  <View testID="pre-event-email-notice" style={s.preEmailNotice}>
-                    <Feather name="alert-circle" size={16} color={v2.color.error} />
-                    <Text style={s.preEmailNoticeText}>{preEventEmail.notice}</Text>
-                  </View>
-                )}
-                {!!preEventEmail.error && !preEventEmail.notice && (
-                  <Text testID="pre-event-email-error" style={s.preEmailError}>{preEventEmail.error}</Text>
-                )}
-                <View style={s.preEmailActions}>
-                  <Pressable
-                    testID="pre-event-email-preview-button"
-                    onPress={async () => {
-                      try {
-                        const preview: any = await api.preEventEmailPreview(id as string);
-                        Alert.alert(preview.subject, preview.body);
-                      } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się pobrać podglądu."); }
-                    }}
-                    style={s.preEmailSecondaryButton}
-                  >
-                    <Feather name="mail" size={14} color={v2.color.forest} />
-                    <Text style={s.preEmailSecondaryText}>Podgląd maila</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="pre-event-regulation-preview-button"
-                    onPress={previewPreEventRegulation}
-                    disabled={preEventEmailBusy || !preEventEmail.regulation_type}
-                    style={[s.preEmailSecondaryButton, (!preEventEmail.regulation_type || preEventEmailBusy) && { opacity: 0.5 }]}
-                  >
-                    <Feather name="file-text" size={14} color={v2.color.forest} />
-                    <Text style={s.preEmailSecondaryText}>Podgląd regulaminu</Text>
-                  </Pressable>
-                </View>
-                <View style={s.preEmailActions}>
-                  <Pressable
-                    testID="pre-event-email-send-now-button"
-                    onPress={() => sendPreEventEmail(false)}
-                    disabled={preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona"}
-                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status === "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
-                  >
-                    {preEventEmailBusy ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={14} color="#fff" />}
-                    <Text style={s.preEmailPrimaryText}>Wyślij teraz</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="pre-event-email-resend-button"
-                    onPress={() => sendPreEventEmail(true)}
-                    disabled={preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona"}
-                    style={[s.preEmailPrimaryButton, (preEventEmailBusy || preEventEmail.status !== "sent" || status !== "potwierdzona") && { opacity: 0.45 }]}
-                  >
-                    <Feather name="repeat" size={14} color="#fff" />
-                    <Text style={s.preEmailPrimaryText}>Wyślij ponownie</Text>
-                  </Pressable>
-                </View>
-              </View>
-            </Section>
-          )}
-
-            {/* Thank-you status card — only for existing events that are already completed */}
-            {!isNew && status === "zakonczona" && thanksStatus && (
-              <View style={{ marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: thanksStatus.sent ? v2.color.successBg : v2.color.warningBg, borderWidth: 1, borderColor: thanksStatus.sent ? v2.color.success + "55" : v2.color.warning + "55" }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <Feather name={thanksStatus.sent ? "check-circle" : "alert-circle"} size={14} color={thanksStatus.sent ? v2.color.success : v2.color.warning} />
-                  <Text style={{ color: v2.color.text, fontSize: 13, fontWeight: "800" }}>
-                    {thanksStatus.sent ? "Wysłano podziękowanie z rabatem" : (thanksStatus.log?.status === "no_email" ? "Nie wysłano — brak e-maila klienta" : (thanksStatus.log?.status === "failed" ? "Błąd wysyłki" : "Podziękowanie niewysłane"))}
-                  </Text>
-                </View>
-                {thanksStatus.sent && thanksStatus.code ? (
-                  <>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 12 }}>Kod: <Text style={{ fontWeight: "800", color: v2.color.text }}>{thanksStatus.code.code}</Text> · ważny do {thanksStatus.code.expires_at_date}</Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 11, marginTop: 2 }}>Odbiorca: {thanksStatus.log?.recipient} · {thanksStatus.log?.sent_at ? new Date(thanksStatus.log.sent_at).toLocaleString("pl-PL") : ""}</Text>
-                  </>
-                ) : null}
-                {thanksStatus.log?.status === "failed" ? (
-                  <Text style={{ color: v2.color.error, fontSize: 11, marginTop: 2 }}>{thanksStatus.log?.error || ""}</Text>
-                ) : null}
-                <View style={{ flexDirection: "row", gap: 8, marginTop: 10 }}>
-                  <Pressable
-                    testID="thanks-preview"
-                    onPress={async () => {
-                      try {
-                        const p: any = await api.eventThanksPreview(id as string);
-                        Alert.alert(p.subject, p.body);
-                      } catch (e: any) { Alert.alert("Błąd", e?.message || ""); }
-                    }}
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.card, borderWidth: 1, borderColor: v2.color.border }}
-                  >
-                    <Feather name="eye" size={13} color={v2.color.text} />
-                    <Text style={{ color: v2.color.text, fontWeight: "800", fontSize: 12 }}>Podgląd</Text>
-                  </Pressable>
-                  <Pressable
-                    testID="thanks-resend"
-                    onPress={async () => {
-                      Alert.alert(
-                        thanksStatus.sent ? "Wysłać ponownie?" : "Wysłać teraz?",
-                        thanksStatus.sent ? "Zostanie użyty ten sam kod rabatowy." : "Wyślemy podziękowanie na e-mail klienta.",
-                        [
-                          { text: "Anuluj", style: "cancel" },
-                          { text: "Wyślij", onPress: async () => {
-                            try {
-                              if (thanksStatus.sent) {
-                                await api.eventResendThanks(id as string);
-                              } else {
-                                await api.eventComplete(id as string, true);
-                              }
-                              const ts: any = await api.eventThanksStatus(id as string);
-                              setThanksStatus(ts);
-                              Alert.alert("Wysłano", "Podziękowanie zostało wysłane.");
-                            } catch (e: any) { Alert.alert("Błąd", e?.message || "Nie udało się wysłać"); }
-                          }},
-                        ]
-                      );
-                    }}
-                    style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 10, backgroundColor: v2.color.forest }}
-                  >
-                    <Feather name="send" size={13} color="#fff" />
-                    <Text style={{ color: "#fff", fontWeight: "800", fontSize: 12 }}>{thanksStatus.sent ? "Wyślij ponownie" : "Wyślij teraz"}</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Collapse>
-          ) : null}
-
-          <Collapse title="Dodatkowe" icon="more-horizontal" testID="sec-dodatkowe">
-          {/* Weather */}
-          <Section title="Pogoda w dniu imprezy">
-            <Pressable
-              testID="weather-fetch"
-              onPress={async () => {
-                if (!date) return;
-                setWeatherLoading(true);
-                try {
-                  const w = await api.weather(date, timeStart, timeEnd);
-                  setWeather(w);
-                } catch (e: any) {
-                  setWeather({ available: false, message: e?.message || "Błąd pobierania prognozy" });
-                } finally { setWeatherLoading(false); }
-              }}
-              style={{
-                flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
-                paddingVertical: 12, borderRadius: 10,
-                backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.forest,
-              }}
-            >
-              {weatherLoading ? (
-                <ActivityIndicator color={v2.color.forest} size="small" />
-              ) : (
-                <>
-                  <Feather name="cloud" size={16} color={v2.color.forest} />
-                  <Text style={{ color: v2.color.forest, fontWeight: "700", fontSize: 13 }}>
-                    {weather ? "Odśwież prognozę" : "Sprawdź prognozę pogody"}
-                  </Text>
-                </>
-              )}
-            </Pressable>
-            {weather && !weather.available && (
-              <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 10, textAlign: "center", fontStyle: "italic" }}>
-                {weather.message || "Prognoza niedostępna"}
-              </Text>
-            )}
-            {weather && weather.available && (
-              <View style={{ marginTop: 12, padding: 14, borderRadius: 12, backgroundColor: v2.color.cardMuted, borderWidth: 1, borderColor: v2.color.border }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-                  <Feather name={weather.icon || "cloud"} size={40} color={v2.color.forest} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: v2.color.text, fontSize: 18, fontWeight: "800" }}>
-                      {weather.temp_min !== null ? `${weather.temp_min}°` : "—"}
-                      {" – "}
-                      {weather.temp_max !== null ? `${weather.temp_max}°C` : "—"}
-                    </Text>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 12, marginTop: 2 }}>{`${weather.description || ""} · ${weather.time_window || ""}`}</Text>
-                  </View>
-                </View>
-                <View style={{ flexDirection: "row", gap: 16, marginTop: 12 }}>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>OPADY</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.precipitation_prob}%</Text>
-                  </View>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>WIATR</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 14, fontWeight: "700" }}>{weather.wind_kmh} km/h</Text>
-                  </View>
-                  <View>
-                    <Text style={{ color: v2.color.textMuted, fontSize: 10, letterSpacing: 0.5 }}>LOKALIZACJA</Text>
-                    <Text style={{ color: v2.color.text, fontSize: 12, fontWeight: "600" }}>Kielce, Zastawie 4</Text>
-                  </View>
-                </View>
-              {!!weather.warning && (
-                  <View style={{ marginTop: 10, padding: 10, borderRadius: 8, backgroundColor: "rgba(245,158,11,0.15)", borderWidth: 1, borderColor: v2.color.warning }}>
-                    <Text style={{ color: v2.color.warning, fontSize: 12, fontWeight: "700" }}>{weather.warning}</Text>
-                  </View>
-                )}
-              </View>
-            )}
-          </Section>
-
-          {!isEmp ? (
-          <Section title="">
-            <Field label="Notatki">
-              <TextInput testID="event-notes-input" value={notes} onChangeText={setNotes} placeholder="Notatki, kontakt do klienta, uwagi..." placeholderTextColor={v2.color.textMuted} style={[s.input, { height: 140, textAlignVertical: "top" }]} multiline />
-            </Field>
-          </Section>
-          ) : null}
-
-          {/* Image */}
-          <Pressable testID="event-image-picker" onPress={showImagePicker} style={s.imageBox}>
-            {imageUrl ? (
-              <>
-                <Image source={imageUrl} style={StyleSheet.absoluteFill} contentFit="cover" />
-                <LinearGradient
-                  colors={["rgba(12,12,14,0.15)", "rgba(12,12,14,0.85)"]}
-                  style={StyleSheet.absoluteFill}
-                />
-                <View style={s.imageEditRow}>
-                  <View style={s.imageBadge}>
-                    <Feather name="camera" size={14} color={'#fff'} />
-                    <Text style={s.imageBadgeText}>Zmień zdjęcie</Text>
-                  </View>
-                  <Pressable testID="event-image-remove" onPress={(e) => { e.stopPropagation?.(); setImageUrl(""); }} hitSlop={10} style={s.imageRemoveBtn}>
-                    <Feather name="x" size={16} color={v2.color.text} />
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              <View style={s.imagePlaceholder}>
-                <Feather name="camera" size={28} color={v2.color.forest} />
-                <Text style={s.imagePlaceholderText}>Dodaj zdjęcie imprezy</Text>
-                <Text style={s.imagePlaceholderSub}>Galeria lub aparat</Text>
-              </View>
-            )}
-          </Pressable>
-
-          {/* Etap 3 — dokumenty PDF */}
-          {!isNew && !isEmp && (
-            <Section title="Dokumenty PDF">
-              <Pressable testID="pdf-confirmation-btn" onPress={() => downloadEventPdf("conf")} disabled={pdfBusy !== null} style={s.pdfRow}>
-                <View style={s.checklistIconBox}><Feather name="file-text" size={20} color={v2.color.forest} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.checklistLabel}>Potwierdzenie imprezy</Text>
-                  <Text style={s.checklistSub}>Elegancki PDF dla klienta — szczegóły i płatności</Text>
-                </View>
-                {pdfBusy === "conf" ? <ActivityIndicator color={v2.color.forest} /> : <Feather name="download" size={18} color={v2.color.textMuted} />}
-              </Pressable>
-              <Pressable testID="pdf-staffcard-btn" onPress={() => downloadEventPdf("staff")} disabled={pdfBusy !== null} style={[s.pdfRow, { borderTopWidth: 1, borderTopColor: v2.color.divider }]}>
-                <View style={s.checklistIconBox}><Feather name="clipboard" size={20} color={v2.color.forest} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={s.checklistLabel}>Karta dla obsługi</Text>
-                  <Text style={s.checklistSub}>Wewnętrzny PDF — organizacja, zespół, zadania (bez finansów)</Text>
-                </View>
-                {pdfBusy === "staff" ? <ActivityIndicator color={v2.color.forest} /> : <Feather name="download" size={18} color={v2.color.textMuted} />}
-              </Pressable>
-            </Section>
-          )}
-
-          {!isEmp ? (
-          <Pressable testID="save-as-template-btn" onPress={saveAsTemplate} disabled={!name.trim()} style={[s.tplSaveBtn, !name.trim() && { opacity: 0.5 }]}>
-            <Feather name="bookmark" size={16} color={v2.color.forest} />
-            <Text style={s.tplLoadText}>Zapisz jako szablon</Text>
-          </Pressable>
-          ) : null}
-          </Collapse>
-
-          {/* Historia zmian (audit log) */}
-          {!isNew ? (
-            <Collapse title="Historia zmian" icon="clock" testID="sec-historia">
-              <EventAuditList eventId={id as string} />
-            </Collapse>
-          ) : null}
-
         </ScrollView>
       </KeyboardAvoidingView>
 
       <View style={[s.footer, { paddingBottom: insets.bottom + 12 }]}>
-        <Pressable testID="event-save-btn" onPress={save} disabled={saving || !name.trim() || !date} style={[s.saveBtn, (saving || !name.trim() || !date) && { opacity: 0.5 }]}>
+        <Pressable testID="event-save-btn" onPress={save} disabled={!canSaveEvent || saving || !name.trim() || !date || (perPersonMode && !!financial.error)} style={[s.saveBtn, (saving || !name.trim() || !date || (perPersonMode && !!financial.error)) && { opacity: 0.5 }]}>
           {saving ? <ActivityIndicator color={'#fff'} /> : <Text style={s.saveBtnText}>{isNew ? "Utwórz imprezę" : "Zapisz zmiany"}</Text>}
         </Pressable>
       </View>
@@ -2913,6 +2085,12 @@ function Section({ title, children }: any) {
 }
 function Collapse({ title, icon, defaultOpen = false, children, testID }: any) {
   const [open, setOpen] = useState(!!defaultOpen);
+  if (testID !== "sec-organizacja") return (
+    <View style={[s.collapseWrap, testID === "sec-dane" && { borderWidth: 2, borderColor: v2.color.forest }]} testID={testID}>
+      <Text style={s.collapseTitle}>{title}</Text>
+      <View style={{ marginTop: 10 }}>{children}</View>
+    </View>
+  );
   return (
     <View style={s.collapseWrap}>
       <Pressable onPress={() => setOpen((o: boolean) => !o)} style={s.collapseHead} testID={testID}>
@@ -2954,6 +2132,13 @@ function SummaryRow({ label, value, bold }: { label: string; value: number; bold
 }
 
 const s = StyleSheet.create({
+  maskHint: { fontSize: 14, lineHeight: 21, color: v2.color.textMuted, marginVertical: 8 },
+  maskLink: { fontSize: 16, fontWeight: "700", color: v2.color.forest, paddingVertical: 12 },
+  maskNotice: { padding: 14, backgroundColor: v2.color.cardMuted, borderRadius: 12, marginBottom: 12 },
+  maskError: { fontSize: 14, lineHeight: 21, color: v2.color.error, paddingVertical: 8 },
+  maskTotals: { paddingVertical: 12, gap: 6 },
+  summaryTiles: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 },
+  summaryTile: { flexBasis: "47%", flexGrow: 1, padding: 12, gap: 5, borderRadius: 14, backgroundColor: v2.color.cardMuted },
   root: { flex: 1, backgroundColor: v2.color.bg },
   header: {
     flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingBottom: 14,

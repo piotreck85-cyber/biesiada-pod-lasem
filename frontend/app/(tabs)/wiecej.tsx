@@ -28,6 +28,13 @@ export default function WiecejScreen() {
       </View>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 140 }}>
         <View style={{ marginTop: 6, gap: 10 }}>
+          {user && user.role !== "staff" && user.id === (user.workspace_id || user.id) && (
+            <Pressable testID="owner-activity-link" onPress={() => router.push("/aktywnosc-zespolu" as any)} style={s.tile}>
+              <Feather name="activity" size={22} color={theme.color.onSurface} />
+              <View style={{ flex: 1 }}><Text style={s.tileLabel}>Aktywność zespołu</Text><Text style={s.tileSub}>Wejścia do sekcji, logowania i zapisane zmiany · tylko właściciel</Text></View>
+              <Feather name="chevron-right" size={20} color={theme.color.onSurfaceSecondary} />
+            </Pressable>
+          )}
           {TILES.map(t => (
             <Pressable key={t.key} onPress={() => router.push(t.route as any)} style={[s.tile, { borderColor: t.color + "44" }]}>
               <View style={[s.tileIconBox, { backgroundColor: t.color + "18" }]}>
@@ -44,6 +51,11 @@ export default function WiecejScreen() {
 
         <View style={{ marginTop: 24 }}>
           <Text style={s.sectionTitle}>Ustawienia</Text>
+          {user && user.role !== "staff" && user.id === (user.workspace_id || user.id) && <Pressable testID="settings-integrations" onPress={() => router.push("/ustawienia/integracje" as any)} style={s.row}>
+            <Feather name="refresh-cw" size={16} color={theme.color.onSurfaceSecondary} />
+            <Text style={s.rowLabel}>Integracje</Text>
+            <Feather name="chevron-right" size={16} color={theme.color.onSurfaceSecondary} />
+          </Pressable>}
           <Pressable onPress={() => router.push("/oferta")} style={s.row}>
             <Feather name="dollar-sign" size={16} color={theme.color.onSurfaceSecondary} />
             <Text style={s.rowLabel}>Cennik oferty</Text>

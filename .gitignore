@@ -86,3 +86,9 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Track secret-free configuration examples only
+!.env.example
+!**/.env.example
+# Private calendar exports
+*.ics

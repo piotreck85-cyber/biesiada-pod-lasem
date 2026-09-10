@@ -49,6 +49,10 @@ async function requestBlob(path: string): Promise<Blob> {
 }
 
 export const api = {
+  timeTreeStatus: () => request("/integrations/timetree"),
+  timeTreeSync: () => request("/integrations/timetree/sync", { method: "POST" }),
+  activityVisit: (section: string) => request("/activity/visit", { method: "POST", body: JSON.stringify({ section }) }),
+  activity: (days: number = 7, userId: string = "", kind: "all" | "login" | "browsing" = "all") => request(`/activity?days=${days}&user_id=${encodeURIComponent(userId)}&kind=${kind}`),
   register: (email: string, password: string, name?: string) =>
     request("/auth/register", { method: "POST", body: JSON.stringify({ email, password, name }) }),
   login: (email: string, password: string) =>
@@ -90,6 +94,8 @@ export const api = {
   getEvent: (id: string) => request(`/events/${id}`),
   createEvent: (data: any) => request("/events", { method: "POST", body: JSON.stringify(data) }),
   updateEvent: (id: string, data: any) => request(`/events/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  bulkUpdateEventStatus: (event_ids: string[], status: string) =>
+    request("/events/bulk-status", { method: "PATCH", body: JSON.stringify({ event_ids, status }) }),
   deleteEvent: (id: string) => request(`/events/${id}`, { method: "DELETE" }),
 
   stats: (year: number, month: number) => request(`/stats?year=${year}&month=${month}`),

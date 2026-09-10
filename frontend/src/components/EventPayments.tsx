@@ -75,7 +75,7 @@ export default function EventPayments({ eventId, priceTotalOverride }: { eventId
   useEffect(() => { load(); }, [load]);
 
   const priceTotal = useMemo(() => {
-    if (priceTotalOverride !== undefined && priceTotalOverride > 0) return priceTotalOverride;
+    if (priceTotalOverride !== undefined && priceTotalOverride >= 0) return priceTotalOverride;
     return data?.event?.price_total || 0;
   }, [data, priceTotalOverride]);
 

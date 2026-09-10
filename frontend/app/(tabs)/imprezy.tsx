@@ -7,6 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { theme, formatPLN } from "@/src/theme";
+import { useAuth } from "@/src/auth";
 import { api } from "@/src/api";
 import { categoryLabel, categoryTopGroup } from "@/src/categories";
 import { findAdultSet } from "@/src/offers";
@@ -58,6 +59,8 @@ function relativeTime(iso?: string) {
 }
 
 export default function Ostatnie() {
+  const { user } = useAuth();
+  const canCreate = !!user && (user.role !== "staff" || !!user.permissions?.event_create);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [events, setEvents] = useState<any[]>([]);
@@ -305,13 +308,13 @@ export default function Ostatnie() {
         />
       )}
 
-      <Pressable
+      {canCreate && <Pressable
         testID="fab-new-event"
         style={[s.fab, { bottom: insets.bottom + 80 }]}
         onPress={() => router.push({ pathname: "/event/[id]", params: { id: "new" } })}
       >
         <Feather name="plus" size={24} color={theme.color.onBrand} />
-      </Pressable>
+      </Pressable>}
     </View>
   );
 }

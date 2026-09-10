@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState, ReactNode, useCallback } from "react";
-import { Platform } from "react-native";
+import { AppState, Platform } from "react-native";
 import * as Linking from "expo-linking";
 import { api, tokenStore } from "./api";
 
@@ -10,6 +10,7 @@ type User = {
   picture?: string;
   role?: "admin" | "staff" | string;
   staff_id?: string;
+  workspace_id?: string;
   permissions?: Partial<Record<string, boolean>>;
 };
 type AuthContextValue = {
@@ -95,6 +96,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
     return () => { mounted = false; };
   }, [loginWithSessionId]);
+
+  // Re-read permissions from the authenticated API, including after returning to the app.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    let busy = false;
+    const userId = user.id;
+    const refresh = async () => {
+      if (busy) return;
+      busy = true;
+      try {
+        const me: any = await api.me();
+        if (!cancelled && me.id === userId) setUser(current => current?.id === userId ? me : current);
+      } catch { /* Keep session during a temporary network failure. API still enforces current permissions. */ }
+      finally { busy = false; }
+    };
+    void refresh();
+    const timer = setInterval(() => { if (AppState.currentState === "active" || Platform.OS === "web") void refresh(); }, 15000);
+    const sub = AppState.addEventListener("change", state => { if (state === "active") void refresh(); });
+    const focus = () => { void refresh(); };
+    if (Platform.OS === "web" && typeof window !== "undefined") window.addEventListener("focus", focus);
+    return () => { cancelled = true; clearInterval(timer); sub.remove();
+      if (Platform.OS === "web" && typeof window !== "undefined") window.removeEventListener("focus", focus);
+    };
+  }, [user?.id]);
 
   // Hot deep-links (mobile): listen for URLs delivered while the app is running.
   useEffect(() => {

@@ -20,7 +20,7 @@ type Tab = "urodziny" | "warsztaty" | "grill" | "obiad";
 export default function Oferta() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("urodziny");
+  const [tab, setTab] = useState<Tab>("warsztaty");
   const [seasonFilter, setSeasonFilter] = useState<string>("Wszystkie");
 
   // Editable menu prices + custom items (per-workspace)
@@ -257,10 +257,10 @@ export default function Oferta() {
       <View style={s.header}>
         <View style={{ flex: 1 }}>
           <Text style={s.brand}>Oferta</Text>
-          <Text style={s.title}>Dolina Przygód</Text>
+          <Text style={s.title}>Jesienne Warsztaty 2026</Text>
           <Pressable testID="source-link" onPress={() => Linking.openURL(SOURCE_URL)} style={s.sourceRow}>
             <Feather name="external-link" size={12} color={theme.color.brand} />
-            <Text style={s.sourceText}>dolinaprzygod.pl</Text>
+            <Text style={s.sourceText}>Biesiada pod Lasem</Text>
           </Pressable>
         </View>
         <Pressable testID="send-offer-btn" onPress={openEmailModal} style={s.sendBtn} hitSlop={8}>

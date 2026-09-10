@@ -1,0 +1,6 @@
+*
+!Dockerfile.timetree
+!requirements-timetree.txt
+!timetree_sync.py
+!timetree_export.py
+!timetree_worker.py
