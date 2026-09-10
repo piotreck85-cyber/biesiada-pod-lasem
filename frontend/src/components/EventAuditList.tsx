@@ -26,12 +26,13 @@ export default function EventAuditList({ eventId }: { eventId: string }) {
           <Feather name={r.kind === "field" ? "edit-2" : "activity"} size={13} color={v2.color.sage} style={{ marginTop: 2 }} />
           <View style={{ flex: 1 }}>
             <Text style={st.meta}>{fmt(r.at)}  ·  {r.user_name || "?"}</Text>
+            {r.user_id === "system / TimeTree" && r.summary && <Text style={st.text}>{r.summary}</Text>}
             {r.kind === "field" ? (
               <Text style={st.text}>
-                <Text style={{ fontWeight: "800" }}>{r.field_label || r.field}:</Text> {r.old} → <Text style={{ fontWeight: "800", color: v2.color.forest }}>{r.new}</Text>
+                <Text style={{ fontWeight: "800" }}>{r.field_label || r.field}:</Text> {String(r.old ?? "—")} → <Text style={{ fontWeight: "800", color: v2.color.forest }}>{String(r.new ?? "—")}</Text>
               </Text>
             ) : (
-              <Text style={st.text}>{r.summary || r.action}</Text>
+              r.user_id !== "system / TimeTree" ? <Text style={st.text}>{r.summary || r.action}</Text> : null
             )}
           </View>
         </View>

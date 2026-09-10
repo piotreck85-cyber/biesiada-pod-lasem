@@ -284,11 +284,13 @@ export default function Statystyki() {
         try {
           const result: any = await api.importBackup({
             staff: parsed.staff || [],
+            staff_invitations: parsed.staff_invitations || [],
             events: parsed.events || [],
             templates: parsed.templates || [],
             mode,
           });
-          Alert.alert("Import zakończony", `Zaimportowano: ${result.imported.events} imprez, ${result.imported.staff} pracowników, ${result.imported.templates} szablonów.`);
+          const importedInvites = result?.imported?.staff_invitations || 0;
+          Alert.alert("Import zakończony", `Zaimportowano: ${result.imported.events} imprez, ${result.imported.staff} pracowników, ${importedInvites} zaproszeń, ${result.imported.templates} szablonów.`);
           await load();
         } catch (e: any) { Alert.alert("Błąd", e.message || "Nie udało się"); }
       };

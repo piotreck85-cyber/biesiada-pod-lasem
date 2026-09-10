@@ -86,7 +86,7 @@ export default function TabLayout() {
           name="kalendarz"
           options={{
             title: "Kalendarz", tabBarIcon: ({ focused }) => <TabIcon name="calendar" focused={focused} />,
-            href: perms.calendar_view ? "/kalendarz" : null,
+            href: ["calendar_view", "event_create", "event_edit", "event_delete", "event_status", "event_org_edit"].some(k => perms[k]) ? "/kalendarz" : null,
           }}
         />
         {/* Hide admin-only tabs entirely from staff */}

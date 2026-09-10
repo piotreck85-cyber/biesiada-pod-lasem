@@ -1,0 +1,7 @@
+FROM python:3.12-slim
+WORKDIR /service
+COPY requirements-timetree.txt ./
+RUN pip install --no-cache-dir -r requirements-timetree.txt && useradd --create-home worker
+COPY timetree_sync.py timetree_export.py timetree_worker.py ./
+USER worker
+CMD ["python", "timetree_worker.py"]
